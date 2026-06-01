@@ -1,0 +1,43 @@
+# ── Rust build artifacts ──────────────────────────────────────────────
+/target/
+**/target/
+**/*.rs.bk
+# (Cargo.lock is intentionally NOT ignored — we ship apps, want reproducible builds)
+
+# ── External tool checkouts (multi-GB clones, each with its own .git) ──
+/splat-tools/
+
+# ── Pipeline run outputs ──────────────────────────────────────────────
+/splat_run/
+**/exports/
+**/undistorted/
+**/sparse/
+*.db
+
+# ── Gaussian-splat / 3D data (large binaries — keep them out of git) ──
+*.ply
+*.splat
+*.ksplat
+*.spz
+*.sog
+*.ssproj
+*.gcloud
+
+# ── Capture dumps ─────────────────────────────────────────────────────
+*.mp4
+*.mov
+*.mkv
+**/images/
+**/frames/
+
+# ── Bevy / wgpu app assets that are large binaries ────────────────────
+**/assets/**/*.ply
+**/assets/**/*.gcloud
+
+# ── Local agent / editor / OS state ───────────────────────────────────
+.claude/
+.DS_Store
+*~
+*.swp
+.idea/
+.vscode/
