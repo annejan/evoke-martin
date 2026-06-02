@@ -107,7 +107,7 @@ fn main() {
         .as_deref()
         .map(file_name_of)
         .unwrap_or_else(|| "aegg.ply".into());
-    const SEP: f32 = 1.6;
+    const SEP: f32 = 1.2;
     let clouds = match std::env::var("DOGDEMO_PLY2").ok() {
         Some(p2) => vec![
             (name1, Vec3::new(-SEP, 0.0, 0.0)),
