@@ -14,3 +14,8 @@ bevy_gaussian_splatting = "7.0.1"
 opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
+
+# Vendored fork of the splat renderer so we can inject the explosion displacement
+# into its WGSL (shaders load via hardcoded-UUID internal assets — no app-side hook).
+[patch.crates-io]
+bevy_gaussian_splatting = { path = "vendor/bevy_gaussian_splatting" }

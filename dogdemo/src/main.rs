@@ -18,6 +18,7 @@ use bevy::app::AppExit;
 use bevy::camera::primitives::Aabb;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::camera::visibility::NoFrustumCulling;
 use bevy_gaussian_splatting::{
     CloudSettings, GaussianCamera, GaussianSplattingPlugin, PlanarGaussian3dHandle,
 };
@@ -105,10 +106,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 /// Frame the camera to the cloud's bounding sphere once its Aabb is known.
 fn frame_on_load(
-    cloud: Query<(&Aabb, &Transform), With<PlanarGaussian3dHandle>>,
+    mut commands: Commands,
+    cloud: Query<(Entity, &Aabb, &Transform), With<PlanarGaussian3dHandle>>,
     mut cam: Query<&mut OrbitCam>,
 ) {
-    let Ok((aabb, cloud_tf)) = cloud.single() else {
+    let Ok((cloud_entity, aabb, cloud_tf)) = cloud.single() else {
         return;
     };
     for mut c in &mut cam {
@@ -121,6 +123,9 @@ fn frame_on_load(
         c.radius = bounding_radius * 1.5;
         c.elevation = bounding_radius * 0.25;
         c.framed = true;
+        // Aabb now exists (the crate skips Aabb-insertion for NoFrustumCulling entities),
+        // so disable entity-level culling so the expanding blast never pops out of view.
+        commands.entity(cloud_entity).insert(NoFrustumCulling);
         info!(
             "framed cloud: center={center:?}  bounding_radius={bounding_radius:.3}  camera_radius={:.3}",
             c.radius
@@ -181,27 +186,19 @@ fn controls(
 /// (Transform + CloudSettings.global_opacity) — no per-frame re-upload.
 fn apply_explosion(
     explode: Res<ExplodeState>,
-    cam: Query<&OrbitCam>,
-    mut cloud: Query<(&mut Transform, &mut CloudSettings), With<PlanarGaussian3dHandle>>,
+    mut cloud: Query<&mut CloudSettings, With<PlanarGaussian3dHandle>>,
 ) {
-    let Ok((mut tf, mut settings)) = cloud.single_mut() else {
+    let Ok(mut settings) = cloud.single_mut() else {
         return;
     };
-    let center = cam.single().map(|c| c.center).unwrap_or(Vec3::ZERO);
-    let rot = cloud_base_rotation();
-
     if explode.active {
         let t = explode.t;
-        let s = 1.0 + EXPAND_RATE * t;
-        tf.rotation = rot;
-        tf.scale = Vec3::splat(s);
-        tf.translation = (1.0 - s) * center; // uniform scale about the world centroid
+        settings.time = t; // drives the per-Gaussian ballistic displacement in gaussian.wgsl
+        settings.global_scale = 1.0 + 0.3 * t; // splats fatten as they fly → smokier
         settings.global_opacity = (1.0 - FADE_RATE * t).max(0.0);
     } else {
-        // clean reset (nothing was re-uploaded)
-        tf.rotation = rot;
-        tf.scale = Vec3::ONE;
-        tf.translation = Vec3::ZERO;
+        settings.time = 0.0; // exact reset to the original pose (displacement is a no-op at t=0)
+        settings.global_scale = 1.0;
         settings.global_opacity = 1.0;
     }
 }
