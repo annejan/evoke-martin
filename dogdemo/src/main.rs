@@ -1,23 +1,36 @@
-//! dogdemo — Phase 0/1: load a Gaussian splat (.ply) and orbit a camera around it.
+//! dogdemo — Phase 0/1/2: load a Gaussian splat, orbit it, and explode it.
 //!
 //! Controls:
 //!   Up / Down    : zoom in / out
 //!   Left / Right : lower / raise the camera
-//!   Space        : toggle "explode" state (Phase 2 stub)
+//!   Space        : trigger / reset the explosion
 //!
-//! The camera AUTO-FRAMES the splat once it loads (reads the cloud's `Aabb`).
+//! Phase 2 MVP (this file): a GPU-side "puff" — the whole cloud expands from its
+//! centroid (Transform scale) and fades (CloudSettings.global_opacity), driven by
+//! ExplodeState.t. No per-frame re-upload. The ballistic per-Gaussian version
+//! (shader fork) layers on top of these same levers next.
 //!
-//! Debug: set DOGDEMO_SHOT=/path/frame.png to grab the rendered framebuffer at
-//! t=5s and exit (captures exactly what the camera sees, no window manager).
+//! Debug envs: DOGDEMO_SHOT=/path.png captures the framebuffer at t=4.5s and exits;
+//! DOGDEMO_EXPLODE=1 auto-triggers the explosion at t=2s (for headless capture).
 
 use bevy::prelude::*;
 use bevy::app::AppExit;
 use bevy::camera::primitives::Aabb;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
 use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::render::view::screenshot::{save_to_disk, Screenshot};
 use bevy_gaussian_splatting::{
     CloudSettings, GaussianCamera, GaussianSplattingPlugin, PlanarGaussian3dHandle,
 };
+use std::f32::consts::PI;
+
+/// Tuning for the MVP puff.
+const EXPAND_RATE: f32 = 1.5; // cloud scale = 1 + EXPAND_RATE * t
+const FADE_RATE: f32 = 0.15; // opacity = 1 - FADE_RATE * t
+
+/// Brush/COLMAP .ply is Y-down/Z-forward → rotate the cloud 180° about X for Y-up.
+fn cloud_base_rotation() -> Quat {
+    Quat::from_rotation_x(PI)
+}
 
 #[derive(Component)]
 struct OrbitCam {
@@ -30,13 +43,7 @@ struct OrbitCam {
 
 impl Default for OrbitCam {
     fn default() -> Self {
-        Self {
-            center: Vec3::ZERO,
-            radius: 5.0,
-            elevation: 1.5,
-            yaw: 0.0,
-            framed: false,
-        }
+        Self { center: Vec3::ZERO, radius: 5.0, elevation: 1.5, yaw: 0.0, framed: false }
     }
 }
 
@@ -46,11 +53,13 @@ struct ExplodeState {
     t: f32,
 }
 
-/// Debug auto-screenshot driven by the DOGDEMO_SHOT env var.
+/// Debug driver (env-gated): auto-explode + framebuffer screenshot + exit.
 #[derive(Resource)]
-struct AutoShot {
-    path: Option<String>,
-    done: bool,
+struct Debug {
+    shot: Option<String>,
+    auto_explode: bool,
+    shot_done: bool,
+    exploded: bool,
 }
 
 fn main() {
@@ -64,12 +73,17 @@ fn main() {
         }))
         .add_plugins(GaussianSplattingPlugin)
         .init_resource::<ExplodeState>()
-        .insert_resource(AutoShot {
-            path: std::env::var("DOGDEMO_SHOT").ok(),
-            done: false,
+        .insert_resource(Debug {
+            shot: std::env::var("DOGDEMO_SHOT").ok(),
+            auto_explode: std::env::var("DOGDEMO_EXPLODE").is_ok(),
+            shot_done: false,
+            exploded: false,
         })
         .add_systems(Startup, setup)
-        .add_systems(Update, (frame_on_load, orbit_camera, controls, auto_screenshot))
+        .add_systems(
+            Update,
+            (frame_on_load, controls, orbit_camera, apply_explosion, debug_driver),
+        )
         .run();
 }
 
@@ -77,11 +91,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         PlanarGaussian3dHandle(asset_server.load("aegg.ply")),
         CloudSettings::default(),
-        // Brush/COLMAP splats are Y-down/Z-forward vs Bevy's Y-up: rotate 180° about X.
-        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::PI)),
+        Transform::from_rotation(cloud_base_rotation()),
     ));
+
     commands.spawn((
-        GaussianCamera { warmup: true }, // REQUIRED: splat sort/draw systems only run for cameras with this marker
+        GaussianCamera { warmup: true },
         Camera3d::default(),
         Tonemapping::None,
         Transform::default(),
@@ -89,7 +103,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-/// Once the cloud's `Aabb` exists, frame the camera to its bounding sphere.
+/// Frame the camera to the cloud's bounding sphere once its Aabb is known.
 fn frame_on_load(
     cloud: Query<(&Aabb, &Transform), With<PlanarGaussian3dHandle>>,
     mut cam: Query<&mut OrbitCam>,
@@ -101,11 +115,10 @@ fn frame_on_load(
         if c.framed {
             continue;
         }
-        // Aabb is in the cloud's local space; map its center to world via the cloud transform.
         let center = cloud_tf.transform_point(Vec3::from(aabb.center));
         let bounding_radius = Vec3::from(aabb.half_extents).length().max(0.001);
         c.center = center;
-        c.radius = bounding_radius * 1.5; // tighter zoom than before
+        c.radius = bounding_radius * 1.5;
         c.elevation = bounding_radius * 0.25;
         c.framed = true;
         info!(
@@ -115,13 +128,16 @@ fn frame_on_load(
     }
 }
 
-fn orbit_camera(mut q: Query<(&mut Transform, &OrbitCam)>) {
+fn orbit_camera(explode: Res<ExplodeState>, mut q: Query<(&mut Transform, &OrbitCam)>) {
+    // Pull back as the cloud expands, but slower than it grows, so the blast stays in frame.
+    let zoom = if explode.active {
+        1.0 + EXPAND_RATE * explode.t * 0.6
+    } else {
+        1.0
+    };
     for (mut tf, cam) in &mut q {
-        let offset = Vec3::new(
-            cam.radius * cam.yaw.cos(),
-            cam.elevation,
-            cam.radius * cam.yaw.sin(),
-        );
+        let r = cam.radius * zoom;
+        let offset = Vec3::new(r * cam.yaw.cos(), cam.elevation * zoom, r * cam.yaw.sin());
         tf.translation = cam.center + offset;
         tf.look_at(cam.center, Vec3::Y);
     }
@@ -154,32 +170,66 @@ fn controls(
     if keys.just_pressed(KeyCode::Space) {
         explode.active = !explode.active;
         explode.t = 0.0;
-        info!("explode -> {} (Phase 2 hook)", explode.active);
+        info!("explode -> {}", explode.active);
     }
     if explode.active {
         explode.t += dt;
     }
 }
 
-/// Debug: at t=5s, capture the rendered frame to DOGDEMO_SHOT and exit.
-fn auto_screenshot(
+/// MVP explosion: expand the cloud from its centroid and fade it out, GPU-side
+/// (Transform + CloudSettings.global_opacity) — no per-frame re-upload.
+fn apply_explosion(
+    explode: Res<ExplodeState>,
+    cam: Query<&OrbitCam>,
+    mut cloud: Query<(&mut Transform, &mut CloudSettings), With<PlanarGaussian3dHandle>>,
+) {
+    let Ok((mut tf, mut settings)) = cloud.single_mut() else {
+        return;
+    };
+    let center = cam.single().map(|c| c.center).unwrap_or(Vec3::ZERO);
+    let rot = cloud_base_rotation();
+
+    if explode.active {
+        let t = explode.t;
+        let s = 1.0 + EXPAND_RATE * t;
+        tf.rotation = rot;
+        tf.scale = Vec3::splat(s);
+        tf.translation = (1.0 - s) * center; // uniform scale about the world centroid
+        settings.global_opacity = (1.0 - FADE_RATE * t).max(0.0);
+    } else {
+        // clean reset (nothing was re-uploaded)
+        tf.rotation = rot;
+        tf.scale = Vec3::ONE;
+        tf.translation = Vec3::ZERO;
+        settings.global_opacity = 1.0;
+    }
+}
+
+fn debug_driver(
     time: Res<Time>,
-    mut shot: ResMut<AutoShot>,
+    mut dbg: ResMut<Debug>,
+    mut explode: ResMut<ExplodeState>,
     mut commands: Commands,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let Some(path) = shot.path.clone() else {
-        return;
-    };
-    let t = time.elapsed_secs();
-    if !shot.done && t >= 5.0 {
-        commands
-            .spawn(Screenshot::primary_window())
-            .observe(save_to_disk(path.clone()));
-        shot.done = true;
-        info!("auto-screenshot -> {path}");
+    let el = time.elapsed_secs();
+    if dbg.auto_explode && !dbg.exploded && el >= 2.0 {
+        explode.active = true;
+        explode.t = 0.0;
+        dbg.exploded = true;
+        info!("debug: auto-explode triggered at t={el:.1}");
     }
-    if shot.done && t >= 7.0 {
-        exit.write(AppExit::Success);
+    if let Some(path) = dbg.shot.clone() {
+        if !dbg.shot_done && el >= 4.5 {
+            commands
+                .spawn(Screenshot::primary_window())
+                .observe(save_to_disk(path.clone()));
+            dbg.shot_done = true;
+            info!("auto-screenshot -> {path}");
+        }
+        if dbg.shot_done && el >= 6.5 {
+            exit.write(AppExit::Success);
+        }
     }
 }
