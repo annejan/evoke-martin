@@ -4,7 +4,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${1:-$HERE/aegg_explosion.mp4}"
-FRAMES="${FRAMES:-220}"
+FRAMES="${FRAMES:-420}"
 FR="$(mktemp -d)"
 export DISPLAY="${DISPLAY:-:0}"
 

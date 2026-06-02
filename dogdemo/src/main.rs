@@ -195,8 +195,8 @@ fn main() {
             RecordState {
                 dir: std::env::var("DOGDEMO_RECORD").ok(),
                 frames,
-                hold: 40,
-                dt: 1.0 / 30.0,
+                hold: 60, // ~2 s intact intro before detonating
+                dt: 1.0 / 60.0, // half-speed explosion clock → slower, smoother motion
                 yaw_step: 2.0 * PI / frames as f32,
                 i: 0,
                 grace: 0,
@@ -283,10 +283,13 @@ fn frame_on_load(
 /// Reform-sequence camera zoom (continuous at t=0): martins framed → pull back
 /// for the blast → zoom IN on the reformed central dog (settle 1.0→0.55).
 fn reform_zoom(t: f32) -> f32 {
-    let p = ((t - 2.0) / 2.5).clamp(0.0, 1.0);
-    let settle = 1.0 - 0.45 * p;
-    let x = (t - 2.0) / 1.1;
-    settle + 1.5 * (-x * x).exp()
+    // smooth ease from framing the Martins (1.0) to framing the dog (~0.65), with a
+    // gentle, wide pull-back so the camera glides rather than lurching/shaking.
+    let p = (t / 5.0).clamp(0.0, 1.0);
+    let ease = p * p * (3.0 - 2.0 * p); // smoothstep
+    let settle = 1.0 - 0.35 * ease;
+    let x = (t - 2.0) / 2.0;
+    settle + 0.45 * (-x * x).exp()
 }
 
 fn orbit_camera(
@@ -324,7 +327,7 @@ fn controls(
     }
     let dt = time.delta_secs();
     for mut cam in &mut q {
-        cam.yaw = FRONT_YAW + SWAY * (time.elapsed_secs() * 0.6).sin(); // front sway, not a full spin
+        cam.yaw = FRONT_YAW + SWAY * (time.elapsed_secs() * 0.4).sin(); // gentle front sway
         let step = cam.radius.max(1.0);
         if keys.pressed(KeyCode::ArrowUp) {
             cam.radius = (cam.radius - dt * step).max(0.05);
