@@ -29,7 +29,7 @@ use std::f32::consts::PI;
 
 /// Tuning for the MVP puff.
 const EXPAND_RATE: f32 = 1.5; // cloud scale = 1 + EXPAND_RATE * t
-const FADE_RATE: f32 = 0.4; // exploder opacity = 1 - FADE_RATE*t (fast, so the reform reads)
+const FADE_RATE: f32 = 0.6; // exploder opacity = 1 - FADE_RATE*t (fast → masks dust away quickly)
 
 /// Brush/COLMAP .ply is Y-down/Z-forward → rotate the cloud 180° about X for Y-up.
 fn cloud_base_rotation() -> Quat {
@@ -364,7 +364,7 @@ fn animate_clouds(
                     let e = tau - start;
                     s.time = e;
                     s.global_opacity = (1.0 - FADE_RATE * e).max(0.0);
-                    s.global_scale = 1.0 + 0.3 * e;
+                    s.global_scale = (1.0 - 0.5 * e).max(0.15); // shrink to fine specks → dust, not blobs
                 }
             }
             AnimRole::Reform { start, dur, scatter } => {
@@ -440,8 +440,8 @@ fn record_driver(
 
     let i = rec.i;
     // gentle front-facing sway — never orbit to the splat's missing back
-    const FRONT_YAW: f32 = 2.36; // ~135°, faces the splats' front
-    const SWAY: f32 = 0.5;
+    const FRONT_YAW: f32 = 1.4; // faces both Martins head-on (both captures)
+    const SWAY: f32 = 0.25; // tight sway so neither rolls into a hollow profile
     let yaw = FRONT_YAW + SWAY * (i as f32 * rec.yaw_step).sin();
     for mut c in &mut camq {
         c.yaw = yaw;

@@ -217,10 +217,13 @@ fn vs_points(
         let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
         let radius = max(length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.5, 1e-4);
         let rnd = explode_hash3(splat_index);
-        let dir = normalize((position.xyz - center) + (rnd - vec3<f32>(0.5)) * radius * 0.05 + vec3<f32>(1e-5));
-        let speed = radius * mix(0.45, 1.0, rnd.x);
-        let gravity = vec3<f32>(0.0, -radius * 0.18, 0.0);
-        let noise = (rnd - vec3<f32>(0.5)) * radius * 0.25;
+        // strongly randomize direction so a (front-shell) face shatters into DUST,
+        // not a coherent expanding half-mask
+        let jitter = (rnd - vec3<f32>(0.5)) * radius * 0.6;
+        let dir = normalize((position.xyz - center) + jitter + vec3<f32>(1e-5));
+        let speed = radius * mix(0.7, 2.2, rnd.x);
+        let gravity = vec3<f32>(0.0, -radius * 0.2, 0.0);
+        let noise = (rnd - vec3<f32>(0.5)) * radius * 0.7;
         let disp = dir * speed * explode_t + 0.5 * gravity * explode_t * explode_t + noise * explode_t;
         position = vec4<f32>(position.xyz + disp, 1.0);
     }
