@@ -29,7 +29,7 @@ use std::f32::consts::PI;
 
 /// Tuning for the MVP puff.
 const EXPAND_RATE: f32 = 1.5; // cloud scale = 1 + EXPAND_RATE * t
-const FADE_RATE: f32 = 0.15; // opacity = 1 - FADE_RATE * t
+const FADE_RATE: f32 = 0.4; // exploder opacity = 1 - FADE_RATE*t (fast, so the reform reads)
 
 /// Brush/COLMAP .ply is Y-down/Z-forward → rotate the cloud 180° about X for Y-up.
 fn cloud_base_rotation() -> Quat {
@@ -57,10 +57,37 @@ struct ExplodeState {
     t: f32,
 }
 
-/// Splats to load: (asset file name, world offset). One entry for DOGDEMO_PLY,
-/// two (side by side) if DOGDEMO_PLY2 is also set.
+/// Per-cloud animation role, driven by the master clock `tau` (ExplodeState.t).
+#[derive(Clone, Copy)]
+enum AnimRole {
+    /// Intact until `start`, then flies apart + fades out.
+    Explode { start: f32 },
+    /// Invisible + scattered until `start`, then particles fly IN (explosion run
+    /// backwards) and fade in over `dur` seconds, coalescing into the shape.
+    Reform { start: f32, dur: f32, scatter: f32 },
+}
+
+#[derive(Component, Clone, Copy)]
+struct CloudAnim(AnimRole);
+
+struct CloudCfg {
+    name: String,
+    offset: Vec3,
+    role: AnimRole,
+}
+
+/// Splats to load (DOGDEMO_PLY / _PLY2 explode; DOGDEMO_REFORM reforms in place).
 #[derive(Resource)]
-struct Clouds(Vec<(String, Vec3)>);
+struct Clouds(Vec<CloudCfg>);
+
+/// True when a reformer is present → camera returns to frame after the blast.
+#[derive(Resource)]
+struct HasReform(bool);
+
+/// DOGDEMO_YAW=<rad>: pin the camera to a fixed orbit angle (for diagnosing which
+/// way a splat faces). None → normal spin/sway.
+#[derive(Resource)]
+struct CamOverride(Option<f32>);
 
 fn file_name_of(p: &str) -> String {
     std::path::Path::new(p)
@@ -108,13 +135,25 @@ fn main() {
         .map(file_name_of)
         .unwrap_or_else(|| "aegg.ply".into());
     const SEP: f32 = 1.2;
-    let clouds = match std::env::var("DOGDEMO_PLY2").ok() {
-        Some(p2) => vec![
-            (name1, Vec3::new(-SEP, 0.0, 0.0)),
-            (file_name_of(&p2), Vec3::new(SEP, 0.0, 0.0)),
-        ],
-        None => vec![(name1, Vec3::ZERO)],
-    };
+    let reform_name = std::env::var("DOGDEMO_REFORM").ok().map(|p| file_name_of(&p));
+    let has_reform = reform_name.is_some();
+    let mut clouds: Vec<CloudCfg> = Vec::new();
+    match std::env::var("DOGDEMO_PLY2").ok() {
+        // two splats → staggered exploders, side by side
+        Some(p2) => {
+            clouds.push(CloudCfg { name: name1, offset: Vec3::new(-SEP, 0.0, 0.0), role: AnimRole::Explode { start: 0.5 } });
+            clouds.push(CloudCfg { name: file_name_of(&p2), offset: Vec3::new(SEP, 0.0, 0.0), role: AnimRole::Explode { start: 1.0 } });
+        }
+        None => clouds.push(CloudCfg { name: name1, offset: Vec3::ZERO, role: AnimRole::Explode { start: 0.0 } }),
+    }
+    // DOGDEMO_REFORM: ONE dog reforms at center from the combined debris.
+    if let Some(dog) = &reform_name {
+        clouds.push(CloudCfg {
+            name: dog.clone(),
+            offset: Vec3::ZERO,
+            role: AnimRole::Reform { start: 1.8, dur: 2.5, scatter: 3.0 },
+        });
+    }
 
     let mut plugins = DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -132,6 +171,10 @@ fn main() {
         .add_plugins(plugins)
         .add_plugins(GaussianSplattingPlugin)
         .insert_resource(Clouds(clouds))
+        .insert_resource(HasReform(has_reform))
+        .insert_resource(CamOverride(
+            std::env::var("DOGDEMO_YAW").ok().and_then(|s| s.parse().ok()),
+        ))
         .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<ExplodeState>()
         .insert_resource(Debug {
@@ -159,17 +202,18 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (frame_on_load, controls, orbit_camera, apply_explosion, debug_driver, record_driver),
+            (frame_on_load, controls, orbit_camera, animate_clouds, debug_driver, record_driver),
         )
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, clouds: Res<Clouds>) {
-    for (name, offset) in &clouds.0 {
+    for cfg in &clouds.0 {
         commands.spawn((
-            PlanarGaussian3dHandle(asset_server.load(name.clone())),
+            PlanarGaussian3dHandle(asset_server.load(cfg.name.clone())),
             CloudSettings::default(),
-            Transform::from_translation(*offset).with_rotation(cloud_base_rotation()),
+            Transform::from_translation(cfg.offset).with_rotation(cloud_base_rotation()),
+            CloudAnim(cfg.role),
         ));
     }
 
@@ -231,16 +275,31 @@ fn frame_on_load(
     }
 }
 
-fn orbit_camera(explode: Res<ExplodeState>, mut q: Query<(&mut Transform, &OrbitCam)>) {
-    // Pull back as the cloud expands, but slower than it grows, so the blast stays in frame.
+fn orbit_camera(
+    explode: Res<ExplodeState>,
+    has_reform: Res<HasReform>,
+    cam_override: Res<CamOverride>,
+    mut q: Query<(&mut Transform, &OrbitCam)>,
+) {
     let zoom = if explode.active {
-        1.0 + EXPAND_RATE * explode.t * 0.6
+        if has_reform.0 {
+            // martins framed → pull back for the blast → zoom IN on the reformed
+            // central dog (settle 1.0→0.55) with a Gaussian blast bump on top.
+            let p = ((explode.t - 2.0) / 2.5).clamp(0.0, 1.0);
+            let settle = 1.0 - 0.45 * p;
+            let x = (explode.t - 2.0) / 1.1;
+            settle + 1.5 * (-x * x).exp()
+        } else {
+            // plain explosion: pull back as it expands (slower than it grows)
+            1.0 + EXPAND_RATE * explode.t * 0.6
+        }
     } else {
         1.0
     };
     for (mut tf, cam) in &mut q {
+        let yaw = cam_override.0.unwrap_or(cam.yaw);
         let r = cam.radius * zoom;
-        let offset = Vec3::new(r * cam.yaw.cos(), cam.elevation * zoom, r * cam.yaw.sin());
+        let offset = Vec3::new(r * yaw.cos(), cam.elevation * zoom, r * yaw.sin());
         tf.translation = cam.center + offset;
         tf.look_at(cam.center, Vec3::Y);
     }
@@ -286,20 +345,40 @@ fn controls(
 
 /// MVP explosion: expand the cloud from its centroid and fade it out, GPU-side
 /// (Transform + CloudSettings.global_opacity) — no per-frame re-upload.
-fn apply_explosion(
+/// Drive each cloud's per-Gaussian displacement (gaussian.wgsl reads CloudSettings.time)
+/// + opacity/scale from the master clock `tau`, per its role. Exploders fly apart and
+/// fade; the reformer runs its explosion backwards (scatter→0) and fades in.
+fn animate_clouds(
     explode: Res<ExplodeState>,
-    mut clouds: Query<&mut CloudSettings, With<PlanarGaussian3dHandle>>,
+    mut q: Query<(&mut CloudSettings, &CloudAnim)>,
 ) {
-    for mut settings in &mut clouds {
-        if explode.active {
-            let t = explode.t;
-            settings.time = t; // drives the per-Gaussian ballistic displacement in gaussian.wgsl
-            settings.global_scale = 1.0 + 0.3 * t; // splats fatten as they fly → smokier
-            settings.global_opacity = (1.0 - FADE_RATE * t).max(0.0);
-        } else {
-            settings.time = 0.0; // exact reset (displacement is a no-op at t=0)
-            settings.global_scale = 1.0;
-            settings.global_opacity = 1.0;
+    let tau = if explode.active { explode.t } else { 0.0 };
+    for (mut s, anim) in &mut q {
+        match anim.0 {
+            AnimRole::Explode { start } => {
+                if tau <= start {
+                    s.time = 0.0;
+                    s.global_opacity = 1.0;
+                    s.global_scale = 1.0;
+                } else {
+                    let e = tau - start;
+                    s.time = e;
+                    s.global_opacity = (1.0 - FADE_RATE * e).max(0.0);
+                    s.global_scale = 1.0 + 0.3 * e;
+                }
+            }
+            AnimRole::Reform { start, dur, scatter } => {
+                if tau <= start {
+                    s.time = scatter; // fully scattered…
+                    s.global_opacity = 0.0; // …but invisible until it starts reforming
+                    s.global_scale = 1.0;
+                } else {
+                    let p = ((tau - start) / dur).clamp(0.0, 1.0);
+                    s.time = scatter * (1.0 - p); // particles fly inward to the formed shape
+                    s.global_opacity = p; // fade in as it coalesces
+                    s.global_scale = 1.0;
+                }
+            }
         }
     }
 }
@@ -360,7 +439,10 @@ fn record_driver(
     }
 
     let i = rec.i;
-    let yaw = i as f32 * rec.yaw_step;
+    // gentle front-facing sway — never orbit to the splat's missing back
+    const FRONT_YAW: f32 = 2.36; // ~135°, faces the splats' front
+    const SWAY: f32 = 0.5;
+    let yaw = FRONT_YAW + SWAY * (i as f32 * rec.yaw_step).sin();
     for mut c in &mut camq {
         c.yaw = yaw;
     }

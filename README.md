@@ -41,7 +41,11 @@ cd dogdemo && cargo run            # window: orbiting splat
 By default the splat loads from `dogdemo/assets/aegg.ply`; point it at any file
 with `DOGDEMO_PLY=/abs/path.ply cargo run --release` (no symlink fuss). Add
 `DOGDEMO_PLY2=second.ply` (same folder) to load a **second splat beside it** —
-both are framed together and explode at once. **Export
+both are framed together and explode at once. Add `DOGDEMO_REFORM=dog.ply` and
+the debris **reforms into that splat** (e.g. two Martins → one dog), with a
+front-facing camera sway (single-image splats have no back, so a full 360° orbit
+would show a hollow head; `DOGDEMO_YAW=<rad>` pins the angle for inspection).
+**Export
 uncompressed/standard PLY from SuperSplat** — the loader rejects SuperSplat's
 *compressed* format (`missing required properties`). Linux build deps:
 `systemd-devel` (libudev) + alsa (and a Vulkan/RADV driver).
