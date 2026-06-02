@@ -24,6 +24,85 @@ VIEWER=1 ./splat.sh ./photos/    # watch training live in Brush's window
 Tunables (env): `FPS`, `MAX_SIZE`, `EXPORT_EVERY`, `VIEWER`.
 View / clean / compress the resulting `.ply` at <https://superspl.at/editor>.
 
+## Making your own splats — a capture recipe 🐕🌿
+
+You don't need a fancy rig — a phone camera is enough. **Capture quality is 90% of
+the result**, so the tips below matter more than any setting. (Share this part with
+anyone who wants to splat their dog, their garden, or grandma's statue.)
+
+### 1. Shoot the photos/video
+
+The golden rule: **you move around the subject; the subject stays still.** You're
+giving the computer many views of the same thing so it can work out the 3D shape.
+
+- **Coverage.** Walk a full circle around the subject (or more than one — a low
+  circle *and* a higher one looking slightly down). For an object you can also put
+  it on a turntable/lazy-Susan and spin *it* while you hold still. Aim for **40–150
+  photos** or a slow **30–60 s video** (the script pulls frames from video).
+- **Overlap.** Each shot should overlap the last by ~70% — small steps, not big
+  jumps. Think "shuffle sideways", not "teleport".
+- **Light.** Flat, even light is your friend — an **overcast day outdoors is
+  perfect**. Avoid hard shadows and harsh sun. Lock your exposure/focus if your
+  phone lets you (tap-and-hold), so brightness doesn't jump between frames.
+- **Hold still-ish.** Blurry frames hurt. Good light → fast shutter → sharp frames.
+- **What breaks it:** anything that *moves or changes* between shots — wind in
+  leaves, a wagging tail, ripples, passing people, your own shadow. Also **shiny,
+  reflective, or transparent** things (glass, water, chrome, wet noses) and big
+  blank surfaces (clear sky, a plain white wall) — the computer needs *texture* to
+  lock onto. A cluttered, textured background actually *helps*.
+
+- 🐕 **Dogs / animals** are hard because they move. Best options, in order:
+  a **sleeping/very calm** dog; **burst mode** and shoot a full circle fast; or a
+  **toy/figurine/statue** of the breed (trivial — put it on a turntable). Get down
+  to their eye level, and grab a few from above and below.
+- 🌿 **Nature / scenes** (a tree, a rock, a garden corner): pick a **calm, overcast,
+  windless** moment, lock exposure, and arc around the subject. Avoid pointing at
+  bright sky.
+
+### 2. Turn the photos into a splat (all CUDA-free, on this machine)
+
+```bash
+./splat-setup.sh                 # once: builds COLMAP + Brush
+./splat.sh my_dog_video.mp4      # or:  ./splat.sh ./my_photos/
+VIEWER=1 ./splat.sh ./my_photos/ # watch it train live
+```
+
+Out comes a `.ply`. (No good photo set yet, or only **one** image? Drop it into
+**[TRELLIS](https://huggingface.co/spaces/trellis-community/TRELLIS)** in your
+browser for a quick single-image splat — see the aesthetic note below.)
+
+### 3. Tidy it up (browser, free)
+
+Open the `.ply` at **<https://superspl.at/editor>**: box-select and **delete stray
+"floater" splats** and the background, **recenter** the subject at the origin, and
+scale it to a sane size. **Export as uncompressed / standard PLY** (the demo's
+loader rejects SuperSplat's *compressed* format).
+
+### 4. Drop it in the demo
+
+```bash
+DOGDEMO_PLY=~/path/to/your.ply cargo run --release   # in dogdemo/
+```
+
+For the **morph** (sources → target), prep all the splats the *same way*: same
+up-axis, centred, similar overall size, and a **consistent gaussian character**
+(see below). Mismatched assets blend muddily.
+
+### Two flavours of splat (and the "PS1" look)
+
+- **TRELLIS / single-image (HF):** many **small, opaque** splats → a crisp, slightly
+  *hard* surface that gives a charming **PS1 texture-warp** wobble when morphed. No
+  data for unseen sides, though → a **hollow back** (which is why the demo's camera
+  only sways across the front instead of orbiting 360°).
+- **Brush / photo-capture (local):** **fewer, bigger, semi-transparent** splats that
+  blend → a softer, more photographic, *volumetric* look that **dissolves** rather
+  than warps. Full multi-angle capture = **full 360°**, so you can orbit all the way
+  around.
+
+Pick one vibe per scene and keep a morph set consistent. Brush also lets you tune
+**densification** to hit a gaussian budget — ~250k–500k stays a smooth 60 fps on the
+iGPU (the full ~1.15M runs ~20 fps).
+
 ## `dogdemo/` — standalone splat demo (Bevy + Vulkan, no CUDA)
 
 A standalone executable that loads a `.ply` Gaussian splat, orbits a camera
@@ -41,10 +120,14 @@ cd dogdemo && cargo run            # window: orbiting splat
 By default the splat loads from `dogdemo/assets/aegg.ply`; point it at any file
 with `DOGDEMO_PLY=/abs/path.ply cargo run --release` (no symlink fuss). Add
 `DOGDEMO_PLY2=second.ply` (same folder) to load a **second splat beside it** —
-both are framed together and explode at once. Add `DOGDEMO_REFORM=dog.ply` and
-the debris **reforms into that splat** (e.g. two Martins → one dog), with a
-front-facing camera sway (single-image splats have no back, so a full 360° orbit
-would show a hollow head; `DOGDEMO_YAW=<rad>` pins the angle for inspection).
+both are framed together and collapse inward at once. Add `DOGDEMO_REFORM=dog.ply`
+and the source splats **truly morph into that one** — a per-Gaussian
+`GaussianInterpolate` blend where each source splat is paired to a target splat by
+**Morton (Z-order) spatial sort** so particles *flow* into their nearest part of
+the target (no teleporting) and their colours/positions lerp together (e.g. two
+Martins → one dog: each Martin becomes a half of the dog). A front-facing camera
+sway keeps the hollow back of single-image splats out of frame (`DOGDEMO_YAW=<rad>`
+pins the angle for inspection).
 **Export
 uncompressed/standard PLY from SuperSplat** — the loader rejects SuperSplat's
 *compressed* format (`missing required properties`). Linux build deps:
@@ -60,6 +143,45 @@ Windows, and macOS** on every push — grab them from the artifacts of the lates
 [build run](https://github.com/annejan/evoke-martin/actions/workflows/build.yml).
 Release binary is ~75 MB (`strip` + thin LTO); use `cargo run --release` to show
 it off (the 1.8 GiB build is debug-only, for fast iteration).
+
+### Effects & env vars — mix and match
+
+Everything is driven by env vars; combine them to taste. All splat positions/scales
+are particles in the *same* system, so any of these morphs into any other.
+
+| Env var | Effect |
+|---|---|
+| `DOGDEMO_PLY=/abs/x.ply` | Load a splat (sets the asset folder for the others). |
+| `DOGDEMO_PLY2=y.ply` | A second splat beside the first (collapses inward together). |
+| `DOGDEMO_REFORM=dog.ply` | The sources **morph** into this one (Morton-paired particle flow). |
+| `DOGDEMO_TEXT="MARTIN GAUS"` | **Splat-text**: the title assembles out of a ball cloud (glowing). |
+| `DOGDEMO_SEQ="…"` | **Timeline** — a chain of beats that morph into one another (see below). |
+| `DOGDEMO_BULGE=0.9` | Ball-cloud explosiveness at a morph's midpoint (`0` = clean reorder). |
+| `DOGDEMO_MORPH_COUNT=250000` | Gaussian budget (`0`=max ~1.15M ≈ 20 fps; 250k ≈ 60 fps on the iGPU). |
+| `DOGDEMO_YAW=1.4` | Pin the camera angle (no sway). |
+| `DOGDEMO_FPS=1` | Log frame time / FPS. |
+| `DOGDEMO_RECORD=/dir` | Dump one PNG per frame (used by `record.sh`). |
+| `DOGDEMO_SHOT=/x.png` `DOGDEMO_SHOT_AT=<s>` | Headless screenshot at time `s`, then exit. |
+
+**`DOGDEMO_SEQ`** is a `;`-separated list of *beats* (or a path to a file of them, one
+per line; `#` comments allowed). Each beat morphs into the next, through a ball cloud:
+
+```
+text:STRING               # splat-text (glowing)
+splat:a.ply               # a splat (filename in the DOGDEMO_PLY folder)
+splat:a.ply+b.ply         # several splats, auto-arranged side by side
+…any beat… @hold,morph,bulge   # optional per-beat timing (seconds) + ball amount
+```
+
+Example — the full show (title → dog → greetings → credits):
+
+```bash
+cd dogdemo
+DOGDEMO_PLY=~/Projects/martin/doggo.ply \
+DOGDEMO_SEQ="text:MARTIN GAUS @2,3,0; splat:doggo.ply @2,3,0.9; text:GREETINGS @1.5,3,0.9; text:CODE ANNEJAN @2,3,0.6" \
+cargo +nightly run --release
+#   ./record.sh out.mp4   renders the whole timeline to video
+```
 
 ## Note on git
 
