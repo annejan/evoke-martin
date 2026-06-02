@@ -22,10 +22,24 @@ VIEWER=1 ./splat.sh ./photos/    # watch training live in Brush's window
 Tunables (env): `FPS`, `MAX_SIZE`, `EXPORT_EVERY`, `VIEWER`.
 View / clean / compress the resulting `.ply` at <https://superspl.at/editor>.
 
-## `dogdemo/` (WIP)
+## `dogdemo/` — standalone splat demo (Bevy + Vulkan, no CUDA)
 
-A standalone Bevy + `bevy_gaussian_splatting` executable: fly a camera around a
-splat and (eventually) explode it. Rust + wgpu → Vulkan, no CUDA.
+A standalone executable that loads a `.ply` Gaussian splat, orbits a camera
+around it, and **explodes it** — each Gaussian flies apart via a closed-form
+ballistic displacement injected into the renderer's WGSL (vendored fork in
+`dogdemo/vendor/`), with HDR bloom on black. Built on Bevy 0.18 +
+`bevy_gaussian_splatting` 7.0.1, wgpu → Vulkan (nightly toolchain, pinned).
+
+```bash
+cd dogdemo && cargo run            # window: orbiting splat
+#   ↑/↓ zoom · ←/→ raise/lower · Space = detonate / reset
+./record.sh                        # render the explosion to ./aegg_explosion.mp4
+```
+
+The splat loads from `dogdemo/assets/aegg.ply` (symlink to the project-root
+`.ply`). **Export uncompressed/standard PLY from SuperSplat** — the loader
+rejects SuperSplat's *compressed* format (`missing required properties`).
+Linux build deps: `systemd-devel` (libudev) + alsa (and a Vulkan/RADV driver).
 
 ## Note on git
 

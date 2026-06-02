@@ -66,11 +66,25 @@ struct Debug {
     exploded: bool,
 }
 
+/// Deterministic frame-sequence recorder (env-gated by DOGDEMO_RECORD=<dir>):
+/// per-frame explosion clock + gentle orbit, one PNG per frame, then exit.
+#[derive(Resource)]
+struct RecordState {
+    dir: Option<String>,
+    frames: u32,
+    hold: u32,     // frames to hold the intact object before detonating
+    dt: f32,       // explosion-clock seconds advanced per frame
+    yaw_step: f32, // camera orbit radians per frame
+    i: u32,
+    grace: u32,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "dogdemo — splat fly-around".into(),
+                resolution: (1280, 720).into(), // fixed size so recorded frames are uniform
                 ..default()
             }),
             ..default()
@@ -85,10 +99,25 @@ fn main() {
             shot_done: false,
             exploded: false,
         })
+        .insert_resource({
+            let frames: u32 = std::env::var("DOGDEMO_FRAMES")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(220);
+            RecordState {
+                dir: std::env::var("DOGDEMO_RECORD").ok(),
+                frames,
+                hold: 40,
+                dt: 1.0 / 30.0,
+                yaw_step: 2.0 * PI / frames as f32,
+                i: 0,
+                grace: 0,
+            }
+        })
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (frame_on_load, controls, orbit_camera, apply_explosion, debug_driver),
+            (frame_on_load, controls, orbit_camera, apply_explosion, debug_driver, record_driver),
         )
         .run();
 }
@@ -158,9 +187,13 @@ fn orbit_camera(explode: Res<ExplodeState>, mut q: Query<(&mut Transform, &Orbit
 fn controls(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    rec: Res<RecordState>,
     mut explode: ResMut<ExplodeState>,
     mut q: Query<&mut OrbitCam>,
 ) {
+    if rec.dir.is_some() {
+        return; // record_driver drives the animation deterministically while recording
+    }
     let dt = time.delta_secs();
     for mut cam in &mut q {
         cam.yaw += dt * 0.5;
@@ -236,4 +269,51 @@ fn debug_driver(
             exit.write(AppExit::Success);
         }
     }
+}
+
+/// Deterministic recorder: once framed, drive a fixed per-frame orbit + explosion
+/// clock and dump one PNG per frame to DOGDEMO_RECORD, then exit (frame-indexed, so
+/// the output is smooth regardless of render speed).
+fn record_driver(
+    mut rec: ResMut<RecordState>,
+    mut explode: ResMut<ExplodeState>,
+    mut camq: Query<&mut OrbitCam>,
+    mut commands: Commands,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let Some(dir) = rec.dir.clone() else {
+        return;
+    };
+    // wait until the camera has framed the cloud before capturing
+    if !camq.iter().any(|c| c.framed) {
+        return;
+    }
+
+    if rec.i >= rec.frames {
+        rec.grace += 1; // let async PNG writes flush
+        if rec.grace > 30 {
+            info!("recording complete: {} frames -> {dir}", rec.frames);
+            exit.write(AppExit::Success);
+        }
+        return;
+    }
+
+    let i = rec.i;
+    let yaw = i as f32 * rec.yaw_step;
+    for mut c in &mut camq {
+        c.yaw = yaw;
+    }
+    if i >= rec.hold {
+        explode.active = true;
+        explode.t = (i - rec.hold) as f32 * rec.dt;
+    } else {
+        explode.active = false;
+        explode.t = 0.0;
+    }
+
+    let path = format!("{dir}/frame_{i:05}.png");
+    commands
+        .spawn(Screenshot::primary_window())
+        .observe(save_to_disk(path));
+    rec.i += 1;
 }
