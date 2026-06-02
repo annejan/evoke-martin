@@ -57,9 +57,17 @@ struct ExplodeState {
     t: f32,
 }
 
-/// Which `.ply` to load (from DOGDEMO_PLY, else "aegg.ply").
+/// Splats to load: (asset file name, world offset). One entry for DOGDEMO_PLY,
+/// two (side by side) if DOGDEMO_PLY2 is also set.
 #[derive(Resource)]
-struct PlySource(String);
+struct Clouds(Vec<(String, Vec3)>);
+
+fn file_name_of(p: &str) -> String {
+    std::path::Path::new(p)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "aegg.ply".into())
+}
 
 /// Debug driver (env-gated): auto-explode + framebuffer screenshot + exit.
 #[derive(Resource)]
@@ -85,21 +93,27 @@ struct RecordState {
 }
 
 fn main() {
-    // DOGDEMO_PLY=<abs path> loads any splat directly (e.g. a TRELLIS-generated dog),
-    // sidestepping the assets/ symlink. Falls back to assets/aegg.ply.
-    let (asset_root, ply_name) = match std::env::var("DOGDEMO_PLY").ok().as_deref() {
-        Some(p) => {
-            let path = std::path::Path::new(p);
-            (
-                path.parent()
-                    .filter(|d| !d.as_os_str().is_empty())
-                    .map(|d| d.to_string_lossy().into_owned()),
-                path.file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "aegg.ply".into()),
-            )
-        }
-        None => (None, "aegg.ply".to_string()),
+    // DOGDEMO_PLY=<abs path> loads any splat (e.g. a TRELLIS subject), sidestepping
+    // the assets/ symlink; DOGDEMO_PLY2 adds a second splat beside it (same dir).
+    // Falls back to assets/aegg.ply.
+    let primary = std::env::var("DOGDEMO_PLY").ok();
+    let asset_root = primary.as_deref().and_then(|p| {
+        std::path::Path::new(p)
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty())
+            .map(|d| d.to_string_lossy().into_owned())
+    });
+    let name1 = primary
+        .as_deref()
+        .map(file_name_of)
+        .unwrap_or_else(|| "aegg.ply".into());
+    const SEP: f32 = 1.6;
+    let clouds = match std::env::var("DOGDEMO_PLY2").ok() {
+        Some(p2) => vec![
+            (name1, Vec3::new(-SEP, 0.0, 0.0)),
+            (file_name_of(&p2), Vec3::new(SEP, 0.0, 0.0)),
+        ],
+        None => vec![(name1, Vec3::ZERO)],
     };
 
     let mut plugins = DefaultPlugins.set(WindowPlugin {
@@ -117,7 +131,7 @@ fn main() {
     App::new()
         .add_plugins(plugins)
         .add_plugins(GaussianSplattingPlugin)
-        .insert_resource(PlySource(ply_name))
+        .insert_resource(Clouds(clouds))
         .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<ExplodeState>()
         .insert_resource(Debug {
@@ -150,12 +164,14 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, ply: Res<PlySource>) {
-    commands.spawn((
-        PlanarGaussian3dHandle(asset_server.load(ply.0.clone())),
-        CloudSettings::default(),
-        Transform::from_rotation(cloud_base_rotation()),
-    ));
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, clouds: Res<Clouds>) {
+    for (name, offset) in &clouds.0 {
+        commands.spawn((
+            PlanarGaussian3dHandle(asset_server.load(name.clone())),
+            CloudSettings::default(),
+            Transform::from_translation(*offset).with_rotation(cloud_base_rotation()),
+        ));
+    }
 
     commands.spawn((
         GaussianCamera { warmup: true },
@@ -171,27 +187,45 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, ply: Res<PlySou
 /// Frame the camera to the cloud's bounding sphere once its Aabb is known.
 fn frame_on_load(
     mut commands: Commands,
-    cloud: Query<(Entity, &Aabb, &Transform), With<PlanarGaussian3dHandle>>,
+    clouds_res: Res<Clouds>,
+    cloud_q: Query<(Entity, &Aabb, &Transform), With<PlanarGaussian3dHandle>>,
     mut cam: Query<&mut OrbitCam>,
 ) {
-    let Ok((cloud_entity, aabb, cloud_tf)) = cloud.single() else {
-        return;
-    };
+    // world center + radius of every loaded cloud
+    let loaded: Vec<(Entity, Vec3, f32)> = cloud_q
+        .iter()
+        .map(|(e, aabb, tf)| {
+            (
+                e,
+                tf.transform_point(Vec3::from(aabb.center)),
+                Vec3::from(aabb.half_extents).length().max(0.001),
+            )
+        })
+        .collect();
+    if loaded.len() < clouds_res.0.len() {
+        return; // wait until every splat has loaded (Aabb present)
+    }
     for mut c in &mut cam {
         if c.framed {
             continue;
         }
-        let center = cloud_tf.transform_point(Vec3::from(aabb.center));
-        let bounding_radius = Vec3::from(aabb.half_extents).length().max(0.001);
+        // combined bounding sphere over all clouds
+        let n = loaded.len() as f32;
+        let center = loaded.iter().fold(Vec3::ZERO, |a, (_, cn, _)| a + *cn) / n;
+        let radius = loaded
+            .iter()
+            .fold(0.001_f32, |m, (_, cn, r)| m.max(cn.distance(center) + r));
         c.center = center;
-        c.radius = bounding_radius * 1.5;
-        c.elevation = bounding_radius * 0.25;
+        c.radius = radius * 1.6;
+        c.elevation = radius * 0.25;
         c.framed = true;
-        // Aabb now exists (the crate skips Aabb-insertion for NoFrustumCulling entities),
-        // so disable entity-level culling so the expanding blast never pops out of view.
-        commands.entity(cloud_entity).insert(NoFrustumCulling);
+        for (e, _, _) in &loaded {
+            // crate skips Aabb-insertion for NoFrustumCulling entities, so add it now
+            commands.entity(*e).insert(NoFrustumCulling);
+        }
         info!(
-            "framed cloud: center={center:?}  bounding_radius={bounding_radius:.3}  camera_radius={:.3}",
+            "framed {} cloud(s): center={center:?} radius={radius:.3} cam_radius={:.3}",
+            loaded.len(),
             c.radius
         );
     }
@@ -254,20 +288,19 @@ fn controls(
 /// (Transform + CloudSettings.global_opacity) — no per-frame re-upload.
 fn apply_explosion(
     explode: Res<ExplodeState>,
-    mut cloud: Query<&mut CloudSettings, With<PlanarGaussian3dHandle>>,
+    mut clouds: Query<&mut CloudSettings, With<PlanarGaussian3dHandle>>,
 ) {
-    let Ok(mut settings) = cloud.single_mut() else {
-        return;
-    };
-    if explode.active {
-        let t = explode.t;
-        settings.time = t; // drives the per-Gaussian ballistic displacement in gaussian.wgsl
-        settings.global_scale = 1.0 + 0.3 * t; // splats fatten as they fly → smokier
-        settings.global_opacity = (1.0 - FADE_RATE * t).max(0.0);
-    } else {
-        settings.time = 0.0; // exact reset to the original pose (displacement is a no-op at t=0)
-        settings.global_scale = 1.0;
-        settings.global_opacity = 1.0;
+    for mut settings in &mut clouds {
+        if explode.active {
+            let t = explode.t;
+            settings.time = t; // drives the per-Gaussian ballistic displacement in gaussian.wgsl
+            settings.global_scale = 1.0 + 0.3 * t; // splats fatten as they fly → smokier
+            settings.global_opacity = (1.0 - FADE_RATE * t).max(0.0);
+        } else {
+            settings.time = 0.0; // exact reset (displacement is a no-op at t=0)
+            settings.global_scale = 1.0;
+            settings.global_opacity = 1.0;
+        }
     }
 }
 
