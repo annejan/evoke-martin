@@ -30,6 +30,8 @@ use std::f32::consts::PI;
 /// Tuning for the MVP puff.
 const EXPAND_RATE: f32 = 1.5; // cloud scale = 1 + EXPAND_RATE * t
 const FADE_RATE: f32 = 0.6; // exploder opacity = 1 - FADE_RATE*t (fast → masks dust away quickly)
+const FRONT_YAW: f32 = 1.4; // camera faces both Martins head-on (single-image splats have no back)
+const SWAY: f32 = 0.25; // gentle left-right sway amplitude — never reaches the hollow back
 
 /// Brush/COLMAP .ply is Y-down/Z-forward → rotate the cloud 180° about X for Y-up.
 fn cloud_base_rotation() -> Quat {
@@ -47,7 +49,7 @@ struct OrbitCam {
 
 impl Default for OrbitCam {
     fn default() -> Self {
-        Self { center: Vec3::ZERO, radius: 5.0, elevation: 1.5, yaw: 0.0, framed: false }
+        Self { center: Vec3::ZERO, radius: 5.0, elevation: 1.5, yaw: FRONT_YAW, framed: false }
     }
 }
 
@@ -275,24 +277,26 @@ fn frame_on_load(
     }
 }
 
+/// Reform-sequence camera zoom (continuous at t=0): martins framed → pull back
+/// for the blast → zoom IN on the reformed central dog (settle 1.0→0.55).
+fn reform_zoom(t: f32) -> f32 {
+    let p = ((t - 2.0) / 2.5).clamp(0.0, 1.0);
+    let settle = 1.0 - 0.45 * p;
+    let x = (t - 2.0) / 1.1;
+    settle + 1.5 * (-x * x).exp()
+}
+
 fn orbit_camera(
     explode: Res<ExplodeState>,
     has_reform: Res<HasReform>,
     cam_override: Res<CamOverride>,
     mut q: Query<(&mut Transform, &OrbitCam)>,
 ) {
-    let zoom = if explode.active {
-        if has_reform.0 {
-            // martins framed → pull back for the blast → zoom IN on the reformed
-            // central dog (settle 1.0→0.55) with a Gaussian blast bump on top.
-            let p = ((explode.t - 2.0) / 2.5).clamp(0.0, 1.0);
-            let settle = 1.0 - 0.45 * p;
-            let x = (explode.t - 2.0) / 1.1;
-            settle + 1.5 * (-x * x).exp()
-        } else {
-            // plain explosion: pull back as it expands (slower than it grows)
-            1.0 + EXPAND_RATE * explode.t * 0.6
-        }
+    // evaluate the same curve in hold (t=0) and active (t) so there's no step at onset
+    let zoom = if has_reform.0 {
+        reform_zoom(if explode.active { explode.t } else { 0.0 })
+    } else if explode.active {
+        1.0 + EXPAND_RATE * explode.t * 0.6
     } else {
         1.0
     };
@@ -317,7 +321,7 @@ fn controls(
     }
     let dt = time.delta_secs();
     for mut cam in &mut q {
-        cam.yaw += dt * 0.5;
+        cam.yaw = FRONT_YAW + SWAY * (time.elapsed_secs() * 0.6).sin(); // front sway, not a full spin
         let step = cam.radius.max(1.0);
         if keys.pressed(KeyCode::ArrowUp) {
             cam.radius = (cam.radius - dt * step).max(0.05);
@@ -439,9 +443,7 @@ fn record_driver(
     }
 
     let i = rec.i;
-    // gentle front-facing sway — never orbit to the splat's missing back
-    const FRONT_YAW: f32 = 1.4; // faces both Martins head-on (both captures)
-    const SWAY: f32 = 0.25; // tight sway so neither rolls into a hollow profile
+    // same gentle front sway as the live camera (never orbit to the splats' missing back)
     let yaw = FRONT_YAW + SWAY * (i as f32 * rec.yaw_step).sin();
     for mut c in &mut camq {
         c.yaw = yaw;
