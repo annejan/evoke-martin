@@ -621,7 +621,6 @@ where
                     let command_encoder = render_context.command_encoder();
                     let shader_defines = ShaderDefines::default();
                     let radix_digit_places = shader_defines.radix_digit_places;
-                    let radix_base = shader_defines.radix_base;
                     let workgroup_entries_a = shader_defines.workgroup_entries_a;
                     let workgroup_entries_c = shader_defines.workgroup_entries_c;
                     let tile_workgroups = (cloud.len() as u32).div_ceil(workgroup_entries_c);
@@ -734,7 +733,9 @@ where
                             )
                             .unwrap();
                         pass.set_pipeline(radix_sort_c_scan);
-                        pass.dispatch_workgroups(1, radix_base, 1);
+                        // one workgroup of RADIX_BASE lanes (lane = digit), not RADIX_BASE
+                        // single-lane workgroups — see radix_sort_c_scan_tiles.
+                        pass.dispatch_workgroups(1, 1, 1);
 
                         let radix_sort_c_scatter = pipeline_cache
                             .get_compute_pipeline(

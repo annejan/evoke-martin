@@ -19,6 +19,7 @@ struct GaussianUniforms {
     time: f32,
     time_start: f32,
     time_stop: f32,
+    bulge: f32,
     num_classes: u32,
     color_space: u32,
     min: vec4<f32>,

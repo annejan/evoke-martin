@@ -74,6 +74,10 @@ pub struct CloudSettings {
     pub time_scale: f32,
     pub time_start: f32,
     pub time_stop: f32,
+    /// Midpoint explosive-bulge amplitude for GaussianInterpolate morphs (0 = none).
+    /// The renderer scatters each gaussian radially by `sin(pi*t)*bulge` (peaks at the
+    /// blend midpoint, zero at both ends) so a morph blows apart then reassembles.
+    pub bulge: f32,
 }
 
 impl Default for CloudSettings {
@@ -95,6 +99,7 @@ impl Default for CloudSettings {
             time_scale: 1.0,
             time_start: 0.0,
             time_stop: 1.0,
+            bulge: 0.0,
         }
     }
 }

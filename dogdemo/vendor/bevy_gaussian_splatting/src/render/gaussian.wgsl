@@ -212,8 +212,12 @@ fn vs_points(
 
     // --- explosion: closed-form ballistic displacement in LOCAL space, object-relative,
     //     no-op at time == 0 (exact reset). Driven by gaussian_uniforms.time. ---
+    // Skip when an interpolation range is set (time_stop > time_start): there `time` is a
+    // GaussianInterpolate BLEND factor (morph output), not an explode clock — displacing
+    // it would detonate the morph on top of the blend.
     let explode_t = gaussian_uniforms.time;
-    if (explode_t != 0.0) {
+    let interp_active = gaussian_uniforms.time_stop > gaussian_uniforms.time_start;
+    if (explode_t != 0.0 && !interp_active) {
         let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
         let radius = max(length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.5, 1e-4);
         let rnd = explode_hash3(splat_index);
@@ -229,6 +233,30 @@ fn vs_points(
             disp = disp + 0.5 * gravity * explode_t * explode_t;
         }
         position = vec4<f32>(position.xyz + disp, 1.0);
+    }
+
+    // --- morph through a BALL CLOUD: for a GaussianInterpolate output (interp_active),
+    //     route each gaussian onto a fuzzy filled sphere by sin(pi*t) — peaks at the
+    //     blend midpoint, EXACTLY zero at t=0/t=1 — so the shape disperses into a
+    //     compact ball of particles then reassembles into the (already-interpolated)
+    //     target. Kept within ~object radius (gaussian_uniforms.bulge) so it stays
+    //     compact: far-flung splats spread over the whole screen and defeat the
+    //     renderer's opacity early-out, which is what made the old radial blast slow. ---
+    if (interp_active && gaussian_uniforms.bulge > 0.0) {
+        let denom = max(gaussian_uniforms.time_stop - gaussian_uniforms.time_start, 1e-6);
+        let mt = clamp((gaussian_uniforms.time - gaussian_uniforms.time_start) / denom, 0.0, 1.0);
+        let pulse = sin(mt * 3.1415927);
+        if (pulse > 0.0) {
+            let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
+            let radius = max(length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.5, 1e-4);
+            let rnd = explode_hash3(splat_index);
+            // direction biased by the particle's own offset (coherent flow into the
+            // ball) + jitter; radius varies per particle for a fuzzy FILLED ball.
+            let dir = normalize((position.xyz - center) + (rnd - vec3<f32>(0.5)) * radius * 0.6 + vec3<f32>(1e-5));
+            let ball_r = radius * gaussian_uniforms.bulge * mix(0.35, 1.0, rnd.x);
+            let ball_pos = center + dir * ball_r;
+            position = vec4<f32>(mix(position.xyz, ball_pos, pulse), 1.0);
+        }
     }
 
     var transformed_position = (gaussian_uniforms.transform * position).xyz;

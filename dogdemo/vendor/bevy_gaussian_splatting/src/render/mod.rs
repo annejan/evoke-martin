@@ -711,7 +711,11 @@ impl ShaderDefines {
 impl Default for ShaderDefines {
     fn default() -> Self {
         let radix_bits_per_digit = 8;
-        let radix_digit_places = 32 / radix_bits_per_digit;
+        // 2 passes (16-bit depth key) instead of 4 (32-bit): the radix C-pass cost is
+        // ×digit_places, and 16 bits = 65536 depth buckets is far finer than splat
+        // overlap, so visible back-to-front order is unchanged. radix_sort_a stores the
+        // key pre-shifted right by 16 so these 2 byte-passes sort the meaningful high bits.
+        let radix_digit_places = 2;
         let radix_base = 1 << radix_bits_per_digit;
         let entries_per_invocation_a = 4;
         let entries_per_invocation_c = 4;
@@ -972,6 +976,7 @@ pub struct CloudUniform {
     pub time: f32,
     pub time_start: f32,
     pub time_stop: f32,
+    pub bulge: f32,
     pub num_classes: u32,
     pub color_space: u32,
     pub min: Vec4,
@@ -1032,6 +1037,7 @@ pub fn extract_gaussians<R: PlanarSync>(
             time: settings.time,
             time_start: settings.time_start,
             time_stop: settings.time_stop,
+            bulge: settings.bulge,
             num_classes: settings.num_classes as u32,
             color_space: match settings.color_space {
                 GaussianColorSpace::SrgbRec709Display => 0,
