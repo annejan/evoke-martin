@@ -34,6 +34,11 @@
 **/assets/**/*.ply
 **/assets/**/*.gcloud
 
+# ── 3D meshes + downloaded third-party branding (license-unclear; keep out of git) ──
+*.dae
+*.obj
+assets/defeest-logo.png
+
 # ── Local agent / editor / OS state ───────────────────────────────────
 .claude/
 .DS_Store

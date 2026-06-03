@@ -76,6 +76,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_REFORM` | — | Morph target: the source splat(s) turn into this one. |
 | `MARTIN_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ` | — | A timeline of parts (see [Sequences](#sequences)). Highest precedence. |
+| `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl`. A per-part `~name` overrides it. See [Sequences](#sequences). |
 | `MARTIN_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-part 3rd timing number instead.) |
 | `MARTIN_MORPH_COUNT` | `0` (shorthand) / `200000` (`MARTIN_SEQ`) | Gaussian budget every part is resampled to. `0` = the largest part's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
 | `MARTIN_YAW` | — (gentle sway) | Pin the camera to a fixed orbit angle in **radians** (e.g. `1.57` ≈ head-on). Handy for inspecting a splat. |
@@ -120,16 +121,32 @@ path to a file** with one part per line (`#` starts a comment, blank lines are s
 text:STRING                      # splat-text (glowing)
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge
+…any of the above… @hold,morph,bulge   ~transition
 ```
 
 The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount):
 - **hold** — how long to rest on this part once it arrives (default `1.5`)
 - **morph** — how long the morph *into* this part takes (default `3.0`)
-- **bulge** — ball-cloud explosiveness of that morph, `0`–`~1.4` (default `0.9`)
+- **bulge** — ball-pulse explosiveness, `0`–`~1.4` (default `0.9`; **`morph` transition only**)
 
-(The first part assembles in from a ball over its `morph` seconds; its `bulge` is ignored
-— the ball already *is* its source.)
+The optional trailing **`~transition`** picks *how* the part arrives (the ball is just one
+of them). It's the last token on the line:
+
+| `~name` | How it arrives |
+|---|---|
+| `~morph` | flows from the **previous** part's shape (Morton-paired), with the ball-pulse `bulge` — the default after part 0 |
+| `~ball` | assembles out of a fuzzy ball shell — the default for part 0 |
+| `~fade` | fades up on the spot (opacity 0 → in) |
+| `~explode` | gathers in from an outward burst |
+| `~implode` | expands out from a dense point |
+| `~drop` | falls straight down into place |
+| `~swirl` | sweeps/spirals in around the vertical axis |
+
+`MARTIN_TRANSITION=<name>` sets a default for **every** part (handy for trying one out); an
+explicit per-part `~name` wins over it. (Per-particle transitions — typewriter, sparkle,
+slither, pen-write — are designed in `DESIGN.md` and land via a shader edit later.)
+
+(The first part has nothing to morph *from*, so `~morph` there falls back to `~ball`.)
 
 **Inline example — a full show:**
 

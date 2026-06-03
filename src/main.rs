@@ -32,7 +32,7 @@ use std::f32::consts::PI;
 
 mod morph;
 mod text;
-use crate::morph::{ball_of, resample_morton};
+use crate::morph::{ball_of, drop_of, explode_of, fade_of, implode_of, resample_morton, swirl_of};
 use crate::text::{build_text_gaussians, TEXT_RGB};
 
 const FRONT_YAW: f32 = 1.4; // camera faces the subject head-on (single-image splats have no back)
@@ -144,13 +144,44 @@ enum PartContent {
     Splats(Vec<(String, Vec3)>),
 }
 
+/// How a part *arrives*. `Morph` (the default after part 0) flows from the previous part's
+/// shape, Morton-paired, with the optional ball-pulse `bulge`. The rest build a source cloud
+/// from the part's own shape and morph in from that — the ball is just one of them. The
+/// per-particle transitions (typewriter/sparkle/…) live in the shader and land later.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Transition {
+    Morph,   // prev shape → this shape (with bulge ball-pulse); the original behaviour
+    Ball,    // assemble out of a fuzzy ball shell (default for part 0)
+    Fade,    // fade up on the spot (opacity 0 → in)
+    Explode, // gather in from an outward burst
+    Implode, // expand out from a dense point
+    Drop,    // fall straight down into place
+    Swirl,   // sweep/spiral in around the vertical axis
+}
+
+impl Transition {
+    fn parse(s: &str) -> Option<Transition> {
+        Some(match s.trim().to_ascii_lowercase().as_str() {
+            "morph" => Transition::Morph,
+            "ball" => Transition::Ball,
+            "fade" => Transition::Fade,
+            "explode" => Transition::Explode,
+            "implode" => Transition::Implode,
+            "drop" => Transition::Drop,
+            "swirl" => Transition::Swirl,
+            _ => return None,
+        })
+    }
+}
+
 /// One part morphs in from the previous (or, for part 0, from a ball), then holds.
 #[derive(Clone)]
 struct Part {
     content: PartContent,
-    hold: f32,  // seconds held after arriving
-    morph: f32, // seconds to morph in
-    bulge: f32, // ball-cloud explosiveness of the morph-in (ignored for part 0)
+    hold: f32,                      // seconds held after arriving
+    morph: f32,                     // seconds to morph in
+    bulge: f32,                     // ball-pulse explosiveness (Morph transition only)
+    transition: Option<Transition>, // None = default (Ball for part 0, else Morph)
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -160,13 +191,15 @@ struct Sequence {
     count: usize,
 }
 
-/// Loaded splat handles + the per-part built shapes (all `count` gaussians) + the intro ball.
+/// Loaded splat handles + the per-part built shapes (all `count` gaussians) + each part's
+/// morph-in source cloud + its resolved transition.
 #[derive(Resource)]
 struct SeqState {
     load_names: Vec<String>,
     loads: Vec<Handle<PlanarGaussian3d>>,
     shapes: Vec<Handle<PlanarGaussian3d>>,
-    intro: Handle<PlanarGaussian3d>, // ball that part 0 assembles out of
+    sources: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part lhs source (None = morph from prev)
+    transitions: Vec<Transition>,                   // resolved transition per part
     built: bool,
     entity: Option<Entity>,
 }
@@ -188,6 +221,16 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         if s.is_empty() || s.starts_with('#') {
             continue;
         }
+        // optional trailing transition token, e.g. `splat:doggo.ply @2,3 ~fade` (last word).
+        let (s, transition) = match s.rsplit_once('~') {
+            Some((before, name))
+                if !name.trim().contains(char::is_whitespace)
+                    && Transition::parse(name).is_some() =>
+            {
+                (before.trim(), Transition::parse(name))
+            }
+            _ => (s, None),
+        };
         let (head, timing) = match s.split_once('@') {
             Some((h, t)) => (h.trim(), Some(t.trim())),
             None => (s, None),
@@ -206,7 +249,7 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         } else {
             continue;
         };
-        parts.push(Part { content, hold, morph, bulge });
+        parts.push(Part { content, hold, morph, bulge, transition });
     }
     parts
 }
@@ -302,27 +345,49 @@ fn build_sequence(
         union_hi = union_hi.max(p);
     }
 
-    let mut shapes = Vec::new();
-    let mut shape0: Vec<Gaussian3d> = Vec::new();
-    for (bi, raw) in raws.into_iter().enumerate() {
-        let shaped = resample_morton(raw, n);
-        if bi == 0 {
-            shape0 = shaped.clone();
-        }
-        shapes.push(assets.add(PlanarGaussian3d::from(shaped)));
-    }
-
     // Framing radius of the *content*: when normalized, every part is ~NORMALIZE_EXTENT across
     // centred on its centroid, so frame from that — robust to the floaters that still inflate
     // the raw union AABB and would otherwise shrink the scene to a distant dot. Raw mode (no
-    // normalize) frames the union box instead.
+    // normalize) frames the union box instead. This radius also sizes each transition source.
     let (frame_center, content_radius, frame_factor) = if normalize {
         (Vec3::ZERO, NORMALIZE_EXTENT * 0.5, 2.5)
     } else {
         let c = (union_lo + union_hi) * 0.5;
         (c, ((union_hi - union_lo) * 0.5).length().max(0.1), 1.7)
     };
-    let intro = assets.add(PlanarGaussian3d::from(ball_of(&shape0, content_radius * BALL_SHELL)));
+
+    // Each part is resampled to the shared count N, then gets the *source* cloud it morphs in
+    // FROM, chosen by its transition (`~name` per part > MARTIN_TRANSITION default > Ball for
+    // part 0 / Morph after). `Morph` has no source — it flows from the previous part's shape
+    // (with the ball-pulse bulge); the others build a source from the part's own shape.
+    let global_tr = std::env::var("MARTIN_TRANSITION").ok().and_then(|s| Transition::parse(&s));
+    let mut shapes = Vec::new();
+    let mut sources: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
+    let mut transitions: Vec<Transition> = Vec::new();
+    for (idx, raw) in raws.into_iter().enumerate() {
+        let shaped = resample_morton(raw, n);
+        let mut tr = seq.parts[idx]
+            .transition
+            .or(global_tr)
+            .unwrap_or(if idx == 0 { Transition::Ball } else { Transition::Morph });
+        if idx == 0 && tr == Transition::Morph {
+            tr = Transition::Ball; // part 0 has nothing to morph from — assemble from a ball
+        }
+        let r = content_radius;
+        let src: Option<Vec<Gaussian3d>> = match tr {
+            Transition::Morph => None,
+            Transition::Ball => Some(ball_of(&shaped, r * BALL_SHELL)),
+            Transition::Fade => Some(fade_of(&shaped)),
+            Transition::Explode => Some(explode_of(&shaped, r * 1.6)),
+            Transition::Implode => Some(implode_of(&shaped)),
+            Transition::Drop => Some(drop_of(&shaped, r * 2.5)),
+            Transition::Swirl => Some(swirl_of(&shaped, 2.4, 1.5)),
+        };
+        sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
+        transitions.push(tr);
+        shapes.push(assets.add(PlanarGaussian3d::from(shaped)));
+    }
+    let intro0 = sources[0].clone().expect("part 0 always builds a source cloud");
 
     // MARTIN_ROT="rx,ry,rz" (euler degrees) orients the cloud — e.g. to stand a COLMAP scene
     // upright for a "normal" POV. Default = cloud_base_rotation (flip-X, right for portrait
@@ -340,7 +405,7 @@ fn build_sequence(
     let entity = commands
         .spawn((
             GaussianInterpolate::<Gaussian3d> {
-                lhs: PlanarGaussian3dHandle(intro.clone()),
+                lhs: PlanarGaussian3dHandle(intro0.clone()),
                 rhs: PlanarGaussian3dHandle(shapes[0].clone()),
             },
             CloudSettings {
@@ -372,7 +437,8 @@ fn build_sequence(
     }
 
     state.shapes = shapes;
-    state.intro = intro;
+    state.sources = sources;
+    state.transitions = transitions;
     state.entity = Some(entity);
     state.built = true;
     info!("sequence built: {} parts × {n} gaussians", state.shapes.len());
@@ -409,8 +475,12 @@ fn part_director(
         t -= seg;
     }
 
-    // lhs: intro ball for part 0, else the previous part's shape.
-    let want_lhs = if idx == 0 { &state.intro } else { &state.shapes[idx - 1] };
+    // lhs: the part's transition source cloud (ball/fade/explode/…), or — for a plain Morph —
+    // the previous part's shape.
+    let want_lhs = match &state.sources[idx] {
+        Some(h) => h,
+        None => &state.shapes[idx - 1],
+    };
     if interp.lhs.0.id() != want_lhs.id() {
         interp.lhs = PlanarGaussian3dHandle(want_lhs.clone());
     }
@@ -419,8 +489,9 @@ fn part_director(
     }
     let eased = factor * factor * (3.0 - 2.0 * factor);
     cs.time = eased;
-    // part 0 assembles from the (real) ball, so no shader pulse; later parts pulse to bulge.
-    cs.bulge = if morphing && idx > 0 { parts[idx].bulge } else { 0.0 };
+    // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
+    // ball); source-based transitions carry their own motion, so they don't pulse.
+    cs.bulge = if morphing && state.transitions[idx] == Transition::Morph { parts[idx].bulge } else { 0.0 };
 }
 
 /// Live clock advance (record mode drives `SeqClock` itself, deterministically).
@@ -486,9 +557,15 @@ fn record_driver(
     let dur = seq.parts.iter().map(|b| b.morph + b.hold).sum::<f32>() + 1.0; // +tail
     let total = (dur / rec.dt).ceil() as u32;
     if rec.i >= total {
-        rec.grace += 1; // let async PNG writes flush
-        if rec.grace > 30 {
-            info!("recording complete: {} frames -> {dir}", rec.i);
+        // Wait for the async PNG writes to actually land before exiting — a fast (release)
+        // build outruns the screenshot writer, so a fixed grace count would truncate the clip.
+        // Poll the directory until every frame is on disk (with a ~20 s safety cap).
+        rec.grace += 1;
+        let written = std::fs::read_dir(&dir)
+            .map(|d| d.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|x| x == "png")).count())
+            .unwrap_or(total as usize);
+        if written >= total as usize || rec.grace > 1200 {
+            info!("recording complete: {total} frames ({written} on disk) -> {dir}");
             exit.write(AppExit::Success);
         }
         return;
@@ -573,7 +650,8 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
     }
 
     if let Ok(text) = std::env::var("MARTIN_TEXT") {
-        let part = Part { content: PartContent::Text(text), hold: 2.0, morph: 3.0, bulge: 0.0 };
+        let part =
+            Part { content: PartContent::Text(text), hold: 2.0, morph: 3.0, bulge: 0.0, transition: None };
         return (Sequence { parts: vec![part], count }, None);
     }
 
@@ -591,6 +669,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
         hold: 2.0,
         morph: 3.0,
         bulge: 0.0,
+        transition: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -598,6 +677,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
             hold: 2.0,
             morph: 3.5,
             bulge,
+            transition: None,
         });
     }
     (Sequence { parts, count }, root)
@@ -690,7 +770,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, seq: Res<Sequen
         load_names: names,
         loads,
         shapes: Vec::new(),
-        intro: Handle::default(),
+        sources: Vec::new(),
+        transitions: Vec::new(),
         built: false,
         entity: None,
     });

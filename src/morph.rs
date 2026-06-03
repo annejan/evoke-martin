@@ -70,6 +70,100 @@ pub fn ball_of(shape: &[Gaussian3d], shell_r: f32) -> Vec<Gaussian3d> {
         .collect()
 }
 
+/// Per-particle deterministic pseudo-random in [0,1) from an index + salt — so transitions are
+/// stable across runs (and identical frame-for-frame when recording).
+fn hash01(k: u32, salt: u32) -> f32 {
+    ((k.wrapping_mul(salt) >> 8) & 0xffff) as f32 / 65535.0
+}
+
+/// FADE source: the shape itself, opacity 0 — it simply fades up in place (no motion).
+pub fn fade_of(shape: &[Gaussian3d]) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .map(|g| {
+            let mut s = *g;
+            let sc = s.scale_opacity.scale;
+            s.scale_opacity = [sc[0], sc[1], sc[2], 0.0].into();
+            s
+        })
+        .collect()
+}
+
+/// EXPLODE source: each (paired) particle flung outward from the centre, so the morph *gathers*
+/// the burst back into the shape. `spread` ≈ object radius.
+pub fn explode_of(shape: &[Gaussian3d], spread: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let len = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt().max(1e-4);
+            let m = spread * (0.6 + 1.4 * hash01(k, 2_654_435_761)); // outward distance
+            let j = spread * 0.5;
+            let mut s = *g;
+            s.position_visibility.position = [
+                p[0] + p[0] / len * m + (hash01(k, 40_503) - 0.5) * j,
+                p[1] + p[1] / len * m + (hash01(k, 2_246_822_519) - 0.5) * j,
+                p[2] + p[2] / len * m + (hash01(k, 3_266_489_917) - 0.5) * j,
+            ];
+            s
+        })
+        .collect()
+}
+
+/// IMPLODE source: particles collapsed to a dense speck at the centre, expanding out to place.
+pub fn implode_of(shape: &[Gaussian3d]) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let j = 0.02;
+            let mut s = *g;
+            s.position_visibility.position = [
+                p[0] * 0.03 + (hash01(k, 40_503) - 0.5) * j,
+                p[1] * 0.03 + (hash01(k, 2_246_822_519) - 0.5) * j,
+                p[2] * 0.03 + (hash01(k, 3_266_489_917) - 0.5) * j,
+            ];
+            s
+        })
+        .collect()
+}
+
+/// DROP source: particles lifted by ~`height` (staggered) and falling straight down into place.
+pub fn drop_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let mut s = *g;
+            s.position_visibility.position =
+                [p[0], p[1] + height * (0.6 + 0.8 * hash01(k, 2_654_435_761)), p[2]];
+            s
+        })
+        .collect()
+}
+
+/// SWIRL source: shape rotated about the vertical (Y) axis and pushed out, so it sweeps in.
+/// (Linear position lerp → an approximate spiral; a true arc would need the shader.)
+pub fn swirl_of(shape: &[Gaussian3d], angle: f32, expand: f32) -> Vec<Gaussian3d> {
+    let (sa, ca) = angle.sin_cos();
+    shape
+        .iter()
+        .map(|g| {
+            let p = g.position_visibility.position;
+            let (x, z) = (p[0] * expand, p[2] * expand);
+            let mut s = *g;
+            s.position_visibility.position = [x * ca - z * sa, p[1], x * sa + z * ca];
+            s
+        })
+        .collect()
+}
+
 /// Largest bounding-box dimension of a gaussian set (its "size" in world units).
 pub fn extent_of(v: &[Gaussian3d]) -> f32 {
     if v.is_empty() {

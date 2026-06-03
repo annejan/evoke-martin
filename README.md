@@ -77,6 +77,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_TEXT="MARTIN GAUS"` | **Splat-text**: the title assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ="…"` | **Timeline** — a chain of parts that morph into one another (see below). |
 | `MARTIN_BULGE=0.9` | Ball-cloud explosiveness at a morph's midpoint (`0` = clean reorder). |
+| `MARTIN_TRANSITION=fade` | How each part **arrives**: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl` (per-part `~name` wins). |
 | `MARTIN_MORPH_COUNT=250000` | Gaussian budget (`0`=max ~1.15M ≈ 20 fps; 250k ≈ 60 fps on the iGPU). |
 | `MARTIN_NORMALIZE=0` | Disable per-part centring + robust scale-to-common-size (on by default). |
 | `MARTIN_ZOOM=1.5` | Camera closeness (`>1` = closer / more zoomed in, `<1` = pull back). |
@@ -94,8 +95,12 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 text:STRING               # splat-text (glowing)
 splat:a.ply               # a splat (filename in the MARTIN_PLY folder)
 splat:a.ply+b.ply         # several splats, auto-arranged side by side
-…any part… @hold,morph,bulge   # optional per-part timing (seconds) + ball amount
+…any part… @hold,morph,bulge ~transition   # optional timing (seconds) + arrival transition
 ```
+
+The trailing `~transition` (last token) picks how a part arrives — `ball` (default),
+`fade`, `explode`, `implode`, `drop`, `swirl`, or `morph` (flow from the previous part). The
+ball is just one of many; more (typewriter, sparkle, …) are designed in **[`DESIGN.md`](DESIGN.md)**.
 
 Example — the full show (title → dog → greetings → credits):
 
