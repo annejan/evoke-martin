@@ -24,6 +24,12 @@ struct GaussianUniforms {
     color_space: u32,
     min: vec4<f32>,
     max: vec4<f32>,
+    // --- per-particle transition phase (martin fork; default-off, append-only). Appended
+    //     AFTER max (the true struct end) so no existing field offset moves. ---
+    transition_mode: u32,        // 0 = identity/off (byte-identical to upstream)
+    transition_softness: f32,    // moving-window ramp width (small = hard edge)
+    transition_axis: u32,        // 0 = x, 1 = y, 2 = z (axis/wipe/vortex modes)
+    _transition_pad: u32,        // std140: complete the 16-byte tail block
 };
 @group(1) @binding(0) var<uniform> gaussian_uniforms: GaussianUniforms;
 

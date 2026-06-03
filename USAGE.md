@@ -76,7 +76,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_REFORM` | — | Morph target: the source splat(s) turn into this one. |
 | `MARTIN_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ` | — | A timeline of parts (see [Sequences](#sequences)). Highest precedence. |
-| `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl`. A per-part `~name` overrides it. See [Sequences](#sequences). |
+| `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl` (data-only) or `typewriter`/`wipe`/`sparkle`/`slither`/`vortex` (per-particle shader). A per-part `~name` overrides it. See [Sequences](#sequences). |
 | `MARTIN_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-part 3rd timing number instead.) |
 | `MARTIN_MORPH_COUNT` | `0` (shorthand) / `200000` (`MARTIN_SEQ`) | Gaussian budget every part is resampled to. `0` = the largest part's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
 | `MARTIN_YAW` | — (gentle sway) | Pin the camera to a fixed orbit angle in **radians** (e.g. `1.57` ≈ head-on). Handy for inspecting a splat. |
@@ -130,7 +130,9 @@ The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount)
 - **bulge** — ball-pulse explosiveness, `0`–`~1.4` (default `0.9`; **`morph` transition only**)
 
 The optional trailing **`~transition`** picks *how* the part arrives (the ball is just one
-of them). It's the last token on the line:
+of them). It can sit anywhere on the line, but reads best last:
+
+**Data-only** (a built source cloud the morph flies in from):
 
 | `~name` | How it arrives |
 |---|---|
@@ -140,11 +142,21 @@ of them). It's the last token on the line:
 | `~explode` | gathers in from an outward burst |
 | `~implode` | expands out from a dense point |
 | `~drop` | falls straight down into place |
-| `~swirl` | sweeps/spirals in around the vertical axis |
+| `~swirl` | sweeps/spirals in around the vertical axis (cheap, straight-line) |
+
+**Per-particle** (the vendored shader staggers each splat — great for text):
+
+| `~name` | How it arrives |
+|---|---|
+| `~typewriter` (`~type`) | reveals left→right like a typewriter |
+| `~wipe` | a hard slab edge sweeping across the x axis |
+| `~sparkle` | random per-particle twinkle-in (HDR bloom makes it flash) |
+| `~slither` | staggered lateral wobble that settles into place |
+| `~vortex` | spins/unwinds into place (continuous, shader-driven) |
 
 `MARTIN_TRANSITION=<name>` sets a default for **every** part (handy for trying one out); an
-explicit per-part `~name` wins over it. (Per-particle transitions — typewriter, sparkle,
-slither, pen-write — are designed in `DESIGN.md` and land via a shader edit later.)
+explicit per-part `~name` wins over it. (One more — `~pen-write`, a true handwriting reveal —
+is designed in `DESIGN.md`/`SHADER-BLUEPRINT.md` but needs a glyph-outline walk first.)
 
 (The first part has nothing to morph *from*, so `~morph` there falls back to `~ball`.)
 

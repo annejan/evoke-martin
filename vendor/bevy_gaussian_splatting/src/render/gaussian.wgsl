@@ -194,6 +194,32 @@ fn explode_hash3(i: u32) -> vec3<f32> {
     return vec3<f32>(x, y, z);
 }
 
+// --- per-particle transition phase in [0,1] for staggered transitions (typewriter,
+//     slither, sparkle, vortex, directional-wipe). A PURE function of splat_index +
+//     position + uniforms (no wall-clock, no RNG state), so it is deterministic in
+//     record mode. Never called in mode 0 (the caller guards transition_mode != 0u), so
+//     mode 0 stays byte-identical to upstream. if/else-if, NOT switch (RADV). ---
+fn transition_phase(index: u32, position: vec3<f32>) -> f32 {
+    let mode = gaussian_uniforms.transition_mode;
+    let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
+    let extent = max(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz, vec3<f32>(1e-6));
+    let axis = gaussian_uniforms.transition_axis;          // 0=x, 1=y, 2=z
+    var norm_axis = (position.x - gaussian_uniforms.min.x) / extent.x;
+    if (axis == 1u) { norm_axis = (position.y - gaussian_uniforms.min.y) / extent.y; }
+    else if (axis == 2u) { norm_axis = (position.z - gaussian_uniforms.min.z) / extent.z; }
+    let radius = max(length(extent) * 0.5, 1e-4);
+    let radial = clamp(length(position - center) / radius, 0.0, 1.0);
+    let hashed = explode_hash3(index).x;
+    if (mode == 1u) { return clamp(norm_axis, 0.0, 1.0); }       // typewriter (axis reveal)
+    else if (mode == 2u) { return clamp(norm_axis, 0.0, 1.0); }  // slither (staggered along axis)
+    else if (mode == 3u) { return hashed; }                      // sparkle-in
+    else if (mode == 4u) { return hashed; }                      // spark-out (inverted at the sink)
+    else if (mode == 5u) { return radial; }                      // vortex-true (unwind by radius)
+    else if (mode == 6u) { return clamp(norm_axis, 0.0, 1.0); }  // directional-wipe HARD
+    else if (mode == 7u) { return clamp(position.z, 0.0, 1.0); } // pen-write (baked z; see blueprint §9)
+    return 0.0;
+}
+
 @vertex
 fn vs_points(
     @builtin(instance_index) instance_index: u32,
@@ -256,6 +282,44 @@ fn vs_points(
             let ball_r = radius * gaussian_uniforms.bulge * mix(0.35, 1.0, rnd.x);
             let ball_pos = center + dir * ball_r;
             position = vec4<f32>(mix(position.xyz, ball_pos, pulse), 1.0);
+        }
+    }
+
+    // --- per-particle TRANSITION phase (martin fork). Off by default: transition_mode == 0u
+    //     skips the whole block, so mode 0 is byte-identical to upstream. Active only during a
+    //     morph (interp_active), exactly like the ball-pulse above. Produces tx_reveal for the
+    //     opacity sink (read at the finalize site below) and, for motion modes, nudges position.
+    //     A moving window local = saturate((gt*(1+softness) - phase)/softness) sweeps the phase
+    //     axis. if/else-if, NOT switch (RADV). ---
+    var tx_reveal = 1.0;
+    if (interp_active && gaussian_uniforms.transition_mode != 0u) {
+        let denom = max(gaussian_uniforms.time_stop - gaussian_uniforms.time_start, 1e-6);
+        let gt = clamp((gaussian_uniforms.time - gaussian_uniforms.time_start) / denom, 0.0, 1.0);
+        let softness = max(gaussian_uniforms.transition_softness, 1e-4);
+        let phase = transition_phase(splat_index, position.xyz);
+        let local = clamp((gt * (1.0 + softness) - phase) / softness, 0.0, 1.0);
+        let mode = gaussian_uniforms.transition_mode;
+        if (mode == 1u || mode == 6u) {
+            tx_reveal = local;                  // typewriter / directional-wipe HARD
+        } else if (mode == 2u) {
+            // slither: lateral sine that dies as the particle settles (local -> 1).
+            let amp = (1.0 - local) * length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.04;
+            let wobble = sin(phase * 18.0 + gt * 6.2831853);
+            position = vec4<f32>(position.x, position.y + amp * wobble, position.z, 1.0);
+        } else if (mode == 3u) {
+            tx_reveal = local;                  // sparkle-in (hashed reveal; HDR Bloom twinkles)
+        } else if (mode == 4u) {
+            tx_reveal = 1.0 - local;            // spark-out (reversed reveal)
+        } else if (mode == 5u) {
+            // vortex-true: unwind rotation about Y, angle -> 0 as it lands.
+            let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
+            let ang = (1.0 - local) * 2.5 * 6.2831853 * (0.4 + 0.6 * phase);
+            let c = cos(ang); let s = sin(ang);
+            let p = position.xyz - center;
+            let rp = vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
+            position = vec4<f32>(center + rp, 1.0);
+        } else if (mode == 7u) {
+            tx_reveal = local;                  // pen-write (phase = baked pen distance)
         }
     }
 
@@ -479,7 +543,7 @@ fn vs_points(
 
     output.color = vec4<f32>(
         rgb,
-        opacity * gaussian_uniforms.global_opacity,
+        opacity * gaussian_uniforms.global_opacity * tx_reveal,
     );
 
 #ifdef HIGHLIGHT_SELECTED

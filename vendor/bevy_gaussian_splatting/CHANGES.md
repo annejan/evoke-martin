@@ -59,6 +59,28 @@ positions → no holes). Candidates to **upstream as a PR**.
 - `sort/radix.rs` — `radix_sort_c_scan` dispatch `(1,1,1)` (was `(1, radix_base, 1)`);
   dropped the now-unused `radix_base` local.
 
+## 4. Per-particle transition phase  (`gaussian.wgsl` + 4 uniform spots — opt-in, default-off)
+
+Enables staggered *per-particle* transitions a single global `time` can't express
+(typewriter, slither, sparkle, true vortex, hard wipe). **`transition_mode == 0` is the
+default and is byte-identical to upstream.** Append-only + default-off ⇒ a clean candidate to
+**upstream as a PR**. Full reference: `../../SHADER-BLUEPRINT.md`.
+
+- `src/render/gaussian.wgsl` — `transition_phase(index, position) -> f32` helper (after
+  `explode_hash3`); a gated branch in `vs_points` (after the ball-pulse) computing a moving
+  window `local = saturate((gt*(1+softness) - phase)/softness)` → `tx_reveal` (opacity sink)
+  or a position nudge (slither / vortex); and one factor at the color finalize,
+  `opacity * global_opacity * tx_reveal` (`* 1.0` ⇒ no-op in mode 0). if/else-if, not switch (RADV).
+- New uniform group (4 spots, like `bulge`): `transition_mode: u32`, `transition_softness: f32`,
+  `transition_axis: u32`, `_transition_pad: u32` — appended **after `max: vec4`** (the true
+  struct end, **NOT** after `bulge`) in `bindings.wgsl` `GaussianUniforms`, `mod.rs`
+  `CloudUniform` (+ its construction), and `gaussian/settings.rs` `CloudSettings` (+ `Default`:
+  mode 0 / softness 0.15 / axis 0).
+
+> Lives in `vs_points` (runs *after* the sort) → invisible to the radix sort; do **not** move
+> it into `interpolate.wgsl` (that buffer is what the sort reads). Pure fn of `splat_index` +
+> position + uniforms ⇒ deterministic in record mode.
+
 ---
 
 ## Not a fork (for reference)

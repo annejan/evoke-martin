@@ -145,9 +145,11 @@ enum PartContent {
 }
 
 /// How a part *arrives*. `Morph` (the default after part 0) flows from the previous part's
-/// shape, Morton-paired, with the optional ball-pulse `bulge`. The rest build a source cloud
-/// from the part's own shape and morph in from that — the ball is just one of them. The
-/// per-particle transitions (typewriter/sparkle/…) live in the shader and land later.
+/// shape, Morton-paired, with the optional ball-pulse `bulge`. The next group build a source
+/// cloud from the part's own shape and morph in from that — the ball is just one of them. The
+/// last group are *per-particle* transitions driven by the vendored shader (`transition_mode`
+/// uniform): the source is an identity copy and the shader staggers opacity/position per
+/// particle (see `SHADER-BLUEPRINT.md`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Transition {
     Morph,   // prev shape → this shape (with bulge ball-pulse); the original behaviour
@@ -157,6 +159,12 @@ enum Transition {
     Implode, // expand out from a dense point
     Drop,    // fall straight down into place
     Swirl,   // sweep/spiral in around the vertical axis
+    // --- per-particle (shader transition_mode) ---
+    Typewriter, // reveal left→right as a moving edge (great for text)
+    Wipe,       // hard slab reveal across the x axis
+    Sparkle,    // random per-particle twinkle-in (HDR bloom flashes)
+    Slither,    // staggered lateral sine that settles
+    Vortex,     // continuous unwind-rotation about the vertical axis
 }
 
 impl Transition {
@@ -169,8 +177,27 @@ impl Transition {
             "implode" => Transition::Implode,
             "drop" => Transition::Drop,
             "swirl" => Transition::Swirl,
+            "typewriter" | "type" => Transition::Typewriter,
+            "wipe" => Transition::Wipe,
+            "sparkle" => Transition::Sparkle,
+            "slither" => Transition::Slither,
+            "vortex" => Transition::Vortex,
             _ => return None,
         })
+    }
+
+    /// Per-particle shader transitions use an identity source cloud (same as the target);
+    /// the vendored shader staggers opacity/position. Returns the `(mode, softness, axis)`
+    /// uniform triple, or `None` for the data-only / Morph transitions.
+    fn shader_uniforms(self) -> Option<(u32, f32, u32)> {
+        match self {
+            Transition::Typewriter => Some((1, 0.10, 0)),
+            Transition::Slither => Some((2, 0.30, 0)),
+            Transition::Sparkle => Some((3, 0.40, 0)),
+            Transition::Vortex => Some((5, 0.35, 1)),
+            Transition::Wipe => Some((6, 0.02, 0)),
+            _ => None,
+        }
     }
 }
 
@@ -387,6 +414,10 @@ fn build_sequence(
             Transition::Implode => Some(implode_of(&shaped)),
             Transition::Drop => Some(drop_of(&shaped, r * 2.5)),
             Transition::Swirl => Some(swirl_of(&shaped, 2.4, 1.5)),
+            // Per-particle (shader) transitions: identity source — positions/opacity match the
+            // target and the vendored shader staggers them per particle over the morph.
+            _ if tr.shader_uniforms().is_some() => Some(shaped.clone()),
+            _ => None,
         };
         sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
         transitions.push(tr);
@@ -497,6 +528,15 @@ fn part_director(
     // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
     // ball); source-based transitions carry their own motion, so they don't pulse.
     cs.bulge = if morphing && state.transitions[idx] == Transition::Morph { parts[idx].bulge } else { 0.0 };
+    // per-particle shader transitions (typewriter/sparkle/…): drive the vendored uniforms only
+    // while morphing in; otherwise mode 0 = off (held shape renders plain, fully sort-safe).
+    let (mode, soft, axis) = morphing
+        .then(|| state.transitions[idx].shader_uniforms())
+        .flatten()
+        .unwrap_or((0, 0.0, 0));
+    cs.transition_mode = mode;
+    cs.transition_softness = soft;
+    cs.transition_axis = axis;
 }
 
 /// Live clock advance (record mode drives `SeqClock` itself, deterministically).

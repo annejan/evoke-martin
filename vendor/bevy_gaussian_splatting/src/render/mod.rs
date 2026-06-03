@@ -981,6 +981,11 @@ pub struct CloudUniform {
     pub color_space: u32,
     pub min: Vec4,
     pub max: Vec4,
+    // per-particle transition phase (martin fork; appended after max — see bindings.wgsl)
+    pub transition_mode: u32,
+    pub transition_softness: f32,
+    pub transition_axis: u32,
+    pub _transition_pad: u32,
 }
 
 #[allow(clippy::type_complexity)]
@@ -1045,6 +1050,10 @@ pub fn extract_gaussians<R: PlanarSync>(
             },
             min: aabb.min().extend(1.0),
             max: aabb.max().extend(1.0),
+            transition_mode: settings.transition_mode,
+            transition_softness: settings.transition_softness,
+            transition_axis: settings.transition_axis,
+            _transition_pad: 0,
         };
 
         commands_list.push((

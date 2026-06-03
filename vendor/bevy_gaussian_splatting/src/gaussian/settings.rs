@@ -78,6 +78,14 @@ pub struct CloudSettings {
     /// The renderer scatters each gaussian radially by `sin(pi*t)*bulge` (peaks at the
     /// blend midpoint, zero at both ends) so a morph blows apart then reassembles.
     pub bulge: f32,
+    /// Per-particle transition mode (0 = off/identity → byte-identical to upstream).
+    /// Selects a staggered reveal/motion effect in vs_points. See SHADER-BLUEPRINT.md.
+    pub transition_mode: u32,
+    /// Moving-window ramp width for the transition. Small ≈ hard edge (typewriter/wipe),
+    /// larger → soft dissolve. Ignored when transition_mode == 0.
+    pub transition_softness: f32,
+    /// Axis for axis/wipe/vortex transition modes: 0 = x, 1 = y, 2 = z.
+    pub transition_axis: u32,
 }
 
 impl Default for CloudSettings {
@@ -100,6 +108,9 @@ impl Default for CloudSettings {
             time_start: 0.0,
             time_stop: 1.0,
             bulge: 0.0,
+            transition_mode: 0,        // off → byte-identical to upstream
+            transition_softness: 0.15, // sensible ramp; only used when mode != 0
+            transition_axis: 0,        // x
         }
     }
 }
