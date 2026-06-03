@@ -131,14 +131,29 @@ path instead of free-orbiting (smoothstep easing through each marker, shortest-w
 # preview the move you just marked, looping there-and-back every 8 s
 MARTIN_PLY=assets/train.ply MARTIN_FLY=8 cargo +nightly run --release
 
-# bake that path into a recording (it spans the whole show, no swaying)
+# bake that path into a recording (no swaying — the path owns the camera)
 MARTIN_PLY=assets/train.ply MARTIN_FLY=1 ./record.sh train_flyby.mp4
 ```
 
-Live, it ping-pongs the path over `<secs>` so you can judge it on a loop; **while recording it
-stretches the path across the whole show once**, reaching the last marker as the last part ends —
-so the camera move fills the clip (the `<secs>` value is only used for the live loop). Waypoints
-are scene-specific (they pin exact camera poses), so capture and replay them on the same `.ply`.
+Live, it ping-pongs the path over `<secs>` so you can judge it on a loop. **While recording, each
+*part* gets its own there-and-back flyby** over its slice of the timeline — so a multi-part show
+flies the path, morphs to the next subject, and flies it again. Waypoints are scene-specific (they
+pin exact camera poses), so capture and replay them on `.ply`s that share a frame (e.g. two splats
+from the same capture rig).
+
+**Same flyby on two subjects, with a morph between** — when two splats normalize to the same spot
+(the train + truck from one dataset do), one path frames both. Build a two-part sequence and the
+recorder flies each in turn:
+
+```bash
+# flyby the train → morph → same flyby the truck (each part = one there-and-back pass)
+MARTIN_PLY=assets/train.ply \
+MARTIN_SEQ="splat:train.ply @5,1 ~fade; splat:truck.ply @5,3,0.4 ~morph" \
+MARTIN_FLY=1 ./record.sh train_truck_flyby.mp4
+```
+
+(`@hold,morph,bulge` — the train fades in over 1 s and holds 5 s for its flyby; the truck morphs
+from the train over 3 s with a gentle ball-pulse, then holds 5 s for its own flyby.)
 
 > **Heads-up on raw scene `.ply`s.** A bare splat from a 360° capture (no camera poses) carries
 > lots of under-constrained background "needle" splats and only blends coherently along its

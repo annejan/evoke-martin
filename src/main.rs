@@ -193,11 +193,20 @@ fn controls(
     }
 }
 
+/// Triangle wave 0→1→0 over the unit interval — a there-and-back ease for path playback.
+fn pingpong(x: f32) -> f32 {
+    if x < 0.5 {
+        x * 2.0
+    } else {
+        2.0 - x * 2.0
+    }
+}
+
 /// `MARTIN_FLY=<secs>`: fly the camera through the loaded waypoints (the M-key path). **Live** it
 /// ping-pongs there-and-back over `secs` for a smooth, cut-free preview loop; while **recording**
-/// it spreads the path across the whole show once (reaching the last marker as the last part
-/// ends) — an authored camera move that fills the clip. Owns the camera when active (`controls`
-/// and the recorder's sway stand down).
+/// each part gets its own there-and-back flyby over its `[start, next-start)` window — so a
+/// train→truck sequence flies the path, morphs, then flies it again. Owns the camera when active
+/// (`controls` and the recorder's sway stand down).
 fn flypath(
     marks: Res<waypoints::Waypoints>,
     rec: Res<RecordState>,
@@ -217,14 +226,18 @@ fn flypath(
         if !state.built {
             return;
         }
-        (clock.t / show_end(&seq.parts, &state.starts).max(0.1)).clamp(0.0, 1.0)
+        // recording = the demo: each part gets one full there-and-back flyby over its
+        // [start, next-start) window, so a train→truck sequence flies, morphs, then flies again.
+        let starts = &state.starts;
+        let idx = active_part(starts, clock.t);
+        let part_start = starts[idx];
+        let part_end = starts
+            .get(idx + 1)
+            .copied()
+            .unwrap_or_else(|| show_end(&seq.parts, starts));
+        pingpong(((clock.t - part_start) / (part_end - part_start).max(0.1)).clamp(0.0, 1.0))
     } else {
-        let cycle = (clock.t / secs).fract(); // live: ping-pong 0→1→0 for a cut-free preview
-        if cycle < 0.5 {
-            cycle * 2.0
-        } else {
-            2.0 - cycle * 2.0
-        }
+        pingpong((clock.t / secs).fract()) // live: loop the path there-and-back for a preview
     };
     let Some(w) = waypoints::pose_at(&marks.list, p) else {
         return;
@@ -829,6 +842,20 @@ fn build_sequence(
     );
 }
 
+/// Index of the active part at time `t`: the last part whose absolute start (from the cue
+/// timeline — `@@anchor` or laid end-to-end) has arrived. Shared by `part_director` and `flypath`.
+fn active_part(starts: &[f32], t: f32) -> usize {
+    let mut idx = 0;
+    for (i, &start) in starts.iter().enumerate() {
+        if t >= start {
+            idx = i;
+        } else {
+            break;
+        }
+    }
+    idx
+}
+
 /// Drive the show from `SeqClock.t`: find the active part, retarget the interpolate entity's
 /// lhs/rhs (only on change), and set the blend factor + ball bulge. Part 0 morphs in from the
 /// intro ball; every later part morphs in from the previous part's shape.
@@ -856,14 +883,7 @@ fn part_director(
     // until the next part starts. Before part 0's start, `factor` clamps to 0 (its source state).
     let t = clock.t;
     let starts = &state.starts;
-    let mut idx = 0;
-    for (i, &start) in starts.iter().enumerate() {
-        if t >= start {
-            idx = i;
-        } else {
-            break;
-        }
-    }
+    let idx = active_part(starts, t);
     let dt = t - starts[idx];
     let morphing = dt < parts[idx].morph;
     let factor = (dt / parts[idx].morph.max(1e-3)).clamp(0.0, 1.0);
