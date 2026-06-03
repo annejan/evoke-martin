@@ -12,6 +12,8 @@
 //! crate (see vendor/.../CHANGES.md). Live: ↑/↓ zoom · ←/→ raise/lower · Space = restart ·
 //! F11/F = fullscreen (or start fullscreen with MARTIN_FULLSCREEN=1).
 
+use std::f32::consts::PI;
+
 use bevy::app::AppExit;
 use bevy::asset::AssetPlugin;
 use bevy::camera::primitives::Aabb;
@@ -28,7 +30,6 @@ use bevy_gaussian_splatting::{
     CloudSettings, Gaussian3d, GaussianCamera, GaussianSplattingPlugin, PlanarGaussian3d,
     PlanarGaussian3dHandle,
 };
-use std::f32::consts::PI;
 
 mod morph;
 mod splat_image;

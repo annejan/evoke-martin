@@ -1,0 +1,9 @@
+# rustfmt config. Nightly is pinned (rust-toolchain.toml), so `cargo fmt` honours the few
+# unstable options below; on stable rustfmt they're ignored with a warning, not an error.
+edition = "2021"
+max_width = 100
+use_field_init_shorthand = true
+use_try_shorthand = true
+# tidy imports: one `use` per module, grouped std → external → crate (unstable; nightly only).
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
