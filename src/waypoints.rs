@@ -22,7 +22,8 @@ pub struct Waypoint {
 pub struct Waypoints {
     pub list: Vec<Waypoint>,
     pub path: String,
-    /// `MARTIN_FLY=<secs>`: replay the path instead of free-orbiting. `Some(secs)` = enabled.
+    /// `MARTIN_FLY=<secs>`: replay the path instead of free-orbiting; `secs` is the **time per
+    /// waypoint leg** (time between markers). `Some(secs)` = enabled.
     pub fly: Option<f32>,
 }
 
@@ -35,7 +36,7 @@ impl Waypoints {
             path,
             fly: std::env::var("MARTIN_FLY")
                 .ok()
-                .map(|s| s.trim().parse::<f32>().unwrap_or(12.0).max(0.1)),
+                .map(|s| s.trim().parse::<f32>().unwrap_or(2.0).max(0.05)),
         }
     }
 }

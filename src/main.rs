@@ -202,42 +202,39 @@ fn pingpong(x: f32) -> f32 {
     }
 }
 
-/// `MARTIN_FLY=<secs>`: fly the camera through the loaded waypoints (the M-key path). **Live** it
-/// ping-pongs there-and-back over `secs` for a smooth, cut-free preview loop; while **recording**
-/// each part gets its own there-and-back flyby over its `[start, next-start)` window — so a
-/// train→truck sequence flies the path, morphs, then flies it again. Owns the camera when active
-/// (`controls` and the recorder's sway stand down).
+/// `MARTIN_FLY=<secs>`: fly the camera through the loaded waypoints (the M-key path); `secs` is
+/// the time per waypoint **leg**, so a full pass takes `secs × (markers − 1)`. While **recording**,
+/// each part flies the path once (first → last marker) then holds — a new part restarts at the
+/// first marker, so a train→truck sequence flies, morphs, and flies again (size parts so
+/// `hold + morph ≥` a full pass). **Live** it ping-pongs the path there-and-back at the same pace,
+/// looping for preview. Owns the camera when active (`controls` and the recorder's sway stand down).
 fn flypath(
     marks: Res<waypoints::Waypoints>,
     rec: Res<RecordState>,
-    seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
     clock: Res<SeqClock>,
     mut q: Query<&mut OrbitCam>,
 ) {
     let Some(secs) = marks.fly else { return };
-    if marks.list.len() < 2 {
+    let n = marks.list.len();
+    if n < 2 {
         return;
     }
+    let legs = (n - 1) as f32; // a full pass takes `secs` per leg → secs * legs seconds
     let p = if rec.dir.is_some() {
-        let (Some(seq), Some(state)) = (&seq, &state) else {
-            return;
-        };
+        let Some(state) = &state else { return };
         if !state.built {
             return;
         }
-        // recording = the demo: each part gets one full there-and-back flyby over its
-        // [start, next-start) window, so a train→truck sequence flies, morphs, then flies again.
-        let starts = &state.starts;
-        let idx = active_part(starts, clock.t);
-        let part_start = starts[idx];
-        let part_end = starts
-            .get(idx + 1)
-            .copied()
-            .unwrap_or_else(|| show_end(&seq.parts, starts));
-        pingpong(((clock.t - part_start) / (part_end - part_start).max(0.1)).clamp(0.0, 1.0))
+        // recording = the demo: at each part the camera flies the path once (first → last marker)
+        // at `secs` per leg, then holds on the last marker. A new part restarts at the first one
+        // — so a train→truck sequence flies, morphs (the restart hides in the morph), then flies
+        // again. Size parts so hold+morph ≥ secs*legs, or the pass is cut at the boundary.
+        let idx = active_part(&state.starts, clock.t);
+        ((clock.t - state.starts[idx]) / (secs * legs)).clamp(0.0, 1.0)
     } else {
-        pingpong((clock.t / secs).fract()) // live: loop the path there-and-back for a preview
+        // live: ping-pong there-and-back at the same per-leg pace, looping for preview.
+        pingpong((clock.t / (2.0 * secs * legs)).fract())
     };
     let Some(w) = waypoints::pose_at(&marks.list, p) else {
         return;

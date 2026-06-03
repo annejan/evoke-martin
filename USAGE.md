@@ -85,7 +85,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_YAW` | `1.4` (front) | Seed the orbit **yaw** in **radians** (e.g. `1.57` ≈ head-on). When set, a recording **holds** this yaw instead of swaying — bake a found scene viewpoint. |
 | `MARTIN_PITCH` | `0.12` | Seed the orbit **pitch** in **radians** (0 = eye level, `+` looks down). |
 | `MARTIN_WAYPOINTS` | `waypoints.json` | File the **M-key camera waypoints** are written to (and read from on startup). Each marker appends the live orbit pose (target/dist/yaw/pitch) so you can author a camera path while flying — see [live controls](#live-keyboard-controls). |
-| `MARTIN_FLY` | — | `=<secs>` **flies the camera through the loaded waypoints** instead of free-orbiting. Live: ping-pongs the path there-and-back over `<secs>` (a preview loop). Recording: spreads the path across the whole show once — an authored camera move. Needs ≥2 waypoints in `MARTIN_WAYPOINTS`. |
+| `MARTIN_FLY` | — | `=<secs>` **flies the camera through the loaded waypoints** instead of free-orbiting. `<secs>` is the **time per waypoint leg** (default `2`), so a full pass = `secs × (markers − 1)` — your speed knob. Recording: each part flies the path once (then holds; a new part restarts it). Live: ping-pongs the path at the same pace, looping. Needs ≥2 waypoints in `MARTIN_WAYPOINTS`. |
 | `MARTIN_FPS` | off | `=1` logs smoothed FPS / frame-time + timeline clock every ~0.5 s. |
 | `MARTIN_RECORD` | — | Directory to dump one PNG per frame into (the whole timeline; used by `record.sh`). |
 | `MARTIN_SHOT` | — | Capture a single headless screenshot to this path, then exit ~2 s later. |
@@ -125,35 +125,38 @@ capture a whole path. The file is plain JSON — an array of poses — and is **
 so M *continues* an existing path across runs.
 
 **Flying the path back.** With ≥2 markers, set **`MARTIN_FLY=<secs>`** and the camera flies the
-path instead of free-orbiting (smoothstep easing through each marker, shortest-way yaw):
+path instead of free-orbiting (smoothstep easing through each marker, shortest-way yaw). **`<secs>`
+is the time per waypoint leg** (default `2`) — so the whole path takes `secs × (markers − 1)`.
+That's your speed knob: bigger = slower, statelier:
 
 ```bash
-# preview the move you just marked, looping there-and-back every 8 s
-MARTIN_PLY=assets/train.ply MARTIN_FLY=8 cargo +nightly run --release
+# preview the path (live ping-pongs there-and-back, ~2 s between each marker)
+MARTIN_PLY=assets/train.ply MARTIN_FLY=2 cargo +nightly run --release
 
-# bake that path into a recording (no swaying — the path owns the camera)
-MARTIN_PLY=assets/train.ply MARTIN_FLY=1 ./record.sh train_flyby.mp4
+# bake it into a recording — 3 s per leg for a slow, deliberate move
+MARTIN_PLY=assets/train.ply MARTIN_FLY=3 ./record.sh train_flyby.mp4
 ```
 
-Live, it ping-pongs the path over `<secs>` so you can judge it on a loop. **While recording, each
-*part* gets its own there-and-back flyby** over its slice of the timeline — so a multi-part show
-flies the path, morphs to the next subject, and flies it again. Waypoints are scene-specific (they
-pin exact camera poses), so capture and replay them on `.ply`s that share a frame (e.g. two splats
-from the same capture rig).
+**While recording, each *part* flies the path once** (first marker → last) at that pace, then holds
+on the last marker until the part ends; the next part restarts at the first marker — so a multi-part
+show flies the path, morphs to the next subject, and flies it again. Give each part enough screen
+time to finish a pass: **`hold + morph ≥ secs × (markers − 1)`**, or it gets cut off at the part
+boundary. Live, it ping-pongs the path on a loop at the same pace, for judging the shape. Waypoints
+are scene-specific (they pin exact camera poses), so replay them on `.ply`s that share a frame.
 
 **Same flyby on two subjects, with a morph between** — when two splats normalize to the same spot
-(the train + truck from one dataset do), one path frames both. Build a two-part sequence and the
-recorder flies each in turn:
+(the train + truck from one dataset do), one path frames both:
 
 ```bash
-# flyby the train → morph → same flyby the truck (each part = one there-and-back pass)
+# flyby train → morph → same flyby truck. 7 markers × 2 s/leg = 12 s a pass, so each part is
+# held ≥ 12 s. Bulge 0 (the 3rd timing number) keeps the morph a straight slide, not explodey.
 MARTIN_PLY=assets/train.ply \
-MARTIN_SEQ="splat:train.ply @5,1 ~fade; splat:truck.ply @5,3,0.4 ~morph" \
-MARTIN_FLY=1 ./record.sh train_truck_flyby.mp4
+MARTIN_SEQ="splat:train.ply @13,1 ~fade; splat:truck.ply @12,3,0 ~morph" \
+MARTIN_MORPH_COUNT=1000000 MARTIN_FLY=2 ./record.sh train_truck_flyby.mp4
 ```
 
-(`@hold,morph,bulge` — the train fades in over 1 s and holds 5 s for its flyby; the truck morphs
-from the train over 3 s with a gentle ball-pulse, then holds 5 s for its own flyby.)
+(`@hold,morph,bulge` in seconds — train fades in over 1 s, holds 13 s for its 12 s pass; truck
+morphs straight in over 3 s, holds 12 s for its own pass.)
 
 > **Heads-up on raw scene `.ply`s.** A bare splat from a 360° capture (no camera poses) carries
 > lots of under-constrained background "needle" splats and only blends coherently along its
