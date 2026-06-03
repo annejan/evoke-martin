@@ -1,7 +1,7 @@
 //! Morton (Z-order) correspondence + the intro ball.
 //!
-//! Resampling beats to a shared count via a Morton sort keeps spatial neighbours adjacent,
-//! so consecutive beats pair k-th↔k-th and *flow* into one another instead of teleporting.
+//! Resampling parts to a shared count via a Morton sort keeps spatial neighbours adjacent,
+//! so consecutive parts pair k-th↔k-th and *flow* into one another instead of teleporting.
 //! Pure functions over `Gaussian3d` — no Bevy/ECS.
 
 use bevy::math::Vec3;
@@ -24,7 +24,7 @@ fn morton3(p: [f32; 3], lo: [f32; 3], inv: [f32; 3]) -> u32 {
 }
 
 /// Morton-sort a gaussian set over its own bounds and resample to exactly `n`, so consecutive
-/// beats pair k-th↔k-th in spatial order (coherent flow). Up/down-samples as needed.
+/// parts pair k-th↔k-th in spatial order (coherent flow). Up/down-samples as needed.
 pub fn resample_morton(mut v: Vec<Gaussian3d>, n: usize) -> Vec<Gaussian3d> {
     if v.is_empty() || n == 0 {
         return Vec::new();
@@ -141,8 +141,11 @@ pub fn drop_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
             let k = idx as u32;
             let p = g.position_visibility.position;
             let mut s = *g;
-            s.position_visibility.position =
-                [p[0], p[1] + height * (0.6 + 0.8 * hash01(k, 2_654_435_761)), p[2]];
+            s.position_visibility.position = [
+                p[0],
+                p[1] + height * (0.6 + 0.8 * hash01(k, 2_654_435_761)),
+                p[2],
+            ];
             s
         })
         .collect()
@@ -200,7 +203,11 @@ pub fn normalize_to(v: &mut [Gaussian3d], target: f32) {
         }
     }
     let nf = v.len() as f64;
-    let center = [(sum[0] / nf) as f32, (sum[1] / nf) as f32, (sum[2] / nf) as f32];
+    let center = [
+        (sum[0] / nf) as f32,
+        (sum[1] / nf) as f32,
+        (sum[2] / nf) as f32,
+    ];
     // 90th-percentile distance from the centroid → ignore the far ~10% (the floaters)
     let mut dists: Vec<f32> = v
         .iter()
@@ -216,8 +223,13 @@ pub fn normalize_to(v: &mut [Gaussian3d], target: f32) {
     for g in v.iter_mut() {
         let p = g.position_visibility.position;
         let vis = g.position_visibility.visibility;
-        g.position_visibility =
-            [(p[0] - center[0]) * s, (p[1] - center[1]) * s, (p[2] - center[2]) * s, vis].into();
+        g.position_visibility = [
+            (p[0] - center[0]) * s,
+            (p[1] - center[1]) * s,
+            (p[2] - center[2]) * s,
+            vis,
+        ]
+        .into();
         let sc = g.scale_opacity.scale;
         let op = g.scale_opacity.opacity;
         g.scale_opacity = [sc[0] * s, sc[1] * s, sc[2] * s, op].into();

@@ -2,7 +2,7 @@
 //! source. Built Y-DOWN so the entity's `cloud_base_rotation` flips it upright like the
 //! Y-down `.ply` splats. Pure (no Bevy/ECS) apart from the gaussian type.
 
-use ab_glyph::{Font, FontRef, OutlineCurve, PxScale, ScaleFont, point};
+use ab_glyph::{point, Font, FontRef, OutlineCurve, PxScale, ScaleFont};
 use bevy_gaussian_splatting::{Gaussian3d, SphericalHarmonicCoefficients};
 
 /// Bundled bold TTF (`include_bytes`, not the asset server — `AssetPlugin.file_path` points
@@ -24,7 +24,13 @@ fn dc(c: f32) -> f32 {
 
 /// Rasterize `s` to flat gaussians on z=0 (centered at origin), scaled so the block spans
 /// `world_width`. One small gaussian per sampled glyph-coverage pixel; opacity = coverage.
-pub fn build_text_gaussians(s: &str, rgb: [f32; 3], world_width: f32, stride: usize, splat: f32) -> Vec<Gaussian3d> {
+pub fn build_text_gaussians(
+    s: &str,
+    rgb: [f32; 3],
+    world_width: f32,
+    stride: usize,
+    splat: f32,
+) -> Vec<Gaussian3d> {
     let font = FontRef::try_from_slice(FONT).expect("font.ttf");
     let px = 64.0_f32;
     let sf = font.as_scaled(PxScale::from(px));
@@ -61,10 +67,17 @@ pub fn build_text_gaussians(s: &str, rgb: [f32; 3], world_width: f32, stride: us
     let mut out: Vec<Gaussian3d> = Vec::new();
     let mut i: u32 = 0;
     for (gx0, gy0, ch) in &placed {
-        let glyph = font.glyph_id(*ch).with_scale_and_position(px, point(*gx0, *gy0));
-        let Some(o) = font.outline_glyph(glyph) else { continue }; // spaces -> no outline
+        let glyph = font
+            .glyph_id(*ch)
+            .with_scale_and_position(px, point(*gx0, *gy0));
+        let Some(o) = font.outline_glyph(glyph) else {
+            continue;
+        }; // spaces -> no outline
         let bb = o.px_bounds();
-        let (w, h) = (bb.width().ceil() as usize + 1, bb.height().ceil() as usize + 1);
+        let (w, h) = (
+            bb.width().ceil() as usize + 1,
+            bb.height().ceil() as usize + 1,
+        );
         let mut cov = vec![0f32; w * h];
         o.draw(|dx, dy, c| {
             let (x, y) = (dx as usize, dy as usize);
@@ -118,27 +131,42 @@ fn sample_curve(c: &OutlineCurve, step_fu: f32, out: &mut Vec<(f32, f32, f32)>) 
                 .map(|i| {
                     let t = i as f32 / n as f32;
                     let u = 1.0 - t;
-                    (u * u * a.x + 2.0 * u * t * c1.x + t * t * b.x, u * u * a.y + 2.0 * u * t * c1.y + t * t * b.y)
+                    (
+                        u * u * a.x + 2.0 * u * t * c1.x + t * t * b.x,
+                        u * u * a.y + 2.0 * u * t * c1.y + t * t * b.y,
+                    )
                 })
                 .collect()
         }
         OutlineCurve::Cubic(a, c1, c2, b) => {
-            let approx = (c1.x - a.x).hypot(c1.y - a.y) + (c2.x - c1.x).hypot(c2.y - c1.y) + (b.x - c2.x).hypot(b.y - c2.y);
+            let approx = (c1.x - a.x).hypot(c1.y - a.y)
+                + (c2.x - c1.x).hypot(c2.y - c1.y)
+                + (b.x - c2.x).hypot(b.y - c2.y);
             let n = (approx / step_fu).ceil().max(3.0) as usize;
             (0..=n)
                 .map(|i| {
                     let t = i as f32 / n as f32;
                     let u = 1.0 - t;
                     (
-                        u * u * u * a.x + 3.0 * u * u * t * c1.x + 3.0 * u * t * t * c2.x + t * t * t * b.x,
-                        u * u * u * a.y + 3.0 * u * u * t * c1.y + 3.0 * u * t * t * c2.y + t * t * t * b.y,
+                        u * u * u * a.x
+                            + 3.0 * u * u * t * c1.x
+                            + 3.0 * u * t * t * c2.x
+                            + t * t * t * b.x,
+                        u * u * u * a.y
+                            + 3.0 * u * u * t * c1.y
+                            + 3.0 * u * t * t * c2.y
+                            + t * t * t * b.y,
                     )
                 })
                 .collect()
         }
     };
     for (i, &(x, y)) in pts.iter().enumerate() {
-        let seg = if i == 0 { 0.0 } else { (x - pts[i - 1].0).hypot(y - pts[i - 1].1) };
+        let seg = if i == 0 {
+            0.0
+        } else {
+            (x - pts[i - 1].0).hypot(y - pts[i - 1].1)
+        };
         out.push((x, y, seg));
     }
 }
@@ -149,7 +177,14 @@ fn sample_curve(c: &OutlineCurve, step_fu: f32, out: &mut Vec<(f32, f32, f32)>) 
 /// in writing order. Flat at z=0 (unlike baking into z) so the morph target is unaffected. A
 /// FILLED font traces letter *outlines* (neon draw-on); a SINGLE-STROKE font traces centerlines
 /// (true handwriting).
-fn pen_gaussians(font_bytes: &[u8], s: &str, rgb: [f32; 3], world_width: f32, step_px: f32, splat: f32) -> Vec<Gaussian3d> {
+fn pen_gaussians(
+    font_bytes: &[u8],
+    s: &str,
+    rgb: [f32; 3],
+    world_width: f32,
+    step_px: f32,
+    splat: f32,
+) -> Vec<Gaussian3d> {
     let font = FontRef::try_from_slice(font_bytes).expect("font");
     let px = 64.0_f32;
     let sf = font.as_scaled(PxScale::from(px));
@@ -190,7 +225,9 @@ fn pen_gaussians(font_bytes: &[u8], s: &str, rgb: [f32; 3], world_width: f32, st
     let mut samples: Vec<(f32, f32, f32)> = Vec::new();
     let mut acc = 0.0_f32;
     for (gx0, gy0, ch) in &placed {
-        let Some(outline) = font.outline(font.glyph_id(*ch)) else { continue }; // spaces → none
+        let Some(outline) = font.outline(font.glyph_id(*ch)) else {
+            continue;
+        }; // spaces → none
         for curve in &outline.curves {
             let mut cpts: Vec<(f32, f32, f32)> = Vec::new();
             sample_curve(curve, step_fu, &mut cpts);
@@ -220,7 +257,13 @@ fn pen_gaussians(font_bytes: &[u8], s: &str, rgb: [f32; 3], world_width: f32, st
 
 /// Outline draw-on: trace the FILLED bundled font's glyph outlines in pen order — a glowing
 /// neon outline that writes itself on. (Pairs with `Transition::Outline` / `~outline`.)
-pub fn build_text_outline_gaussians(s: &str, rgb: [f32; 3], world_width: f32, step_px: f32, splat: f32) -> Vec<Gaussian3d> {
+pub fn build_text_outline_gaussians(
+    s: &str,
+    rgb: [f32; 3],
+    world_width: f32,
+    step_px: f32,
+    splat: f32,
+) -> Vec<Gaussian3d> {
     pen_gaussians(FONT, s, rgb, world_width, step_px, splat)
 }
 
@@ -264,7 +307,10 @@ impl ttf_parser::OutlineBuilder for OpenContours {
         for i in 1..=8 {
             let t = i as f32 / 8.0;
             let u = 1.0 - t;
-            self.cur.push((u * u * x0 + 2.0 * u * t * x1 + t * t * x, u * u * y0 + 2.0 * u * t * y1 + t * t * y));
+            self.cur.push((
+                u * u * x0 + 2.0 * u * t * x1 + t * t * x,
+                u * u * y0 + 2.0 * u * t * y1 + t * t * y,
+            ));
         }
     }
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
@@ -284,8 +330,16 @@ impl ttf_parser::OutlineBuilder for OpenContours {
 /// True pen-write: trace the SINGLE-STROKE font's centerline in pen order — actual handwriting.
 /// Uses `ttf-parser` (not ab_glyph) so contours stay OPEN; cumulative pen-distance is baked into
 /// the visibility channel for shader mode 7. Single line only. (Pairs with `~pen-write`.)
-pub fn build_text_penwrite_gaussians(s: &str, rgb: [f32; 3], world_width: f32, step_px: f32, splat: f32) -> Vec<Gaussian3d> {
-    let Ok(face) = ttf_parser::Face::parse(STROKE_FONT, 0) else { return Vec::new() };
+pub fn build_text_penwrite_gaussians(
+    s: &str,
+    rgb: [f32; 3],
+    world_width: f32,
+    step_px: f32,
+    splat: f32,
+) -> Vec<Gaussian3d> {
+    let Ok(face) = ttf_parser::Face::parse(STROKE_FONT, 0) else {
+        return Vec::new();
+    };
     let upm = face.units_per_em() as f32;
     let (asc, desc) = (face.ascender() as f32, face.descender() as f32);
     let step_fu = (step_px * upm / 64.0).max(1.0); // sample spacing in font units
@@ -295,7 +349,10 @@ pub fn build_text_penwrite_gaussians(s: &str, rgb: [f32; 3], world_width: f32, s
     let (mut pen_x, mut max_x) = (0.0_f32, 0.0_f32);
     for ch in s.chars().filter(|&c| c != '\n') {
         placed.push((pen_x, ch));
-        let adv = face.glyph_index(ch).and_then(|g| face.glyph_hor_advance(g)).unwrap_or((upm * 0.5) as u16) as f32;
+        let adv = face
+            .glyph_index(ch)
+            .and_then(|g| face.glyph_hor_advance(g))
+            .unwrap_or((upm * 0.5) as u16) as f32;
         pen_x += adv;
         max_x = max_x.max(pen_x);
     }
@@ -313,12 +370,16 @@ pub fn build_text_penwrite_gaussians(s: &str, rgb: [f32; 3], world_width: f32, s
     let mut samples: Vec<(f32, f32, f32)> = Vec::new();
     let mut acc = 0.0_f32;
     for (px0, ch) in &placed {
-        let Some(gid) = face.glyph_index(*ch) else { continue }; // spaces → no glyph
+        let Some(gid) = face.glyph_index(*ch) else {
+            continue;
+        }; // spaces → no glyph
         let mut ob = OpenContours::default();
         face.outline_glyph(gid, &mut ob);
         ob.flush();
         for contour in &ob.contours {
-            let Some(&(mut ax, mut ay)) = contour.first() else { continue };
+            let Some(&(mut ax, mut ay)) = contour.first() else {
+                continue;
+            };
             samples.push((px0 + ax, baseline - ay, acc)); // contour start: no jump counted
             for &(bx, by) in &contour[1..] {
                 let seglen = (bx - ax).hypot(by - ay);
@@ -326,7 +387,11 @@ pub fn build_text_penwrite_gaussians(s: &str, rgb: [f32; 3], world_width: f32, s
                 for i in 1..=n {
                     let t = i as f32 / n as f32;
                     acc += seglen / n as f32;
-                    samples.push((px0 + ax + (bx - ax) * t, baseline - (ay + (by - ay) * t), acc));
+                    samples.push((
+                        px0 + ax + (bx - ax) * t,
+                        baseline - (ay + (by - ay) * t),
+                        acc,
+                    ));
                 }
                 ax = bx;
                 ay = by;

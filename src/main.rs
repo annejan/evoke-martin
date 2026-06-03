@@ -12,15 +12,15 @@
 //! crate (see vendor/.../CHANGES.md). Live: ↑/↓ zoom · ←/→ raise/lower · Space = restart ·
 //! F11/F = fullscreen (or start fullscreen with MARTIN_FULLSCREEN=1).
 
-use bevy::prelude::*;
 use bevy::app::AppExit;
 use bevy::asset::AssetPlugin;
 use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
-use bevy::render::view::Hdr;
+use bevy::prelude::*;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::Hdr;
 use bevy::window::{MonitorSelection, WindowMode};
 use bevy_gaussian_splatting::morph::interpolate::GaussianInterpolate;
 use bevy_gaussian_splatting::sort::SortMode;
@@ -35,7 +35,9 @@ mod splat_image;
 mod text;
 use crate::morph::{ball_of, drop_of, explode_of, fade_of, implode_of, resample_morton, swirl_of};
 use crate::splat_image::build_image_gaussians;
-use crate::text::{build_text_gaussians, build_text_outline_gaussians, build_text_penwrite_gaussians, TEXT_RGB};
+use crate::text::{
+    build_text_gaussians, build_text_outline_gaussians, build_text_penwrite_gaussians, TEXT_RGB,
+};
 
 const FRONT_YAW: f32 = 1.4; // camera faces the subject head-on (single-image splats have no back)
 const SWAY: f32 = 0.25; // gentle left-right sway amplitude — never reaches the hollow back
@@ -71,7 +73,13 @@ struct OrbitCam {
 
 impl Default for OrbitCam {
     fn default() -> Self {
-        Self { center: Vec3::ZERO, radius: 5.0, elevation: 1.5, yaw: FRONT_YAW, framed: false }
+        Self {
+            center: Vec3::ZERO,
+            radius: 5.0,
+            elevation: 1.5,
+            yaw: FRONT_YAW,
+            framed: false,
+        }
     }
 }
 
@@ -85,7 +93,11 @@ struct CamOverride(Option<f32>);
 fn orbit_camera(cam_override: Res<CamOverride>, mut q: Query<(&mut Transform, &OrbitCam)>) {
     for (mut tf, cam) in &mut q {
         let yaw = cam_override.0.unwrap_or(cam.yaw);
-        let offset = Vec3::new(cam.radius * yaw.cos(), cam.elevation, cam.radius * yaw.sin());
+        let offset = Vec3::new(
+            cam.radius * yaw.cos(),
+            cam.elevation,
+            cam.radius * yaw.sin(),
+        );
         tf.translation = cam.center + offset;
         tf.look_at(cam.center, Vec3::Y);
     }
@@ -169,8 +181,8 @@ enum Transition {
     Sparkle,    // random per-particle twinkle-in (HDR bloom flashes)
     Slither,    // staggered lateral sine that settles
     Vortex,     // continuous unwind-rotation about the vertical axis
-    Outline,    // text traced in outline/pen order — a glowing neon draw-on (filled font); text only
-    PenWrite,   // text written in pen order on a single-stroke font — true handwriting; text only
+    Outline, // text traced in outline/pen order — a glowing neon draw-on (filled font); text only
+    PenWrite, // text written in pen order on a single-stroke font — true handwriting; text only
 }
 
 impl Transition {
@@ -204,7 +216,7 @@ impl Transition {
             Transition::Sparkle => Some((3, 0.40, 0)),
             Transition::Vortex => Some((5, 0.35, 1)),
             Transition::Wipe => Some((6, 0.02, 0)),
-            Transition::Outline => Some((7, 0.06, 0)),  // filled font → traces outlines
+            Transition::Outline => Some((7, 0.06, 0)), // filled font → traces outlines
             Transition::PenWrite => Some((7, 0.05, 0)), // single-stroke font → handwriting
             _ => None,
         }
@@ -268,13 +280,15 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         let mut transition = None;
         let s: String = s
             .split_whitespace()
-            .filter(|tok| match tok.strip_prefix('~').and_then(Transition::parse) {
-                Some(tr) => {
-                    transition = Some(tr);
-                    false
-                }
-                None => true,
-            })
+            .filter(
+                |tok| match tok.strip_prefix('~').and_then(Transition::parse) {
+                    Some(tr) => {
+                        transition = Some(tr);
+                        false
+                    }
+                    None => true,
+                },
+            )
             .collect::<Vec<_>>()
             .join(" ");
         let (head, timing) = match s.split_once('@') {
@@ -284,20 +298,34 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         let (mut hold, mut morph, mut bulge) = (1.5_f32, 3.0_f32, 0.9_f32);
         if let Some(t) = timing {
             let nums: Vec<f32> = t.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-            if let Some(v) = nums.first() { hold = *v; }
-            if let Some(v) = nums.get(1) { morph = *v; }
-            if let Some(v) = nums.get(2) { bulge = *v; }
+            if let Some(v) = nums.first() {
+                hold = *v;
+            }
+            if let Some(v) = nums.get(1) {
+                morph = *v;
+            }
+            if let Some(v) = nums.get(2) {
+                bulge = *v;
+            }
         }
         let content = if let Some(txt) = head.strip_prefix("text:") {
             PartContent::Text(txt.to_string())
         } else if let Some(name) = head.strip_prefix("image:") {
             PartContent::Image(name.trim().to_string())
         } else if let Some(p) = head.strip_prefix("splat:") {
-            PartContent::Splats(side_by_side(p.split('+').map(str::trim).filter(|x| !x.is_empty())))
+            PartContent::Splats(side_by_side(
+                p.split('+').map(str::trim).filter(|x| !x.is_empty()),
+            ))
         } else {
             continue;
         };
-        parts.push(Part { content, hold, morph, bulge, transition });
+        parts.push(Part {
+            content,
+            hold,
+            morph,
+            bulge,
+            transition,
+        });
     }
     parts
 }
@@ -310,7 +338,11 @@ fn side_by_side<'a>(names: impl Iterator<Item = &'a str>) -> Vec<(String, Vec3)>
         .iter()
         .enumerate()
         .map(|(i, name)| {
-            let x = if n <= 1 { 0.0 } else { -SIDE_SEP + 2.0 * SIDE_SEP * (i as f32) / ((n - 1) as f32) };
+            let x = if n <= 1 {
+                0.0
+            } else {
+                -SIDE_SEP + 2.0 * SIDE_SEP * (i as f32) / ((n - 1) as f32)
+            };
             (file_name_of(name), Vec3::new(x, 0.0, 0.0))
         })
         .collect()
@@ -329,8 +361,14 @@ fn part_gaussians(
         PartContent::Image(name) => match std::fs::read(root.join(name)) {
             Ok(bytes) => {
                 // MARTIN_IMG_STRIDE (pixel subsample) / MARTIN_IMG_SPLAT (gaussian size) tune crispness.
-                let stride = std::env::var("MARTIN_IMG_STRIDE").ok().and_then(|s| s.parse().ok()).unwrap_or(2);
-                let splat = std::env::var("MARTIN_IMG_SPLAT").ok().and_then(|s| s.parse().ok()).unwrap_or(0.012);
+                let stride = std::env::var("MARTIN_IMG_STRIDE")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(2);
+                let splat = std::env::var("MARTIN_IMG_SPLAT")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0.012);
                 build_image_gaussians(&bytes, 3.0, stride, splat, 0.5, 0.85)
             }
             Err(e) => {
@@ -341,7 +379,9 @@ fn part_gaussians(
         PartContent::Splats(list) => {
             let mut out = Vec::new();
             for (name, off) in list {
-                let Some(idx) = state.load_names.iter().position(|x| x == name) else { continue };
+                let Some(idx) = state.load_names.iter().position(|x| x == name) else {
+                    continue;
+                };
                 if let Some(cloud) = assets.get(&state.loads[idx]) {
                     for mut g in cloud.iter() {
                         let p = g.position_visibility.position;
@@ -365,7 +405,9 @@ fn build_sequence(
     root: Res<AssetRoot>,
     mut cam: Query<&mut OrbitCam>,
 ) {
-    let (Some(seq), Some(mut state)) = (seq, state) else { return };
+    let (Some(seq), Some(mut state)) = (seq, state) else {
+        return;
+    };
     if state.built || seq.parts.is_empty() {
         return;
     }
@@ -376,27 +418,40 @@ fn build_sequence(
     // resolve each part's transition first (explicit ~name > MARTIN_TRANSITION > Ball for part
     // 0 / Morph after) — needed before building gaussians so a PenWrite text part is built as a
     // stroked outline (pen order baked into visibility) instead of filled coverage.
-    let global_tr = std::env::var("MARTIN_TRANSITION").ok().and_then(|s| Transition::parse(&s));
+    let global_tr = std::env::var("MARTIN_TRANSITION")
+        .ok()
+        .and_then(|s| Transition::parse(&s));
     let transitions: Vec<Transition> = seq
         .parts
         .iter()
         .enumerate()
         .map(|(idx, part)| {
-            let tr = part
-                .transition
-                .or(global_tr)
-                .unwrap_or(if idx == 0 { Transition::Ball } else { Transition::Morph });
+            let tr = part.transition.or(global_tr).unwrap_or(if idx == 0 {
+                Transition::Ball
+            } else {
+                Transition::Morph
+            });
             // part 0 has nothing to morph from — fall back to a ball assemble.
-            if idx == 0 && tr == Transition::Morph { Transition::Ball } else { tr }
+            if idx == 0 && tr == Transition::Morph {
+                Transition::Ball
+            } else {
+                tr
+            }
         })
         .collect();
 
     // read every part's gaussians once, so count==0 can mean "size N to the largest part"
     // (every part is then resampled to that single N — required by the shared morph output).
-    // pen-write stroke is thin, so its splat size + sample spacing want tuning (a fat splat
-    // blooms the strokes into filled blobs). Tunable while we dial it in.
-    let pw_step = std::env::var("MARTIN_PW_STEP").ok().and_then(|s| s.parse().ok()).unwrap_or(0.5_f32);
-    let pw_splat = std::env::var("MARTIN_PW_SPLAT").ok().and_then(|s| s.parse().ok()).unwrap_or(0.006_f32);
+    // pen-write strokes are thin: MARTIN_PW_SPLAT (gaussian size) / MARTIN_PW_STEP (sample
+    // spacing) tune stroke weight — a fat splat blooms the strokes into filled blobs.
+    let pw_step = std::env::var("MARTIN_PW_STEP")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.5_f32);
+    let pw_splat = std::env::var("MARTIN_PW_SPLAT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.006_f32);
     let mut raws: Vec<Vec<Gaussian3d>> = seq
         .parts
         .iter()
@@ -414,14 +469,24 @@ fn build_sequence(
     // Normalize each part to a common "normal" size (MARTIN_NORMALIZE=0 to disable). Sources
     // vary wildly — a COLMAP scene spans hundreds of units, a TRELLIS object ~1 — so without
     // this they'd frame inconsistently and morph badly. We log the raw extent first.
-    let normalize = std::env::var("MARTIN_NORMALIZE").map(|v| v != "0").unwrap_or(true);
+    let normalize = std::env::var("MARTIN_NORMALIZE")
+        .map(|v| v != "0")
+        .unwrap_or(true);
     for (raw, part) in raws.iter_mut().zip(&seq.parts) {
         let label = match &part.content {
             PartContent::Text(s) => format!("text \"{s}\""),
             PartContent::Image(name) => format!("image {name}"),
-            PartContent::Splats(list) => list.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join("+"),
+            PartContent::Splats(list) => list
+                .iter()
+                .map(|(n, _)| n.as_str())
+                .collect::<Vec<_>>()
+                .join("+"),
         };
-        info!("part {label}: raw extent {:.2} units ({} gaussians)", crate::morph::extent_of(raw), raw.len());
+        info!(
+            "part {label}: raw extent {:.2} units ({} gaussians)",
+            crate::morph::extent_of(raw),
+            raw.len()
+        );
         if normalize {
             crate::morph::normalize_to(raw, NORMALIZE_EXTENT);
         }
@@ -477,7 +542,9 @@ fn build_sequence(
         sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
         shapes.push(assets.add(PlanarGaussian3d::from(shaped)));
     }
-    let intro0 = sources[0].clone().expect("part 0 always builds a source cloud");
+    let intro0 = sources[0]
+        .clone()
+        .expect("part 0 always builds a source cloud");
 
     // MARTIN_ROT="rx,ry,rz" (euler degrees) orients the cloud — e.g. to stand a COLMAP scene
     // upright for a "normal" POV. Default = cloud_base_rotation (flip-X, right for portrait
@@ -487,7 +554,12 @@ fn build_sequence(
         .and_then(|s| {
             let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
             (n.len() == 3).then(|| {
-                Quat::from_euler(EulerRot::XYZ, n[0].to_radians(), n[1].to_radians(), n[2].to_radians())
+                Quat::from_euler(
+                    EulerRot::XYZ,
+                    n[0].to_radians(),
+                    n[1].to_radians(),
+                    n[2].to_radians(),
+                )
             })
         })
         .unwrap_or_else(cloud_base_rotation);
@@ -531,7 +603,10 @@ fn build_sequence(
     state.transitions = transitions;
     state.entity = Some(entity);
     state.built = true;
-    info!("sequence built: {} parts × {n} gaussians", state.shapes.len());
+    info!(
+        "sequence built: {} parts × {n} gaussians",
+        state.shapes.len()
+    );
 }
 
 /// Drive the show from `SeqClock.t`: find the active part, retarget the interpolate entity's
@@ -543,12 +618,16 @@ fn part_director(
     clock: Res<SeqClock>,
     mut q: Query<(&mut GaussianInterpolate<Gaussian3d>, &mut CloudSettings)>,
 ) {
-    let (Some(seq), Some(state)) = (seq, state) else { return };
+    let (Some(seq), Some(state)) = (seq, state) else {
+        return;
+    };
     if !state.built {
         return;
     }
     let Some(entity) = state.entity else { return };
-    let Ok((mut interp, mut cs)) = q.get_mut(entity) else { return };
+    let Ok((mut interp, mut cs)) = q.get_mut(entity) else {
+        return;
+    };
     let parts = &seq.parts;
 
     // each part occupies [morph_i + hold_i); the first `morph_i` is the morph-in.
@@ -559,7 +638,11 @@ fn part_director(
         if t < seg {
             idx = i;
             morphing = t < b.morph;
-            factor = if morphing { (t / b.morph.max(1e-3)).clamp(0.0, 1.0) } else { 1.0 };
+            factor = if morphing {
+                (t / b.morph.max(1e-3)).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
             break;
         }
         t -= seg;
@@ -581,7 +664,11 @@ fn part_director(
     cs.time = eased;
     // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
     // ball); source-based transitions carry their own motion, so they don't pulse.
-    cs.bulge = if morphing && state.transitions[idx] == Transition::Morph { parts[idx].bulge } else { 0.0 };
+    cs.bulge = if morphing && state.transitions[idx] == Transition::Morph {
+        parts[idx].bulge
+    } else {
+        0.0
+    };
     // per-particle shader transitions (typewriter/sparkle/…): drive the vendored uniforms only
     // while morphing in; otherwise mode 0 = off (held shape renders plain, fully sort-safe).
     let (mode, soft, axis) = morphing
@@ -614,7 +701,14 @@ fn advance_seq_clock(
 fn seq_no_cull(
     mut commands: Commands,
     state: Option<Res<SeqState>>,
-    q: Query<(), (With<GaussianInterpolate<Gaussian3d>>, With<Aabb>, Without<NoFrustumCulling>)>,
+    q: Query<
+        (),
+        (
+            With<GaussianInterpolate<Gaussian3d>>,
+            With<Aabb>,
+            Without<NoFrustumCulling>,
+        ),
+    >,
 ) {
     let Some(state) = state else { return };
     let Some(e) = state.entity else { return };
@@ -649,7 +743,9 @@ fn record_driver(
     mut exit: MessageWriter<AppExit>,
 ) {
     let Some(dir) = rec.dir.clone() else { return };
-    let (Some(seq), Some(state)) = (seq, state) else { return };
+    let (Some(seq), Some(state)) = (seq, state) else {
+        return;
+    };
     if !state.built || !camq.iter().any(|c| c.framed) {
         return; // wait until built + framed
     }
@@ -661,7 +757,11 @@ fn record_driver(
         // Poll the directory until every frame is on disk (with a ~20 s safety cap).
         rec.grace += 1;
         let written = std::fs::read_dir(&dir)
-            .map(|d| d.filter_map(Result::ok).filter(|e| e.path().extension().is_some_and(|x| x == "png")).count())
+            .map(|d| {
+                d.filter_map(Result::ok)
+                    .filter(|e| e.path().extension().is_some_and(|x| x == "png"))
+                    .count()
+            })
             .unwrap_or(total as usize);
         if written >= total as usize || rec.grace > 1200 {
             info!("recording complete: {total} frames ({written} on disk) -> {dir}");
@@ -695,10 +795,14 @@ fn shot_driver(
     mut commands: Commands,
     mut exit: MessageWriter<AppExit>,
 ) {
-    let Some(path) = shot.path.clone() else { return };
+    let Some(path) = shot.path.clone() else {
+        return;
+    };
     let el = time.elapsed_secs();
     if !shot.done && el >= shot.at {
-        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path.clone()));
+        commands
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(path.clone()));
         shot.done = true;
         info!("auto-screenshot -> {path}");
     }
@@ -723,7 +827,11 @@ fn fps_log(time: Res<Time>, clock: Res<SeqClock>, mut f: ResMut<FpsLog>) {
     f.frames += 1;
     if f.accum >= 0.5 {
         let ms = 1000.0 * f.accum / f.frames as f32;
-        info!("FPS {:.1} ({ms:.1} ms/frame) t={:.2}", f.frames as f32 / f.accum, clock.t);
+        info!(
+            "FPS {:.1} ({ms:.1} ms/frame) t={:.2}",
+            f.frames as f32 / f.accum,
+            clock.t
+        );
         f.accum = 0.0;
         f.frames = 0;
     }
@@ -736,7 +844,11 @@ fn fps_log(time: Res<Time>, clock: Res<SeqClock>, mut f: ResMut<FpsLog>) {
 /// Build the show: `MARTIN_SEQ` if set, else a shorthand from `MARTIN_TEXT` /
 /// `MARTIN_PLY(+_PLY2)(+_REFORM)`. Returns the sequence + the asset root (the .ply folder).
 fn sequence_from_env() -> (Sequence, Option<String>) {
-    let count_default = if std::env::var("MARTIN_SEQ").is_ok() { 200_000 } else { 0 };
+    let count_default = if std::env::var("MARTIN_SEQ").is_ok() {
+        200_000
+    } else {
+        0
+    };
     let count = std::env::var("MARTIN_MORPH_COUNT")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -745,24 +857,47 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
     if let Ok(spec) = std::env::var("MARTIN_SEQ") {
         // asset root = the .ply folder (so `splat:` filenames resolve); MARTIN_PLY sets it.
         let root = std::env::var("MARTIN_PLY").ok().and_then(parent_dir);
-        return (Sequence { parts: parse_seq(&spec), count }, root);
+        return (
+            Sequence {
+                parts: parse_seq(&spec),
+                count,
+            },
+            root,
+        );
     }
 
     if let Ok(text) = std::env::var("MARTIN_TEXT") {
-        let part =
-            Part { content: PartContent::Text(text), hold: 2.0, morph: 3.0, bulge: 0.0, transition: None };
-        return (Sequence { parts: vec![part], count }, None);
+        let part = Part {
+            content: PartContent::Text(text),
+            hold: 2.0,
+            morph: 3.0,
+            bulge: 0.0,
+            transition: None,
+        };
+        return (
+            Sequence {
+                parts: vec![part],
+                count,
+            },
+            None,
+        );
     }
 
     // splat shorthand: PLY (+ PLY2) as part 0; REFORM (if any) as part 1.
     let primary = std::env::var("MARTIN_PLY").ok();
     let root = primary.as_deref().and_then(|p| parent_dir(p.to_string()));
-    let name1 = primary.as_deref().map(file_name_of).unwrap_or_else(|| "aegg.ply".into());
+    let name1 = primary
+        .as_deref()
+        .map(file_name_of)
+        .unwrap_or_else(|| "aegg.ply".into());
     let mut names = vec![name1];
     if let Ok(p2) = std::env::var("MARTIN_PLY2") {
         names.push(file_name_of(&p2));
     }
-    let bulge = std::env::var("MARTIN_BULGE").ok().and_then(|s| s.parse().ok()).unwrap_or(0.9);
+    let bulge = std::env::var("MARTIN_BULGE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0.9);
     let mut parts = vec![Part {
         content: PartContent::Splats(side_by_side(names.iter().map(String::as_str))),
         hold: 2.0,
@@ -792,11 +927,13 @@ fn parent_dir(p: String) -> Option<String> {
 fn main() {
     let (sequence, asset_root) = sequence_from_env();
     // where `image:` PNG parts are read from — the .ply folder, or `assets` by default.
-    let asset_root_path = std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
+    let asset_root_path =
+        std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
 
     // MARTIN_FULLSCREEN=1 → start borderless-fullscreen (ignored while recording, which
     // needs the fixed 1280×720 window for uniform frames). Toggle live with F11 / F.
-    let fullscreen = std::env::var("MARTIN_FULLSCREEN").is_ok() && std::env::var("MARTIN_RECORD").is_err();
+    let fullscreen =
+        std::env::var("MARTIN_FULLSCREEN").is_ok() && std::env::var("MARTIN_RECORD").is_err();
     let mut plugins = DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
             title: "martin — splat fly-around".into(),
@@ -811,7 +948,10 @@ fn main() {
         ..default()
     });
     if let Some(root) = asset_root {
-        plugins = plugins.set(AssetPlugin { file_path: root, ..default() });
+        plugins = plugins.set(AssetPlugin {
+            file_path: root,
+            ..default()
+        });
     }
 
     App::new()
@@ -821,11 +961,22 @@ fn main() {
         .insert_resource(AssetRoot(asset_root_path))
         .init_resource::<SeqClock>()
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(CamOverride(std::env::var("MARTIN_YAW").ok().and_then(|s| s.parse().ok())))
-        .insert_resource(FpsLog { enabled: std::env::var("MARTIN_FPS").is_ok(), accum: 0.0, frames: 0 })
+        .insert_resource(CamOverride(
+            std::env::var("MARTIN_YAW")
+                .ok()
+                .and_then(|s| s.parse().ok()),
+        ))
+        .insert_resource(FpsLog {
+            enabled: std::env::var("MARTIN_FPS").is_ok(),
+            accum: 0.0,
+            frames: 0,
+        })
         .insert_resource(ShotConfig {
             path: std::env::var("MARTIN_SHOT").ok(),
-            at: std::env::var("MARTIN_SHOT_AT").ok().and_then(|s| s.parse().ok()).unwrap_or(6.0),
+            at: std::env::var("MARTIN_SHOT_AT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(6.0),
             done: false,
         })
         .insert_resource(RecordState {
@@ -867,7 +1018,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, seq: Res<Sequen
             }
         }
     }
-    let loads = names.iter().map(|n| asset_server.load::<PlanarGaussian3d>(n.clone())).collect();
+    let loads = names
+        .iter()
+        .map(|n| asset_server.load::<PlanarGaussian3d>(n.clone()))
+        .collect();
     commands.insert_resource(SeqState {
         load_names: names,
         loads,
