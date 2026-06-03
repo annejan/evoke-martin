@@ -137,19 +137,21 @@ MARTIN_PLY=assets/train.ply MARTIN_FLY=2 cargo +nightly run --release
 MARTIN_PLY=assets/train.ply MARTIN_FLY=3 ./record.sh train_flyby.mp4
 ```
 
-**While recording, each *part* flies the path once** (first marker → last) at that pace, then holds
-on the last marker until the part ends; the next part restarts at the first marker — so a multi-part
-show flies the path, morphs to the next subject, and flies it again. Give each part enough screen
-time to finish a pass: **`hold + morph ≥ secs × (markers − 1)`**, or it gets cut off at the part
-boundary. Live, it ping-pongs the path on a loop at the same pace, for judging the shape. Waypoints
-are scene-specific (they pin exact camera poses), so replay them on `.ply`s that share a frame.
+**While recording, each *part* flies one full pass** at that pace, **alternating direction** — part
+0 first marker → last, part 1 last → first, and so on. That keeps the camera position *continuous*
+across the morph: it ends one subject at the last marker and the next subject starts there and
+reverses, so the camera **flows through the transition instead of jumping** back to the start (the
+next subject just sees the path in reverse). Give each part enough screen time to finish its pass:
+**`hold + morph ≥ secs × (markers − 1)`**, or it's cut off at the boundary. Live, it ping-pongs the
+path on a loop at the same pace, for judging the shape. Waypoints are scene-specific (they pin exact
+camera poses), so replay them on `.ply`s that share a frame.
 
 **Same flyby on two subjects, with a morph between** — when two splats normalize to the same spot
 (the train + truck from one dataset do), one path frames both:
 
 ```bash
-# flyby train → morph → same flyby truck. 7 markers × 2 s/leg = 12 s a pass, so each part is
-# held ≥ 12 s. Bulge 0 (the 3rd timing number) keeps the morph a straight slide, not explodey.
+# train flies the path forward, then (continuous, no jump) the truck flies it back through the
+# morph. 7 markers × 2 s/leg = 12 s a pass, so each part held ≥ 12 s. Bulge 0 = straight slide.
 MARTIN_PLY=assets/train.ply \
 MARTIN_SEQ="splat:train.ply @13,1 ~fade; splat:truck.ply @12,3,0 ~morph" \
 MARTIN_MORPH_COUNT=1000000 MARTIN_FLY=2 ./record.sh train_truck_flyby.mp4

@@ -204,10 +204,11 @@ fn pingpong(x: f32) -> f32 {
 
 /// `MARTIN_FLY=<secs>`: fly the camera through the loaded waypoints (the M-key path); `secs` is
 /// the time per waypoint **leg**, so a full pass takes `secs × (markers − 1)`. While **recording**,
-/// each part flies the path once (first → last marker) then holds — a new part restarts at the
-/// first marker, so a train→truck sequence flies, morphs, and flies again (size parts so
-/// `hold + morph ≥` a full pass). **Live** it ping-pongs the path there-and-back at the same pace,
-/// looping for preview. Owns the camera when active (`controls` and the recorder's sway stand down).
+/// each part flies one full pass, **alternating direction** (part 0 first→last, part 1 last→first,
+/// …) so the camera position is *continuous* across part boundaries — it flows through the morph
+/// instead of jumping back to the start. Size parts so `hold + morph ≥` a full pass. **Live** it
+/// ping-pongs the path there-and-back at the same pace, looping for preview. Owns the camera when
+/// active (`controls` and the recorder's sway stand down).
 fn flypath(
     marks: Res<waypoints::Waypoints>,
     rec: Res<RecordState>,
@@ -226,12 +227,18 @@ fn flypath(
         if !state.built {
             return;
         }
-        // recording = the demo: at each part the camera flies the path once (first → last marker)
-        // at `secs` per leg, then holds on the last marker. A new part restarts at the first one
-        // — so a train→truck sequence flies, morphs (the restart hides in the morph), then flies
-        // again. Size parts so hold+morph ≥ secs*legs, or the pass is cut at the boundary.
+        // recording = the demo: each part flies one full pass at `secs` per leg, ALTERNATING
+        // direction (even parts first→last, odd parts last→first). That keeps the camera position
+        // continuous across the part boundary — at the morph it's already at the last marker and
+        // simply reverses, instead of snapping back to the first. Size parts so hold+morph ≥
+        // secs*legs, or the pass is cut at the boundary.
         let idx = active_part(&state.starts, clock.t);
-        ((clock.t - state.starts[idx]) / (secs * legs)).clamp(0.0, 1.0)
+        let local = ((clock.t - state.starts[idx]) / (secs * legs)).clamp(0.0, 1.0);
+        if idx % 2 == 0 {
+            local
+        } else {
+            1.0 - local
+        }
     } else {
         // live: ping-pong there-and-back at the same per-leg pace, looping for preview.
         pingpong((clock.t / (2.0 * secs * legs)).fract())
