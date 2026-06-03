@@ -189,10 +189,12 @@ pub fn extent_of(v: &[Gaussian3d]) -> f32 {
 /// robust to the stray "floater" gaussians that 3DGS scenes always carry: floaters would
 /// otherwise blow up the bbox and shrink the real scene to a distant dot. Brings wildly
 /// different sources (a huge COLMAP scene vs a tiny TRELLIS object) to one consistent "normal"
-/// scale, so they frame well and morph cleanly between each other.
-pub fn normalize_to(v: &mut [Gaussian3d], target: f32) {
+/// scale, so they frame well and morph cleanly between each other. Returns the
+/// `(center, scale)` it applied (`p' = (p - center) * scale`) so a camera pose in the same
+/// source coordinates can be transformed to match (see `MARTIN_CAMERAS`).
+pub fn normalize_to(v: &mut [Gaussian3d], target: f32) -> (Vec3, f32) {
     if v.is_empty() {
-        return;
+        return (Vec3::ZERO, 1.0);
     }
     // centroid (mean position) — the dense centre, not pulled around by bbox extremes
     let mut sum = [0f64; 3];
@@ -234,4 +236,5 @@ pub fn normalize_to(v: &mut [Gaussian3d], target: f32) {
         let op = g.scale_opacity.opacity;
         g.scale_opacity = [sc[0] * s, sc[1] * s, sc[2] * s, op].into();
     }
+    (Vec3::from_array(center), s)
 }

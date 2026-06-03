@@ -288,6 +288,33 @@ fn parse_anchor(s: &str) -> Option<f32> {
     s.parse::<f32>().ok() // raw seconds
 }
 
+/// Load the capture-camera world positions from a 3DGS/COLMAP `cameras.json` (graphdeco format:
+/// an array of objects each with a `"position": [x,y,z]`). These are in the same coordinates as
+/// the scene's `.ply`, so applying the scene's normalize + cloud rotation places martin's camera
+/// where the scene was actually shot — the only viewpoint a 360° capture renders coherently.
+fn load_camera_positions(path: &str) -> Vec<Vec3> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    json.as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| {
+                    let p = c.get("position")?.as_array()?;
+                    Some(Vec3::new(
+                        p.first()?.as_f64()? as f32,
+                        p.get(1)?.as_f64()? as f32,
+                        p.get(2)?.as_f64()? as f32,
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
 #[derive(Resource)]
 struct Sequence {
@@ -548,7 +575,8 @@ fn build_sequence(
     let normalize = std::env::var("MARTIN_NORMALIZE")
         .map(|v| v != "0")
         .unwrap_or(true);
-    for (raw, part) in raws.iter_mut().zip(&seq.parts) {
+    let mut scene_norm = (Vec3::ZERO, 1.0); // part 0's (center, scale) — to transform camera poses
+    for (i, (raw, part)) in raws.iter_mut().zip(&seq.parts).enumerate() {
         let label = match &part.content {
             PartContent::Text(s) => format!("text \"{s}\""),
             PartContent::Image(name) => format!("image {name}"),
@@ -564,7 +592,10 @@ fn build_sequence(
             raw.len()
         );
         if normalize {
-            crate::morph::normalize_to(raw, NORMALIZE_EXTENT);
+            let norm = crate::morph::normalize_to(raw, NORMALIZE_EXTENT);
+            if i == 0 {
+                scene_norm = norm;
+            }
         }
     }
     let n = if seq.count > 0 {
@@ -666,11 +697,42 @@ fn build_sequence(
     let env_f = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<f32>().ok());
     let zoom = env_f("MARTIN_ZOOM").filter(|z| *z > 0.0).unwrap_or(1.0);
     let center = entity_rot * frame_center;
+    let (mut yaw, mut pitch, mut dist) = (
+        env_f("MARTIN_YAW").unwrap_or(FRONT_YAW),
+        env_f("MARTIN_PITCH").unwrap_or(DEFAULT_PITCH),
+        content_radius * frame_factor / zoom,
+    );
+    // MARTIN_CAMERAS=<cameras.json>: park the camera at a real capture pose (the only viewpoint
+    // a raw 360° scene renders coherently). Transform the chosen capture position through the
+    // SAME normalize (part 0) + cloud rotation as the gaussians, then read off yaw/pitch/dist
+    // around the framed centre. MARTIN_CAM_INDEX picks which shot (default 0).
+    if let Ok(cpath) = std::env::var("MARTIN_CAMERAS") {
+        let positions = load_camera_positions(&cpath);
+        if positions.is_empty() {
+            warn!("MARTIN_CAMERAS: no camera positions in {cpath}");
+        } else {
+            let idx = std::env::var("MARTIN_CAM_INDEX")
+                .ok()
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0)
+                .min(positions.len() - 1);
+            let (c0, s0) = scene_norm;
+            let dir = entity_rot * ((positions[idx] - c0) * s0) - center;
+            let len = dir.length().max(1e-4);
+            yaw = dir.z.atan2(dir.x);
+            pitch = (dir.y / len).asin();
+            dist = len / zoom;
+            info!(
+                "camera: capture pose {idx}/{} from {cpath}",
+                positions.len()
+            );
+        }
+    }
     for mut c in &mut cam {
         c.target = center;
-        c.dist = content_radius * frame_factor / zoom;
-        c.yaw = env_f("MARTIN_YAW").unwrap_or(FRONT_YAW);
-        c.pitch = env_f("MARTIN_PITCH").unwrap_or(DEFAULT_PITCH);
+        c.dist = dist;
+        c.yaw = yaw;
+        c.pitch = pitch;
         c.framed = true;
     }
 
@@ -1109,7 +1171,8 @@ fn main() {
             dir: std::env::var("MARTIN_RECORD").ok(),
             dt: 1.0 / 60.0,
             yaw_step: 2.0 * PI / 480.0, // ~8s gentle sway period
-            sway: std::env::var("MARTIN_YAW").is_err(), // pinned yaw → hold it, don't sway
+            // a pinned yaw or a parked capture pose → hold it, don't sway
+            sway: std::env::var("MARTIN_YAW").is_err() && std::env::var("MARTIN_CAMERAS").is_err(),
             i: 0,
             grace: 0,
         })
