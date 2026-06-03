@@ -21,6 +21,8 @@ ab_glyph = "0.2"
 # WITHOUT auto-closing them (ab_glyph closes contours, which boxes open strokes). Same
 # version ab_glyph already pulls in, so no extra compile.
 ttf-parser = "0.25"
+# Decode PNG logos into gaussians (logo → splat). Same version Bevy already pulls in.
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Faster iteration: optimize deps hard, our crate lightly.
 [profile.dev]

@@ -119,6 +119,7 @@ path to a file** with one part per line (`#` starts a comment, blank lines are s
 
 ```
 text:STRING                      # splat-text (glowing)
+image:logo.png                   # a PNG in the asset folder, rasterized to gaussians (a logo)
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
 …any of the above… @hold,morph,bulge   ~transition

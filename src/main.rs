@@ -31,8 +31,10 @@ use bevy_gaussian_splatting::{
 use std::f32::consts::PI;
 
 mod morph;
+mod splat_image;
 mod text;
 use crate::morph::{ball_of, drop_of, explode_of, fade_of, implode_of, resample_morton, swirl_of};
+use crate::splat_image::build_image_gaussians;
 use crate::text::{build_text_gaussians, build_text_outline_gaussians, build_text_penwrite_gaussians, TEXT_RGB};
 
 const FRONT_YAW: f32 = 1.4; // camera faces the subject head-on (single-image splats have no back)
@@ -140,6 +142,8 @@ fn fullscreen_toggle(keys: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Wi
 #[derive(Clone)]
 enum PartContent {
     Text(String),
+    /// a PNG in the asset dir, rasterized to flat gaussians (a logo, etc.)
+    Image(String),
     /// one or more splats (filename in the asset dir, world offset) combined into one shape
     Splats(Vec<(String, Vec3)>),
 }
@@ -224,6 +228,10 @@ struct Sequence {
     count: usize,
 }
 
+/// Folder that `image:` parts (PNG logos) are read from — the `.ply` asset root (default `assets`).
+#[derive(Resource)]
+struct AssetRoot(std::path::PathBuf);
+
 /// Loaded splat handles + the per-part built shapes (all `count` gaussians) + each part's
 /// morph-in source cloud + its resolved transition.
 #[derive(Resource)]
@@ -282,6 +290,8 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         }
         let content = if let Some(txt) = head.strip_prefix("text:") {
             PartContent::Text(txt.to_string())
+        } else if let Some(name) = head.strip_prefix("image:") {
+            PartContent::Image(name.trim().to_string())
         } else if let Some(p) = head.strip_prefix("splat:") {
             PartContent::Splats(side_by_side(p.split('+').map(str::trim).filter(|x| !x.is_empty())))
         } else {
@@ -306,14 +316,28 @@ fn side_by_side<'a>(names: impl Iterator<Item = &'a str>) -> Vec<(String, Vec3)>
         .collect()
 }
 
-/// Read a part's gaussians (text rasterized, or splats loaded + offset + combined).
+/// Read a part's gaussians (text rasterized, a PNG logo rasterized, or splats loaded + offset
+/// + combined). `root` is the asset folder PNG `image:` parts are read from.
 fn part_gaussians(
     content: &PartContent,
     state: &SeqState,
     assets: &Assets<PlanarGaussian3d>,
+    root: &std::path::Path,
 ) -> Vec<Gaussian3d> {
     match content {
         PartContent::Text(s) => build_text_gaussians(s, TEXT_RGB, 3.0, 2, 0.012),
+        PartContent::Image(name) => match std::fs::read(root.join(name)) {
+            Ok(bytes) => {
+                // MARTIN_IMG_STRIDE (pixel subsample) / MARTIN_IMG_SPLAT (gaussian size) tune crispness.
+                let stride = std::env::var("MARTIN_IMG_STRIDE").ok().and_then(|s| s.parse().ok()).unwrap_or(2);
+                let splat = std::env::var("MARTIN_IMG_SPLAT").ok().and_then(|s| s.parse().ok()).unwrap_or(0.012);
+                build_image_gaussians(&bytes, 3.0, stride, splat, 0.5, 0.85)
+            }
+            Err(e) => {
+                warn!("image {name}: {e}");
+                Vec::new()
+            }
+        },
         PartContent::Splats(list) => {
             let mut out = Vec::new();
             for (name, off) in list {
@@ -338,6 +362,7 @@ fn build_sequence(
     mut assets: ResMut<Assets<PlanarGaussian3d>>,
     seq: Option<Res<Sequence>>,
     state: Option<ResMut<SeqState>>,
+    root: Res<AssetRoot>,
     mut cam: Query<&mut OrbitCam>,
 ) {
     let (Some(seq), Some(mut state)) = (seq, state) else { return };
@@ -383,7 +408,7 @@ fn build_sequence(
             (PartContent::Text(s), Transition::PenWrite) => {
                 build_text_penwrite_gaussians(s, TEXT_RGB, 3.0, pw_step, pw_splat)
             }
-            _ => part_gaussians(&part.content, &state, &assets),
+            _ => part_gaussians(&part.content, &state, &assets, &root.0),
         })
         .collect();
     // Normalize each part to a common "normal" size (MARTIN_NORMALIZE=0 to disable). Sources
@@ -393,6 +418,7 @@ fn build_sequence(
     for (raw, part) in raws.iter_mut().zip(&seq.parts) {
         let label = match &part.content {
             PartContent::Text(s) => format!("text \"{s}\""),
+            PartContent::Image(name) => format!("image {name}"),
             PartContent::Splats(list) => list.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join("+"),
         };
         info!("part {label}: raw extent {:.2} units ({} gaussians)", crate::morph::extent_of(raw), raw.len());
@@ -765,6 +791,8 @@ fn parent_dir(p: String) -> Option<String> {
 
 fn main() {
     let (sequence, asset_root) = sequence_from_env();
+    // where `image:` PNG parts are read from — the .ply folder, or `assets` by default.
+    let asset_root_path = std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
 
     // MARTIN_FULLSCREEN=1 → start borderless-fullscreen (ignored while recording, which
     // needs the fixed 1280×720 window for uniform frames). Toggle live with F11 / F.
@@ -790,6 +818,7 @@ fn main() {
         .add_plugins(plugins)
         .add_plugins(GaussianSplattingPlugin)
         .insert_resource(sequence)
+        .insert_resource(AssetRoot(asset_root_path))
         .init_resource::<SeqClock>()
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(CamOverride(std::env::var("MARTIN_YAW").ok().and_then(|s| s.parse().ok())))
