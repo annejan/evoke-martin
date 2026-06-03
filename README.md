@@ -105,29 +105,28 @@ iGPU (the full ~1.15M runs ~20 fps).
 
 ## `dogdemo/` — standalone splat demo (Bevy + Vulkan, no CUDA)
 
-A standalone executable that loads a `.ply` Gaussian splat, orbits a camera
-around it, and **explodes it** — each Gaussian flies apart via a closed-form
-ballistic displacement injected into the renderer's WGSL (vendored fork in
-`dogdemo/vendor/`), with HDR bloom on black. Built on Bevy 0.18 +
-`bevy_gaussian_splatting` 7.0.1, wgpu → Vulkan (nightly toolchain, pinned).
+A standalone executable that loads Gaussian splats, flies a camera around them, and
+**morphs them into one another** — each splat assembles out of a ball cloud, then the
+next morphs in (per-Gaussian, on the GPU), with HDR bloom on black. It's all one
+**sequence engine**; the `DOGDEMO_*` env vars compose the show. Built on Bevy 0.18 +
+`bevy_gaussian_splatting` 7.0.1 (vendored fork in `dogdemo/vendor/`), wgpu → Vulkan
+(nightly toolchain, pinned).
 
 ```bash
-cd dogdemo && cargo run            # window: orbiting splat
-#   ↑/↓ zoom · ←/→ raise/lower · Space = detonate / reset
-./record.sh                        # render the explosion to ./aegg_explosion.mp4
+cd dogdemo && cargo run            # window: a splat assembles from a ball cloud
+#   ↑/↓ zoom · ←/→ raise/lower · Space = restart the show
+./record.sh out.mp4                # render the whole timeline to ./out.mp4
 ```
 
-By default the splat loads from `dogdemo/assets/aegg.ply`; point it at any file
-with `DOGDEMO_PLY=/abs/path.ply cargo run --release` (no symlink fuss). Add
-`DOGDEMO_PLY2=second.ply` (same folder) to load a **second splat beside it** —
-both are framed together and collapse inward at once. Add `DOGDEMO_REFORM=dog.ply`
-and the source splats **truly morph into that one** — a per-Gaussian
-`GaussianInterpolate` blend where each source splat is paired to a target splat by
-**Morton (Z-order) spatial sort** so particles *flow* into their nearest part of
-the target (no teleporting) and their colours/positions lerp together (e.g. two
-Martins → one dog: each Martin becomes a half of the dog). A front-facing camera
-sway keeps the hollow back of single-image splats out of frame (`DOGDEMO_YAW=<rad>`
-pins the angle for inspection).
+By default the splat loads from `dogdemo/assets/aegg.ply`; point it at any file with
+`DOGDEMO_PLY=/abs/path.ply cargo run --release` (no symlink fuss). Add
+`DOGDEMO_PLY2=second.ply` (same folder) for a **second splat beside it**, and
+`DOGDEMO_REFORM=dog.ply` so the source splat(s) **morph into that one** — a
+per-Gaussian `GaussianInterpolate` blend where each source is paired to the target by
+**Morton (Z-order) spatial sort**, so particles *flow* into their nearest part of the
+target (no teleporting) and colours/positions lerp together (e.g. two Martins → one
+dog: each becomes a half of the dog). A front-facing camera sway keeps the hollow back
+of single-image splats out of frame (`DOGDEMO_YAW=<rad>` pins the angle for inspection).
 **Export
 uncompressed/standard PLY from SuperSplat** — the loader rejects SuperSplat's
 *compressed* format (`missing required properties`). Linux build deps:
@@ -152,8 +151,8 @@ are particles in the *same* system, so any of these morphs into any other.
 | Env var | Effect |
 |---|---|
 | `DOGDEMO_PLY=/abs/x.ply` | Load a splat (sets the asset folder for the others). |
-| `DOGDEMO_PLY2=y.ply` | A second splat beside the first (collapses inward together). |
-| `DOGDEMO_REFORM=dog.ply` | The sources **morph** into this one (Morton-paired particle flow). |
+| `DOGDEMO_PLY2=y.ply` | A second splat beside the first (the two morph together). |
+| `DOGDEMO_REFORM=dog.ply` | The source(s) **morph** into this one (Morton-paired particle flow). |
 | `DOGDEMO_TEXT="MARTIN GAUS"` | **Splat-text**: the title assembles out of a ball cloud (glowing). |
 | `DOGDEMO_SEQ="…"` | **Timeline** — a chain of beats that morph into one another (see below). |
 | `DOGDEMO_BULGE=0.9` | Ball-cloud explosiveness at a morph's midpoint (`0` = clean reorder). |

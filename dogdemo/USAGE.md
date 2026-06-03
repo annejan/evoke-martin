@@ -1,29 +1,31 @@
 # dogdemo — usage & env vars
 
-`dogdemo` loads Gaussian splats and flies a camera around them while they morph,
-explode, and reassemble — driven entirely by environment variables. There's no
-config file: you compose effects by combining env vars on the command line.
+`dogdemo` loads Gaussian splats and flies a camera around them as they **morph into one
+another** — driven entirely by environment variables. There's no config file: you compose
+the show by combining env vars on the command line.
 
 ```bash
 cd dogdemo
 cargo +nightly run --release        # nightly toolchain is pinned (rust-toolchain.toml)
 ```
 
-With no env vars it loads `assets/aegg.ply` and orbits/explodes it.
+It's **one sequence engine**: every run is a list of *beats* (splats or text) that each
+assemble out of a ball cloud and morph into the next. With no env vars it assembles
+`assets/aegg.ply` from a ball and holds it.
 
 ---
 
-## Modes at a glance
+## The show is a sequence (shorthands build one)
 
-The demo picks a mode from the env vars, in this **precedence order** (first match wins):
+Everything is one timeline. `DOGDEMO_SEQ` writes it explicitly; the other env vars are
+**shorthands** that build a sequence for you (first match wins):
 
-| If you set… | Mode |
+| If you set… | The sequence it builds |
 |---|---|
-| `DOGDEMO_SEQ` | **Sequence** — a timeline of beats that morph into one another (the big one) |
-| `DOGDEMO_TEXT` | **Splat-text** — a title assembles out of a ball cloud |
-| `DOGDEMO_REFORM` | **Morph** — the source splat(s) turn into a target splat |
-| `DOGDEMO_PLY2` (no reform) | **Two splats** collapse inward together |
-| *(nothing)* | **Single splat** explodes inward |
+| `DOGDEMO_SEQ` | exactly the beats you write (the full timeline) |
+| `DOGDEMO_TEXT` | one beat: that title, assembled from a ball |
+| `DOGDEMO_PLY` (+ `_PLY2`) (+ `_REFORM`) | the splat(s) as beat 1; the reform target (if any) as beat 2 |
+| *(nothing)* | one beat: `assets/aegg.ply` |
 
 Examples:
 
@@ -76,14 +78,12 @@ set the asset root, so point it at any `.ply` in the folder your beats live in.
 | `DOGDEMO_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `DOGDEMO_SEQ` | — | A timeline of beats (see [Sequences](#sequences)). Highest precedence. |
 | `DOGDEMO_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-beat 3rd timing number instead.) |
-| `DOGDEMO_MORPH_COUNT` | `0` (morph) / `200000` (seq) | Gaussian budget. `0` = max input count (~1.15M, crisp, ~20 fps on the iGPU). Lower = faster: **250k ≈ locked 60 fps, 500k ≈ 40 fps.** |
+| `DOGDEMO_MORPH_COUNT` | `0` (shorthand) / `200000` (`DOGDEMO_SEQ`) | Gaussian budget every beat is resampled to. `0` = the largest beat's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
 | `DOGDEMO_YAW` | — (gentle sway) | Pin the camera to a fixed orbit angle in **radians** (e.g. `1.57` ≈ head-on). Handy for inspecting a splat. |
-| `DOGDEMO_FPS` | off | `=1` logs smoothed FPS / frame-time (and the morph clock) every ~0.5 s. |
-| `DOGDEMO_RECORD` | — | Directory to dump one PNG per frame into (used by `record.sh`). |
-| `DOGDEMO_FRAMES` | `220` | Frames to record (non-sequence modes). `record.sh` overrides via `FRAMES=`. Sequences compute their own length. |
+| `DOGDEMO_FPS` | off | `=1` logs smoothed FPS / frame-time + timeline clock every ~0.5 s. |
+| `DOGDEMO_RECORD` | — | Directory to dump one PNG per frame into (the whole timeline; used by `record.sh`). |
 | `DOGDEMO_SHOT` | — | Capture a single headless screenshot to this path, then exit ~2 s later. |
-| `DOGDEMO_SHOT_AT` | `4.5` | When (seconds) to take the `DOGDEMO_SHOT`. |
-| `DOGDEMO_EXPLODE` | off | `=1` auto-triggers the explosion/morph at t≈2 s (so headless captures don't need a keypress). |
+| `DOGDEMO_SHOT_AT` | `6.0` | When (seconds) to take the `DOGDEMO_SHOT`. |
 
 ---
 
@@ -93,7 +93,7 @@ When running in a window (not recording):
 
 | Key | Action |
 |---|---|
-| `Space` | Trigger / reset the explosion or morph |
+| `Space` | Restart the show (timeline back to t=0) |
 | `↑` / `↓` | Zoom in / out |
 | `←` / `→` | Lower / raise the camera |
 
@@ -124,7 +124,8 @@ The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount)
 - **morph** — how long the morph *into* this beat takes (default `3.0`)
 - **bulge** — ball-cloud explosiveness of that morph, `0`–`~1.4` (default `0.9`)
 
-(For the first beat, `morph`/`bulge` are ignored — there's nothing to morph from.)
+(The first beat assembles in from a ball over its `morph` seconds; its `bulge` is ignored
+— the ball already *is* its source.)
 
 **Inline example — a full show:**
 
@@ -168,14 +169,13 @@ DOGDEMO_SEQ="text:MARTIN GAUS; splat:doggo.ply; text:CODE ANNEJAN" \
 ./record.sh my_show.mp4
 ```
 
-For the non-sequence modes, `FRAMES=420 ./record.sh out.mp4` sets the clip length;
-sequences compute their own duration from the beats.
+The clip length is computed automatically from the beats' `@hold,morph` timings.
 
 To grab a single still instead:
 
 ```bash
-DOGDEMO_TEXT="MARTIN GAUS" DOGDEMO_EXPLODE=1 \
-DOGDEMO_SHOT=/tmp/title.png DOGDEMO_SHOT_AT=6 cargo +nightly run --release
+DOGDEMO_TEXT="MARTIN GAUS" DOGDEMO_SHOT=/tmp/title.png DOGDEMO_SHOT_AT=6 \
+cargo +nightly run --release
 ```
 
 ---
