@@ -311,11 +311,17 @@ fn vs_points(
         } else if (mode == 4u) {
             tx_reveal = 1.0 - local;            // spark-out (reversed reveal)
         } else if (mode == 5u) {
-            // vortex-true: unwind rotation about Y, angle -> 0 as it lands.
+            // vortex: a turntable spin that DECELERATES into place. Angle is driven by gt
+            // (uniform timing — the whole cloud settles together, no per-radius timing shear)
+            // with a quadratic ease-out (1-gt)^2 so it slows as it lands, and only a gentle
+            // radial gradient (0.8..1.0) so outer splats trail slightly without tearing.
             let center = (gaussian_uniforms.min.xyz + gaussian_uniforms.max.xyz) * 0.5;
-            let ang = (1.0 - local) * 2.5 * 6.2831853 * (0.4 + 0.6 * phase);
-            let c = cos(ang); let s = sin(ang);
+            let half = max(length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.5, 1e-4);
             let p = position.xyz - center;
+            let rr = clamp(length(p.xz) / half, 0.0, 1.0);
+            let ease_out = (1.0 - gt) * (1.0 - gt);
+            let ang = ease_out * 1.25 * 6.2831853 * (0.8 + 0.2 * rr);
+            let c = cos(ang); let s = sin(ang);
             let rp = vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
             position = vec4<f32>(center + rp, 1.0);
         } else if (mode == 7u) {
