@@ -77,6 +77,8 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ` | — | A timeline of parts (see [Sequences](#sequences)). Highest precedence. |
 | `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl` (data-only) or `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-particle shader; `outline`/`pen-write` are text-only). A per-part `~name` overrides it. See [Sequences](#sequences). |
+| `MARTIN_FLASH` | `0` | Over-bright **bloom flash on each part cut** (0 = off; `~0.6` = punchy). Synced to the music when parts are `@@`-anchored to beats/bars. |
+| `MARTIN_SYNTH_WAV` | — | Render the bundled deFEEST synth (Cinder) to a WAV at this path, then exit — for muxing audio onto a recording. See [Music](#music-the-synth). |
 | `MARTIN_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-part 3rd timing number instead.) |
 | `MARTIN_MORPH_COUNT` | `0` (shorthand) / `200000` (`MARTIN_SEQ`) | Gaussian budget every part is resampled to. `0` = the largest part's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
 | `MARTIN_YAW` | — (gentle sway) | Pin the camera to a fixed orbit angle in **radians** (e.g. `1.57` ≈ head-on). Handy for inspecting a splat. |
@@ -122,7 +124,7 @@ text:STRING                      # splat-text (glowing)
 image:logo.png                   # a PNG in the asset folder, rasterized to gaussians (a logo)
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge   ~transition
+…any of the above… @hold,morph,bulge   ~transition   @@anchor
 ```
 
 The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount):
@@ -169,6 +171,33 @@ explicit per-part `~name` wins over it.
 
 (The first part has nothing to morph *from*, so `~morph` there falls back to `~ball`.)
 
+### Cue-anchoring: `@@anchor` (lock a part to the music)
+
+By default parts are laid **end-to-end** (each starts when the previous finishes). A trailing
+**`@@anchor`** token instead pins a part's *start* to an absolute time on the **music clock**
+(the ported deFEEST score — 140 BPM; see [Music](#music-the-synth) below), so the show locks to
+the track no matter how you retime the parts before it:
+
+| `@@anchor` | Part starts at… |
+|---|---|
+| `@@drop` | a **section** boundary — `intro` / `build` / `drop` / `breakdown` / `climax` / `outro` |
+| `@@bar32` (or `@@bar:32`) | **bar 32** (`32 × BAR`) |
+| `@@beat:64` | **beat 64** (`64 × BEAT`) |
+| `@@12.5` | **12.5 seconds** (raw) |
+
+The part still uses its `@morph` to arrive and holds until the next part starts. Anchors should
+increase down the show. Example — the title holds until the drop, then the dog hits *on* it:
+
+```
+text:MARTIN GAUS              @2,3
+splat:doggo.ply  ~morph  @@drop @1,3,1.0     # morphs in exactly when the drop lands
+image:defeest-logo.png ~ball  @@outro
+```
+
+`MARTIN_FLASH=<strength>` adds an over-bright **bloom flash on each part cut** (0 = off,
+default; `~0.6` is punchy) — the demoscene scene-cut snap, synced to the music when parts are
+anchored to beats/bars.
+
 **Inline example — a full show:**
 
 ```bash
@@ -196,6 +225,33 @@ MARTIN_PLY=assets/doggo.ply MARTIN_SEQ=~/show.seq cargo +nightly run --release
 
 All parts are resampled to one gaussian count (`MARTIN_MORPH_COUNT`, default 200k in
 sequences) and the camera is framed once over everything, so it never pops between parts.
+
+---
+
+## Music (the synth)
+
+martin carries a procedural synth + a **section/beat music clock**, ported (MIT) from Cinder's
+(Kristian Vlaardingerbroek, deFEEST) `term-demo` — `src/audio.rs` + `src/score.rs`. The clock
+is 140 BPM with a six-section arc (`intro → build → drop → breakdown → climax → outro`); those
+section/bar/beat times are what `@@anchor` (above) pins parts to, so the visuals lock to the
+track. There is no live audio yet — the synth renders **offline to a WAV** and ffmpeg muxes it
+onto the recorded frames:
+
+```bash
+# 1. render the synth to a WAV (renders, then exits — no window)
+MARTIN_SYNTH_WAV=/tmp/track.wav cargo +nightly run --release
+
+# 2. record the (anchored) show to PNG frames
+MARTIN_PLY=$PWD/assets/doggo.ply MARTIN_SEQ="…@@drop…@@outro…" MARTIN_RECORD=/tmp/frames \
+  BEVY_ASSET_ROOT=$PWD cargo +nightly run --release
+
+# 3. mux: video + audio (+ a fade to match the synth's own fade-out)
+ffmpeg -framerate 60 -i /tmp/frames/frame_%05d.png -i /tmp/track.wav \
+  -vf "fade=t=out:st=90:d=2.6" -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest out.mp4
+```
+
+The synth track is ~92.6 s (`DEMO_LEN`); anchor the final part near `@@outro` so the recording
+covers the whole track.
 
 ---
 

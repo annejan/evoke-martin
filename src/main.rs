@@ -47,6 +47,7 @@ const SWAY: f32 = 0.25; // gentle left-right sway amplitude — never reaches th
 const SIDE_SEP: f32 = 1.2; // half-spacing when a part places several splats side by side
 const BALL_SHELL: f32 = 0.9; // intro ball-shell radius, in units of the framed radius
 const NORMALIZE_EXTENT: f32 = 2.0; // each part is centered + scaled so its largest dim = this
+const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 
 /// `.ply` splats are Y-down → rotate the cloud 180° about X for Y-up. Text is built Y-down
 /// too (see `build_text_gaussians`), so one transform makes text *and* splats upright.
@@ -234,6 +235,40 @@ struct Part {
     morph: f32,                     // seconds to morph in
     bulge: f32,                     // ball-pulse explosiveness (Morph transition only)
     transition: Option<Transition>, // None = default (Ball for part 0, else Morph)
+    anchor: Option<f32>,            // absolute start (s) on the music clock; None = relative
+}
+
+/// Parse a `@@anchor` token (the part after `@@`) into an absolute start time in seconds,
+/// anchored to the ported music clock (`score.rs`): a section name (`intro`/`build`/`drop`/
+/// `breakdown`/`climax`/`outro`), `bar<N>` / `bar:N`, `beat<N>` / `beat:N`, or a raw number of
+/// seconds. Lets a part lock to the music instead of being laid end-to-end.
+fn parse_anchor(s: &str) -> Option<f32> {
+    use crate::score::{BAR, BEAT, T_BREAKDOWN, T_BUILD, T_CLIMAX, T_DROP, T_OUTRO};
+    let s = s.trim().to_ascii_lowercase();
+    match s.as_str() {
+        "intro" | "start" => return Some(0.0),
+        "build" => return Some(T_BUILD),
+        "drop" => return Some(T_DROP),
+        "breakdown" => return Some(T_BREAKDOWN),
+        "climax" => return Some(T_CLIMAX),
+        "outro" => return Some(T_OUTRO),
+        _ => {}
+    }
+    if let Some(n) = s.strip_prefix("bar") {
+        return n
+            .trim_start_matches(':')
+            .parse::<f32>()
+            .ok()
+            .map(|b| b * BAR);
+    }
+    if let Some(n) = s.strip_prefix("beat") {
+        return n
+            .trim_start_matches(':')
+            .parse::<f32>()
+            .ok()
+            .map(|b| b * BEAT);
+    }
+    s.parse::<f32>().ok() // raw seconds
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -247,6 +282,10 @@ struct Sequence {
 #[derive(Resource)]
 struct AssetRoot(std::path::PathBuf);
 
+/// MARTIN_FLASH=<strength>: over-bright bloom pulse on each part cut (0 = off, the default).
+#[derive(Resource)]
+struct FlashStrength(f32);
+
 /// Loaded splat handles + the per-part built shapes (all `count` gaussians) + each part's
 /// morph-in source cloud + its resolved transition.
 #[derive(Resource)]
@@ -256,6 +295,7 @@ struct SeqState {
     shapes: Vec<Handle<PlanarGaussian3d>>,
     sources: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part lhs source (None = morph from prev)
     transitions: Vec<Transition>,                   // resolved transition per part
+    starts: Vec<f32>,                               // absolute start time (s) of each part
     built: bool,
     entity: Option<Entity>,
 }
@@ -280,18 +320,23 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         // a `~name` transition token (e.g. `~fade`) anywhere on the line — it's a single
         // whitespace-delimited token, so pull it out and keep the rest. Position-independent,
         // so `splat:x.ply ~fade @2,3` and `splat:x.ply @2,3 ~fade` both work.
+        // Pull the `~name` transition AND the `@@anchor` token (both single whitespace-delimited
+        // tokens, position-independent); keep the rest of the line for the head + `@timing`.
         let mut transition = None;
+        let mut anchor = None;
         let s: String = s
             .split_whitespace()
-            .filter(
-                |tok| match tok.strip_prefix('~').and_then(Transition::parse) {
-                    Some(tr) => {
-                        transition = Some(tr);
-                        false
-                    }
-                    None => true,
-                },
-            )
+            .filter(|tok| {
+                if let Some(a) = tok.strip_prefix("@@").and_then(parse_anchor) {
+                    anchor = Some(a);
+                    return false;
+                }
+                if let Some(tr) = tok.strip_prefix('~').and_then(Transition::parse) {
+                    transition = Some(tr);
+                    return false;
+                }
+                true
+            })
             .collect::<Vec<_>>()
             .join(" ");
         let (head, timing) = match s.split_once('@') {
@@ -328,6 +373,7 @@ fn parse_seq(spec: &str) -> Vec<Part> {
             morph,
             bulge,
             transition,
+            anchor,
         });
     }
     parts
@@ -442,6 +488,16 @@ fn build_sequence(
             }
         })
         .collect();
+
+    // Absolute start time (s) of each part: its `@@anchor` (locked to the music clock), else
+    // laid end-to-end after the previous part (start + morph + hold). This is the cue timeline.
+    let mut starts: Vec<f32> = Vec::with_capacity(seq.parts.len());
+    let mut cursor = 0.0_f32;
+    for (i, part) in seq.parts.iter().enumerate() {
+        let start = part.anchor.unwrap_or(if i == 0 { 0.0 } else { cursor });
+        starts.push(start);
+        cursor = start + part.morph + part.hold;
+    }
 
     // read every part's gaussians once, so count==0 can mean "size N to the largest part"
     // (every part is then resampled to that single N — required by the shared morph output).
@@ -604,6 +660,7 @@ fn build_sequence(
     state.shapes = shapes;
     state.sources = sources;
     state.transitions = transitions;
+    state.starts = starts;
     state.entity = Some(entity);
     state.built = true;
     info!(
@@ -619,6 +676,7 @@ fn part_director(
     seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
     clock: Res<SeqClock>,
+    flash: Res<FlashStrength>,
     mut q: Query<(&mut GaussianInterpolate<Gaussian3d>, &mut CloudSettings)>,
 ) {
     let (Some(seq), Some(state)) = (seq, state) else {
@@ -633,23 +691,22 @@ fn part_director(
     };
     let parts = &seq.parts;
 
-    // each part occupies [morph_i + hold_i); the first `morph_i` is the morph-in.
-    let mut t = clock.t;
-    let (mut idx, mut morphing, mut factor) = (parts.len() - 1, false, 1.0_f32);
-    for (i, b) in parts.iter().enumerate() {
-        let seg = b.morph + b.hold;
-        if t < seg {
+    // The active part is the last one whose absolute start time has arrived (starts come from
+    // the cue timeline — `@@anchor` or laid end-to-end). It morphs in over `morph`, then holds
+    // until the next part starts. Before part 0's start, `factor` clamps to 0 (its source state).
+    let t = clock.t;
+    let starts = &state.starts;
+    let mut idx = 0;
+    for (i, &start) in starts.iter().enumerate() {
+        if t >= start {
             idx = i;
-            morphing = t < b.morph;
-            factor = if morphing {
-                (t / b.morph.max(1e-3)).clamp(0.0, 1.0)
-            } else {
-                1.0
-            };
+        } else {
             break;
         }
-        t -= seg;
     }
+    let dt = t - starts[idx];
+    let morphing = dt < parts[idx].morph;
+    let factor = (dt / parts[idx].morph.max(1e-3)).clamp(0.0, 1.0);
 
     // lhs: the part's transition source cloud (ball/fade/explode/…), or — for a plain Morph —
     // the previous part's shape.
@@ -681,6 +738,23 @@ fn part_director(
     cs.transition_mode = mode;
     cs.transition_softness = soft;
     cs.transition_axis = axis;
+    // Flash on each cut (term-demo's Director trick): a brief over-bright pulse at every part
+    // start → the HDR bloom flares. MARTIN_FLASH=<strength> (0 = off, default); reuses
+    // global_opacity, so off keeps every frame byte-identical.
+    let flash = flash.0
+        * starts
+            .iter()
+            .map(|&s| {
+                let d = t - s;
+                if (0.0..FLASH_LEN).contains(&d) {
+                    let a = 1.0 - d / FLASH_LEN;
+                    a * a
+                } else {
+                    0.0
+                }
+            })
+            .fold(0.0_f32, f32::max);
+    cs.global_opacity = 1.0 + flash;
 }
 
 /// Live clock advance (record mode drives `SeqClock` itself, deterministically).
@@ -734,8 +808,9 @@ struct RecordState {
     grace: u32,
 }
 
-/// Deterministic recorder: total duration = Σ(morph + hold) + tail; set the clock per frame,
-/// sway the camera, screenshot, then exit. Frame-indexed → smooth regardless of render speed.
+/// Deterministic recorder: total duration = the cue timeline's end (last part's
+/// `start + morph + hold`) + tail; set the clock per frame, sway the camera, screenshot, then
+/// exit. Frame-indexed → smooth regardless of render speed.
 fn record_driver(
     mut rec: ResMut<RecordState>,
     seq: Option<Res<Sequence>>,
@@ -752,7 +827,15 @@ fn record_driver(
     if !state.built || !camq.iter().any(|c| c.framed) {
         return; // wait until built + framed
     }
-    let dur = seq.parts.iter().map(|b| b.morph + b.hold).sum::<f32>() + 1.0; // +tail
+    // end of the cue timeline: the latest part's start + its morph + hold (anchors can reorder
+    // or stretch it past a simple sum), plus a tail.
+    let dur = seq
+        .parts
+        .iter()
+        .zip(&state.starts)
+        .map(|(p, &start)| start + p.morph + p.hold)
+        .fold(0.0_f32, f32::max)
+        + 1.0;
     let total = (dur / rec.dt).ceil() as u32;
     if rec.i >= total {
         // Wait for the async PNG writes to actually land before exiting — a fast (release)
@@ -876,6 +959,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
             morph: 3.0,
             bulge: 0.0,
             transition: None,
+            anchor: None,
         };
         return (
             Sequence {
@@ -907,6 +991,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
         morph: 3.0,
         bulge: 0.0,
         transition: None,
+        anchor: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -915,6 +1000,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
             morph: 3.5,
             bulge,
             transition: None,
+            anchor: None,
         });
     }
     (Sequence { parts, count }, root)
@@ -977,6 +1063,12 @@ fn main() {
         .add_plugins(GaussianSplattingPlugin)
         .insert_resource(sequence)
         .insert_resource(AssetRoot(asset_root_path))
+        .insert_resource(FlashStrength(
+            std::env::var("MARTIN_FLASH")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.0),
+        ))
         .init_resource::<SeqClock>()
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(CamOverride(
@@ -1046,6 +1138,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, seq: Res<Sequen
         shapes: Vec::new(),
         sources: Vec::new(),
         transitions: Vec::new(),
+        starts: Vec::new(),
         built: false,
         entity: None,
     });

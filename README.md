@@ -87,6 +87,8 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_RECORD=/dir` | Dump one PNG per frame (used by `record.sh`). |
 | `MARTIN_SHOT=/x.png` `MARTIN_SHOT_AT=<s>` | Headless screenshot at time `s`, then exit. |
 | `MARTIN_FULLSCREEN=1` | Start borderless-fullscreen; toggle live with **F11 / F**. |
+| `MARTIN_FLASH=0.6` | Over-bright bloom flash on each part cut (0 = off). |
+| `MARTIN_SYNTH_WAV=/x.wav` | Render the bundled deFEEST synth to a WAV and exit (mux onto a recording). |
 
 **`MARTIN_SEQ`** is a `;`-separated list of *parts* (or a path to a file of them, one per line;
 `#` comments allowed). Each part morphs into the next, through a ball cloud:
@@ -96,13 +98,18 @@ text:STRING               # splat-text (glowing)
 image:logo.png            # a PNG (in the MARTIN_PLY folder), rasterized to gaussians
 splat:a.ply               # a splat (filename in the MARTIN_PLY folder)
 splat:a.ply+b.ply         # several splats, auto-arranged side by side
-…any part… @hold,morph,bulge ~transition   # optional timing (seconds) + arrival transition
+…any part… @hold,morph,bulge ~transition @@anchor   # timing · arrival transition · music cue
 ```
 
 The trailing `~transition` picks how a part arrives — data-only `ball` (default), `fade`,
 `explode`, `implode`, `drop`, `swirl`, `morph`, or the per-particle shader transitions
 `typewriter`, `wipe`, `sparkle`, `slither`, `vortex`, `outline`, `pen-write` (great for text). The ball is just one
 of many; the design + the shader fork are in **[`DESIGN.md`](DESIGN.md)** / **[`SHADER-BLUEPRINT.md`](SHADER-BLUEPRINT.md)**.
+
+The optional `@@anchor` pins a part's start to the **music clock** (Cinder's ported synth/score,
+`src/{audio,score}.rs`): `@@drop` (a section), `@@bar32`, `@@beat:64`, or `@@12.5` seconds — so
+the visuals lock to the track. `MARTIN_SYNTH_WAV` renders that synth to a WAV; mux it onto a
+recording with ffmpeg for a video-with-sound (see **[`USAGE.md`](USAGE.md)** → Music).
 
 Example — the full show (title → dog → greetings → credits):
 
