@@ -9,8 +9,8 @@
 //! Rendering: one `GaussianInterpolate` entity (the crate's GPU blend), retargeted per
 //! part; depth-sorted by GPU radix (reads live morphed positions → no holes); HDR `Bloom`
 //! on black makes bright splats glow. The ball pulse is a shader edit in the vendored
-//! crate (see vendor/.../CHANGES.md). Live: ↑/↓ zoom · ←/→ raise/lower · Space = restart ·
-//! F11/F = fullscreen (or start fullscreen with MARTIN_FULLSCREEN=1).
+//! crate (see vendor/.../CHANGES.md). Live free-orbit: ←/→ yaw · ↑/↓ pitch · W/S zoom · A/D &
+//! Q/E pan · Space = restart · F11/F = fullscreen (or start fullscreen with MARTIN_FULLSCREEN=1).
 
 use std::f32::consts::PI;
 
@@ -48,6 +48,7 @@ const SIDE_SEP: f32 = 1.2; // half-spacing when a part places several splats sid
 const BALL_SHELL: f32 = 0.9; // intro ball-shell radius, in units of the framed radius
 const NORMALIZE_EXTENT: f32 = 2.0; // each part is centered + scaled so its largest dim = this
 const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
+const DEFAULT_PITCH: f32 = 0.12; // camera pitch above the horizon (rad) when framing
 
 /// `.ply` splats are Y-down → rotate the cloud 180° about X for Y-up. Text is built Y-down
 /// too (see `build_text_gaussians`), so one transform makes text *and* splats upright.
@@ -66,47 +67,42 @@ fn file_name_of(p: &str) -> String {
 // Camera
 // ===========================================================================================
 
+/// Free-orbit inspection camera: orbit `yaw`/`pitch` at `dist` around a `target` look-at point.
+/// `build_sequence` frames it (MARTIN_YAW/PITCH/ZOOM seed it); `controls` flies it live; the
+/// recorder sways or holds it deterministically.
 #[derive(Component)]
 struct OrbitCam {
-    center: Vec3,
-    radius: f32,
-    elevation: f32,
-    yaw: f32,
+    target: Vec3, // look-at point
+    dist: f32,    // distance from the target
+    yaw: f32,     // orbit angle around the vertical (Y) axis
+    pitch: f32,   // angle above the horizon (0 = eye level, +up looks down)
     framed: bool,
 }
 
 impl Default for OrbitCam {
     fn default() -> Self {
         Self {
-            center: Vec3::ZERO,
-            radius: 5.0,
-            elevation: 1.5,
+            target: Vec3::ZERO,
+            dist: 5.0,
             yaw: FRONT_YAW,
+            pitch: DEFAULT_PITCH,
             framed: false,
         }
     }
 }
 
-/// MARTIN_YAW=<rad>: pin the camera to a fixed orbit angle (for inspecting a splat).
-#[derive(Resource)]
-struct CamOverride(Option<f32>);
-
-/// Place the camera from its orbit state. Framing (center/radius/elevation) is set once by
-/// `build_sequence`; `yaw` is the gentle front sway, driven live by `controls` or
-/// deterministically by `record_driver`.
-fn orbit_camera(cam_override: Res<CamOverride>, mut q: Query<(&mut Transform, &OrbitCam)>) {
+/// Place the camera on a sphere around `target` from `yaw`/`pitch`/`dist`.
+fn orbit_camera(mut q: Query<(&mut Transform, &OrbitCam)>) {
     for (mut tf, cam) in &mut q {
-        let yaw = cam_override.0.unwrap_or(cam.yaw);
-        let offset = Vec3::new(
-            cam.radius * yaw.cos(),
-            cam.elevation,
-            cam.radius * yaw.sin(),
-        );
-        tf.translation = cam.center + offset;
-        tf.look_at(cam.center, Vec3::Y);
+        let (sp, cp) = cam.pitch.sin_cos();
+        let (sy, cy) = cam.yaw.sin_cos();
+        tf.translation = cam.target + Vec3::new(cp * cy, sp, cp * sy) * cam.dist;
+        tf.look_at(cam.target, Vec3::Y);
     }
 }
 
+/// Live free-orbit controls (ignored while recording): **arrows** orbit (←/→ yaw, ↑/↓ pitch),
+/// **W/S** zoom in/out, **A/D** pan left/right, **Q/E** pan down/up, **Space** restarts.
 fn controls(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -119,19 +115,40 @@ fn controls(
     }
     let dt = time.delta_secs();
     for mut cam in &mut q {
-        cam.yaw = FRONT_YAW + SWAY * (time.elapsed_secs() * 0.4).sin(); // gentle front sway
-        let step = cam.radius.max(1.0);
-        if keys.pressed(KeyCode::ArrowUp) {
-            cam.radius = (cam.radius - dt * step).max(0.05);
-        }
-        if keys.pressed(KeyCode::ArrowDown) {
-            cam.radius += dt * step;
-        }
+        let orbit = 1.3 * dt; // rad/s
         if keys.pressed(KeyCode::ArrowLeft) {
-            cam.elevation -= dt * step;
+            cam.yaw -= orbit;
         }
         if keys.pressed(KeyCode::ArrowRight) {
-            cam.elevation += dt * step;
+            cam.yaw += orbit;
+        }
+        if keys.pressed(KeyCode::ArrowUp) {
+            cam.pitch = (cam.pitch + orbit).min(1.5);
+        }
+        if keys.pressed(KeyCode::ArrowDown) {
+            cam.pitch = (cam.pitch - orbit).max(-1.5);
+        }
+        let step = cam.dist.max(0.1) * dt;
+        if keys.pressed(KeyCode::KeyW) {
+            cam.dist = (cam.dist - step).max(0.05); // zoom in
+        }
+        if keys.pressed(KeyCode::KeyS) {
+            cam.dist += step; // zoom out
+        }
+        // pan the look-at target: A/D along the camera's horizontal right, Q/E along world up.
+        let right = Vec3::new(cam.yaw.sin(), 0.0, -cam.yaw.cos());
+        let pan = cam.dist.max(0.1) * 0.6 * dt;
+        if keys.pressed(KeyCode::KeyA) {
+            cam.target -= right * pan;
+        }
+        if keys.pressed(KeyCode::KeyD) {
+            cam.target += right * pan;
+        }
+        if keys.pressed(KeyCode::KeyQ) {
+            cam.target.y -= pan;
+        }
+        if keys.pressed(KeyCode::KeyE) {
+            cam.target.y += pan;
         }
     }
     if keys.just_pressed(KeyCode::Space) {
@@ -643,17 +660,17 @@ fn build_sequence(
 
     // frame the union once (camera never pops between parts); apply the same rotation to the
     // centre so the camera looks at the post-transform world centre.
-    // MARTIN_ZOOM scales how close the camera sits (>1 = closer / more zoomed in, <1 = back).
-    let zoom = std::env::var("MARTIN_ZOOM")
-        .ok()
-        .and_then(|s| s.parse::<f32>().ok())
-        .filter(|z| *z > 0.0)
-        .unwrap_or(1.0);
+    // Seed the free-orbit camera. MARTIN_ZOOM scales distance (>1 = closer); MARTIN_YAW /
+    // MARTIN_PITCH (radians) seed the orbit angle so you can bake a found viewpoint into a
+    // render (and freely orbit live from there).
+    let env_f = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<f32>().ok());
+    let zoom = env_f("MARTIN_ZOOM").filter(|z| *z > 0.0).unwrap_or(1.0);
     let center = entity_rot * frame_center;
     for mut c in &mut cam {
-        c.center = center;
-        c.radius = content_radius * frame_factor / zoom;
-        c.elevation = c.radius * 0.12; // gentle downward tilt, held constant across zoom levels
+        c.target = center;
+        c.dist = content_radius * frame_factor / zoom;
+        c.yaw = env_f("MARTIN_YAW").unwrap_or(FRONT_YAW);
+        c.pitch = env_f("MARTIN_PITCH").unwrap_or(DEFAULT_PITCH);
         c.framed = true;
     }
 
@@ -804,6 +821,7 @@ struct RecordState {
     dir: Option<String>,
     dt: f32,       // timeline seconds advanced per frame
     yaw_step: f32, // camera sway radians per frame
+    sway: bool,    // gentle front-sway (true) vs hold the framed/pinned yaw (MARTIN_YAW set)
     i: u32,
     grace: u32,
 }
@@ -857,9 +875,12 @@ fn record_driver(
     }
     let i = rec.i;
     clock.t = i as f32 * rec.dt;
-    let yaw = FRONT_YAW + SWAY * (i as f32 * rec.yaw_step).sin();
-    for mut c in &mut camq {
-        c.yaw = yaw;
+    // gentle front-sway for object showcases; hold the framed yaw when MARTIN_YAW pins a scene.
+    if rec.sway {
+        let yaw = FRONT_YAW + SWAY * (i as f32 * rec.yaw_step).sin();
+        for mut c in &mut camq {
+            c.yaw = yaw;
+        }
     }
     commands
         .spawn(Screenshot::primary_window())
@@ -1071,11 +1092,6 @@ fn main() {
         ))
         .init_resource::<SeqClock>()
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(CamOverride(
-            std::env::var("MARTIN_YAW")
-                .ok()
-                .and_then(|s| s.parse().ok()),
-        ))
         .insert_resource(FpsLog {
             enabled: std::env::var("MARTIN_FPS").is_ok(),
             accum: 0.0,
@@ -1093,6 +1109,7 @@ fn main() {
             dir: std::env::var("MARTIN_RECORD").ok(),
             dt: 1.0 / 60.0,
             yaw_step: 2.0 * PI / 480.0, // ~8s gentle sway period
+            sway: std::env::var("MARTIN_YAW").is_err(), // pinned yaw → hold it, don't sway
             i: 0,
             grace: 0,
         })

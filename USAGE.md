@@ -81,7 +81,8 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_SYNTH_WAV` | — | Render the bundled deFEEST synth (Cinder) to a WAV at this path, then exit — for muxing audio onto a recording. See [Music](#music-the-synth). |
 | `MARTIN_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-part 3rd timing number instead.) |
 | `MARTIN_MORPH_COUNT` | `0` (shorthand) / `200000` (`MARTIN_SEQ`) | Gaussian budget every part is resampled to. `0` = the largest part's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
-| `MARTIN_YAW` | — (gentle sway) | Pin the camera to a fixed orbit angle in **radians** (e.g. `1.57` ≈ head-on). Handy for inspecting a splat. |
+| `MARTIN_YAW` | `1.4` (front) | Seed the orbit **yaw** in **radians** (e.g. `1.57` ≈ head-on). When set, a recording **holds** this yaw instead of swaying — bake a found scene viewpoint. |
+| `MARTIN_PITCH` | `0.12` | Seed the orbit **pitch** in **radians** (0 = eye level, `+` looks down). |
 | `MARTIN_FPS` | off | `=1` logs smoothed FPS / frame-time + timeline clock every ~0.5 s. |
 | `MARTIN_RECORD` | — | Directory to dump one PNG per frame into (the whole timeline; used by `record.sh`). |
 | `MARTIN_SHOT` | — | Capture a single headless screenshot to this path, then exit ~2 s later. |
@@ -97,17 +98,27 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 
 When running in a window (not recording):
 
+It's a **free-orbit inspection camera** (orbit `yaw`/`pitch` at `dist` around a look-at target):
+
 | Key | Action |
 |---|---|
+| `←` / `→` | Orbit **yaw** (around the vertical axis) |
+| `↑` / `↓` | Orbit **pitch** (look down / up) |
+| `W` / `S` | Zoom **in / out** |
+| `A` / `D` | Pan the target **left / right** |
+| `Q` / `E` | Pan the target **down / up** |
 | `Space` | Restart the show (timeline back to t=0) |
 | `F11` / `F` | Toggle borderless fullscreen |
-| `↑` / `↓` | Zoom in / out |
-| `←` / `→` | Lower / raise the camera |
 
-The camera only **sways across the front** of the subject — single-image splats (e.g.
-from TRELLIS) have a hollow back, so a full 360° orbit would show the inside of the head.
-Use `MARTIN_YAW` to inspect a fixed angle. Splats captured from all sides (COLMAP→Brush)
-can be orbited freely.
+Seed the framed angle with `MARTIN_YAW` / `MARTIN_PITCH` (radians) + `MARTIN_ZOOM`, then orbit
+from there — handy for finding and baking a viewpoint. (Single-image splats from TRELLIS have a
+**hollow back**, so don't orbit all the way around them; full multi-angle captures orbit freely.)
+
+> **Heads-up on raw scene `.ply`s.** A bare splat from a 360° capture (no camera poses) carries
+> lots of under-constrained background "needle" splats and only blends coherently along its
+> *capture trajectory* — so it may look streaky from an arbitrary orbit no matter the distance.
+> Either **crop it to the subject** in SuperSplat (see `ART-DIRECTION.md`), or use a `.ply` whose
+> capture cameras are available. Clean objects (TRELLIS, cropped captures) orbit fine.
 
 ---
 
