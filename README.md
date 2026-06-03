@@ -91,6 +91,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_FULLSCREEN=1` | Start borderless-fullscreen; toggle live with **F11 / F**. |
 | `MARTIN_FLASH=0.6` | Over-bright bloom flash on each part cut (0 = off). |
 | `MARTIN_SYNTH_WAV=/x.wav` | Render the bundled deFEEST synth to a WAV and exit (mux onto a recording). |
+| `MARTIN_MUTE=1` | Silence the live synth (it plays in the window by default; recordings still mux the WAV). |
 
 **`MARTIN_SEQ`** is a `;`-separated list of *parts* (or a path to a file of them, one per line;
 `#` comments allowed). Each part morphs into the next, through a ball cloud:

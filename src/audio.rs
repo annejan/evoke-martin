@@ -384,27 +384,32 @@ pub fn synth_track() -> Track {
     track
 }
 
-/// Write the track as a 16-bit PCM mono WAV at `SAMPLE_RATE`, so ffmpeg can mux it onto the
-/// recorded frames. Hand-rolled RIFF header — no audio dependency needed.
-pub fn write_wav(track: &Track, path: &str) -> std::io::Result<()> {
-    use std::io::Write;
+/// Encode the track as a 16-bit PCM mono WAV (`SAMPLE_RATE`) into a byte buffer — hand-rolled RIFF
+/// header, no audio dependency. Reused for the on-disk WAV (`write_wav`) and for in-app live
+/// playback (bevy_audio decodes these bytes).
+pub fn encode_wav(track: &Track) -> Vec<u8> {
     let data_bytes = (track.samples.len() * 2) as u32;
-    let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
-    out.write_all(b"RIFF")?;
-    out.write_all(&(36 + data_bytes).to_le_bytes())?;
-    out.write_all(b"WAVE")?;
-    out.write_all(b"fmt ")?;
-    out.write_all(&16u32.to_le_bytes())?; // PCM fmt chunk size
-    out.write_all(&1u16.to_le_bytes())?; // format = PCM
-    out.write_all(&1u16.to_le_bytes())?; // channels = mono
-    out.write_all(&SAMPLE_RATE.to_le_bytes())?; // sample rate
-    out.write_all(&(SAMPLE_RATE * 2).to_le_bytes())?; // byte rate (rate * block align)
-    out.write_all(&2u16.to_le_bytes())?; // block align (mono * 2 bytes)
-    out.write_all(&16u16.to_le_bytes())?; // bits per sample
-    out.write_all(b"data")?;
-    out.write_all(&data_bytes.to_le_bytes())?;
+    let mut out = Vec::with_capacity(44 + data_bytes as usize);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_bytes).to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes()); // PCM fmt chunk size
+    out.extend_from_slice(&1u16.to_le_bytes()); // format = PCM
+    out.extend_from_slice(&1u16.to_le_bytes()); // channels = mono
+    out.extend_from_slice(&SAMPLE_RATE.to_le_bytes()); // sample rate
+    out.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes()); // byte rate (rate * block align)
+    out.extend_from_slice(&2u16.to_le_bytes()); // block align (mono * 2 bytes)
+    out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_bytes.to_le_bytes());
     for &s in track.samples.iter() {
-        out.write_all(&((s.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes())?;
+        out.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes());
     }
-    out.flush()
+    out
+}
+
+/// Write the track as a `.wav` file so ffmpeg can mux it onto the recorded frames.
+pub fn write_wav(track: &Track, path: &str) -> std::io::Result<()> {
+    std::fs::write(path, encode_wav(track))
 }
