@@ -13,6 +13,15 @@ fn dc(c: f32) -> f32 {
     (c - 0.5) / 0.282_094_79
 }
 
+/// A degree-0 SH from a target RGB.
+fn sh_of(rgb: [f32; 3]) -> SphericalHarmonicCoefficients {
+    let mut sh = SphericalHarmonicCoefficients::default();
+    sh.set(0, dc(rgb[0]));
+    sh.set(1, dc(rgb[1]));
+    sh.set(2, dc(rgb[2]));
+    sh
+}
+
 /// Deterministic hash → [0, 1) (no rng dependency; for area-weighted surface scatter).
 fn hash01(k: u32) -> f32 {
     let mut n = k.wrapping_add(0x9E37_79B9).wrapping_mul(0x85EB_CA6B);
@@ -52,12 +61,16 @@ pub fn build_mesh_gaussians(
         }
     };
 
-    // Flatten every mesh's faces into world-space triangles + (optional) per-vertex colours.
+    // mesh-loader builds `meshes[i]` and `materials[i]` from the same geometry in lockstep — so a
+    // mesh's colour is its material's diffuse (COLLADA logos store colour per-material, not per
+    // vertex). Priority per gaussian: vertex colours if the mesh has them, else material diffuse,
+    // else the caller's flat `rgb`.
     let mut tris: Vec<[[f32; 3]; 3]> = Vec::new();
     let mut tri_cols: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
-    for mesh in &scene.meshes {
-        let cols = &mesh.colors[0]; // colour set 0; empty if the mesh carries no vertex colours
-        let has_cols = cols.len() == mesh.vertices.len() && !cols.is_empty();
+    let mut tri_mesh: Vec<usize> = Vec::new();
+    for (mi, mesh) in scene.meshes.iter().enumerate() {
+        let cols = &mesh.colors[0]; // colour set 0; empty unless the mesh carries vertex colours
+        let has_cols = !cols.is_empty() && cols.len() == mesh.vertices.len();
         for &[a, b, c] in &mesh.faces {
             let (a, b, c) = (a as usize, b as usize, c as usize);
             let (Some(&va), Some(&vb), Some(&vc)) = (
@@ -72,6 +85,7 @@ pub fn build_mesh_gaussians(
                 let rgb_of = |i: usize| [cols[i][0], cols[i][1], cols[i][2]];
                 [rgb_of(a), rgb_of(b), rgb_of(c)]
             }));
+            tri_mesh.push(mi);
         }
     }
     if tris.is_empty() {
@@ -79,13 +93,21 @@ pub fn build_mesh_gaussians(
         return Vec::new();
     }
 
+    // one SH per mesh for the flat (no-vertex-colour) case: its material diffuse, else `rgb`.
+    let mesh_sh: Vec<SphericalHarmonicCoefficients> = (0..scene.meshes.len())
+        .map(|mi| {
+            let c = scene
+                .materials
+                .get(mi)
+                .and_then(|m| m.color.diffuse)
+                .map(|d| [d[0], d[1], d[2]])
+                .unwrap_or(rgb);
+            sh_of(c)
+        })
+        .collect();
+
     let weights: Vec<f32> = tris.iter().map(double_area).collect();
     let total: f32 = weights.iter().sum::<f32>().max(1e-9);
-
-    let mut flat = SphericalHarmonicCoefficients::default();
-    flat.set(0, dc(rgb[0]));
-    flat.set(1, dc(rgb[1]));
-    flat.set(2, dc(rgb[2]));
 
     let mut out: Vec<Gaussian3d> = Vec::with_capacity(target_count + tris.len());
     let mut idx: u32 = 0;
@@ -110,15 +132,8 @@ pub fn build_mesh_gaussians(
             };
             let p = lerp3(*tri);
             let sh = match tri_cols[ti] {
-                Some(c) => {
-                    let col = lerp3(c);
-                    let mut s = SphericalHarmonicCoefficients::default();
-                    s.set(0, dc(col[0]));
-                    s.set(1, dc(col[1]));
-                    s.set(2, dc(col[2]));
-                    s
-                }
-                None => flat,
+                Some(c) => sh_of(lerp3(c)),
+                None => mesh_sh[tri_mesh[ti]],
             };
             out.push(Gaussian3d {
                 // Y-down to match text/splats; the shared cloud_base_rotation flips it upright.
