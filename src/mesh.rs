@@ -93,6 +93,21 @@ pub fn build_mesh_gaussians(
         return Vec::new();
     }
 
+    // Splat size proportional to the model: `splat` is a FRACTION of the largest dimension, so a
+    // tiny badge (±0.05) and a unit-scale object both get sensibly-sized splats. (normalize_to later
+    // scales gaussian sizes along with positions, so an *absolute* size blobs the small ones.)
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    for t in &tris {
+        for v in t {
+            for k in 0..3 {
+                lo[k] = lo[k].min(v[k]);
+                hi[k] = hi[k].max(v[k]);
+            }
+        }
+    }
+    let extent = (0..3).map(|k| hi[k] - lo[k]).fold(0.0_f32, f32::max);
+    let ssz = (splat * extent).max(1e-6);
+
     // one SH per mesh for the flat (no-vertex-colour) case: its material diffuse, else `rgb`.
     let mesh_sh: Vec<SphericalHarmonicCoefficients> = (0..scene.meshes.len())
         .map(|mi| {
@@ -140,7 +155,7 @@ pub fn build_mesh_gaussians(
                 position_visibility: [p[0], -p[1], p[2], 1.0].into(),
                 spherical_harmonic: sh,
                 rotation: [0.0, 0.0, 0.0, 1.0].into(),
-                scale_opacity: [splat, splat, splat, 1.0].into(),
+                scale_opacity: [ssz, ssz, ssz, 1.0].into(),
             });
         }
     }

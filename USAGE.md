@@ -99,7 +99,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_NORMALIZE` | on | Each part is centred on its **centroid** and uniformly scaled (positions *and* gaussian sizes) so the bulk of its content (90th-percentile radius) ≈ 2 units. Using a percentile, not the bounding box, **ignores stray "floater" splats** that would otherwise shrink the scene to a distant dot — so a 200-unit COLMAP scene and a 1-unit TRELLIS object share one "normal" scale. `=0` keeps raw scales. |
 | `MARTIN_ZOOM` | `1.0` | Camera closeness multiplier: **`>1` = closer / more zoomed in, `<1` = pull back**. The camera frames the normalized content up close by default; nudge this to taste. |
 | `MARTIN_MESH_COUNT` | `60000` | Target gaussian count when surface-sampling a `mesh:` part (distributed by triangle area; ≥1 per triangle). |
-| `MARTIN_MESH_SPLAT` | `0.01` | Gaussian size for a `mesh:` part. |
+| `MARTIN_MESH_SPLAT` | `0.006` | Gaussian splat size for a `mesh:` part, as a **fraction of the mesh's largest dimension** (scale-invariant — a tiny badge and a unit object both look right). |
 | `MARTIN_MESH_RGB` | vertex / `0.8,0.85,0.95` | Flat `r,g,b` colour for a `mesh:` part; the mesh's own vertex colours are used when it has them. |
 | `MARTIN_ROT` | — | `rx,ry,rz` euler **degrees** applied to the cloud — e.g. stand a COLMAP scene upright for a "normal" POV. Default = the portrait flip (gives scenes their abstract sideways look). |
 

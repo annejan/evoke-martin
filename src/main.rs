@@ -603,10 +603,12 @@ fn part_gaussians(
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(60_000);
+            // MARTIN_MESH_SPLAT is the splat size as a FRACTION of the mesh's largest dimension
+            // (scale-invariant — works for a tiny badge or a unit object alike).
             let splat = std::env::var("MARTIN_MESH_SPLAT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(0.01);
+                .unwrap_or(0.006);
             let rgb = std::env::var("MARTIN_MESH_RGB")
                 .ok()
                 .and_then(|s| {
