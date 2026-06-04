@@ -53,6 +53,7 @@ pub(crate) struct Composition {
 pub(crate) struct ComposeAnim {
     base_pos: Vec3,
     base_rot: Quat,
+    base_scale: f32,
     spin: Vec3, // rad/sec
     sway: Vec3, // rad amplitude, oscillating
     bob: f32,
@@ -206,6 +207,7 @@ pub(crate) fn build_composition(
             ComposeAnim {
                 base_pos: obj.pos,
                 base_rot: rot,
+                base_scale: obj.scale,
                 spin: obj.spin * (PI / 180.0),
                 sway: obj.sway * (PI / 180.0),
                 bob: obj.bob,
@@ -253,9 +255,11 @@ pub(crate) fn build_composition(
 /// it has an `out` time) via `global_opacity`.
 pub(crate) fn animate_composition(
     clock: Res<SeqClock>,
+    beat: Res<crate::scene::beat::Beat>,
     mut q: Query<(&ComposeAnim, &mut Transform, &mut CloudSettings)>,
 ) {
     let t = clock.t;
+    let k = beat.intensity;
     for (a, mut tf, mut cs) in &mut q {
         // spin = continuous rotation; sway = a gentle oscillation around the base orientation
         // (swings a hollow-back single-image splat left/right without ever facing away).
@@ -273,6 +277,8 @@ pub(crate) fn animate_composition(
             0.0
         };
         tf.translation = a.base_pos + a.drift * t + Vec3::Y * bob;
+        // kick thumps the object's scale (bulge is a no-op on a static cloud, so scale carries it).
+        tf.scale = Vec3::splat(a.base_scale * (1.0 + beat.kick * 0.06 * k));
         let fin = if a.appear < 0.0 {
             1.0 // no `in` → visible from the start (robust even if the clock hasn't advanced)
         } else {
@@ -283,7 +289,9 @@ pub(crate) fn animate_composition(
         } else {
             1.0
         };
-        cs.global_opacity = fin.min(fout);
+        // snare flares the bloom (scaled by current visibility so it doesn't fight the fade-in).
+        let vis = fin.min(fout);
+        cs.global_opacity = vis * (1.0 + beat.snare * 0.4 * k);
     }
 }
 

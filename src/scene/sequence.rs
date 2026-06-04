@@ -634,12 +634,18 @@ pub(crate) fn show_end(parts: &[Part], starts: &[f32]) -> f32 {
 /// Drive the show from `SeqClock.t`: find the active part, retarget the interpolate entity's
 /// lhs/rhs (only on change), and set the blend factor + ball bulge. Part 0 morphs in from the
 /// intro ball; every later part morphs in from the previous part's shape.
+#[allow(clippy::type_complexity)]
 pub(crate) fn part_director(
     seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
     clock: Res<crate::scene::SeqClock>,
     flash: Res<FlashStrength>,
-    mut q: Query<(&mut GaussianInterpolate<Gaussian3d>, &mut CloudSettings)>,
+    beat: Res<crate::scene::beat::Beat>,
+    mut q: Query<(
+        &mut GaussianInterpolate<Gaussian3d>,
+        &mut CloudSettings,
+        &mut Transform,
+    )>,
 ) {
     let (Some(seq), Some(state)) = (seq, state) else {
         return;
@@ -648,7 +654,7 @@ pub(crate) fn part_director(
         return;
     }
     let Some(entity) = state.entity else { return };
-    let Ok((mut interp, mut cs)) = q.get_mut(entity) else {
+    let Ok((mut interp, mut cs, mut tf)) = q.get_mut(entity) else {
         return;
     };
     let parts = &seq.parts;
@@ -719,6 +725,22 @@ pub(crate) fn part_director(
             })
             .fold(0.0_f32, f32::max);
     cs.global_opacity = 1.0 + flash;
+
+    // Beat reactions (MARTIN_BEAT scale): the score's drum hits drive the look. A held part can't
+    // use `bulge` (it's a mid-morph ball-pulse, zero at time==1), so the kick thump rides on the
+    // cloud's scale; the snare flares the bloom; kick+snare swell any active deform so a ^wave /
+    // ^ripple part pumps with the track. During a morph we add a little bulge punch too.
+    let k = beat.intensity;
+    if k > 0.0 {
+        tf.scale = Vec3::splat(1.0 + beat.kick * 0.05 * k);
+        cs.global_opacity += beat.snare * 0.45 * k;
+        if morphing {
+            cs.bulge += beat.kick * 0.3 * k;
+        }
+        if cs.deform_mode != 0 {
+            cs.deform_amp *= 1.0 + (beat.kick * 0.6 + beat.snare * 0.3) * k;
+        }
+    }
 }
 
 /// Add `NoFrustumCulling` to the sequence entity once its Aabb exists, so morph/ball

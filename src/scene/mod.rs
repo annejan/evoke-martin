@@ -6,6 +6,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_gaussian_splatting::PlanarGaussian3d;
 
+pub mod beat;
 pub mod compose;
 pub mod content;
 pub mod sequence;
@@ -113,6 +114,7 @@ pub(crate) struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
+        beat::plugin(app); // score-driven beat pulses, read by the directors below
         app.init_resource::<SeqClock>()
             .insert_resource(sequence::FlashStrength(
                 std::env::var("MARTIN_FLASH")
