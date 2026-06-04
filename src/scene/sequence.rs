@@ -31,6 +31,7 @@ const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t *
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Transition {
     Morph,   // prev shape → this shape (with bulge ball-pulse); the original behaviour
+    Swarm,   // like Morph but particles flock/swarm along curled paths between the two scenes
     Ball,    // assemble out of a fuzzy ball shell (default for part 0)
     Fade,    // fade up on the spot (opacity 0 → in)
     Explode, // gather in from an outward burst
@@ -51,6 +52,7 @@ impl Transition {
     fn parse(s: &str) -> Option<Transition> {
         Some(match s.trim().to_ascii_lowercase().as_str() {
             "morph" => Transition::Morph,
+            "swarm" => Transition::Swarm,
             "ball" => Transition::Ball,
             "fade" => Transition::Fade,
             "explode" => Transition::Explode,
@@ -381,7 +383,7 @@ pub(crate) fn build_sequence(
                 Transition::Morph
             });
             // part 0 has nothing to morph from — fall back to a ball assemble.
-            if idx == 0 && tr == Transition::Morph {
+            if idx == 0 && matches!(tr, Transition::Morph | Transition::Swarm) {
                 Transition::Ball
             } else {
                 tr
@@ -491,7 +493,7 @@ pub(crate) fn build_sequence(
         let tr = transitions[idx];
         let r = content_radius;
         let src: Option<Vec<Gaussian3d>> = match tr {
-            Transition::Morph => None,
+            Transition::Morph | Transition::Swarm => None, // both flow from the previous shape
             Transition::Ball => Some(ball_of(&shaped, r * BALL_SHELL)),
             Transition::Fade => Some(fade_of(&shaped)),
             Transition::Explode => Some(explode_of(&shaped, r * 1.6)),
@@ -686,6 +688,13 @@ pub(crate) fn part_director(
     // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
     // ball); source-based transitions carry their own motion, so they don't pulse.
     cs.bulge = if morphing && state.transitions[idx] == Transition::Morph {
+        parts[idx].bulge
+    } else {
+        0.0
+    };
+    // ~swarm: flock the particles along curled paths during the morph (the @_,_,N timing value is
+    // the swarm strength); mutually exclusive with the ball-pulse above.
+    cs.swarm = if morphing && state.transitions[idx] == Transition::Swarm {
         parts[idx].bulge
     } else {
         0.0

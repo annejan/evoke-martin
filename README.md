@@ -80,7 +80,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_COMPOSE=stage.compose` | **Composition** — many objects on one stage at once, placed + spinning/bobbing/drifting, fading in on the music, camera auto-orbiting (vs the morph timeline). Example: `assets/stage.compose`. |
 | `MARTIN_FPS=1` / **`I`** key | Log FPS + splat count (the `I` key toggles it live + logs a snapshot). |
 | `MARTIN_BULGE=0.9` | Ball-cloud explosiveness at a morph's midpoint (`0` = clean reorder). |
-| `MARTIN_TRANSITION=fade` | How each part **arrives**: `morph`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl`, or the shader ones `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-part `~name` wins). |
+| `MARTIN_TRANSITION=fade` | How each part **arrives**: `morph`/`swarm`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl`, or the shader ones `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-part `~name` wins). `swarm` = like `morph` but the splats flock along curled paths *between* the two scenes (the `@_,_,N` value tunes the swarm strength). |
 | `MARTIN_DEFORM=wave` | **Persistent** deform held the whole part (`wave`/`cloth`/`ripple`/`twist`) — great on a `wall:` of text. Per-part `^name` wins. |
 | `MARTIN_MESH_COUNT=60000` | A `mesh:model.dae` part (`.dae`/`.obj`/`.stl`/`.ply`) is surface-sampled into this many **flat, normal-aligned** gaussians, coloured from the diffuse texture (sampled at the UV), else vertex/material colour, else `MARTIN_MESH_RGB`. `MARTIN_MESH_SPLAT` = in-plane disk size; `MARTIN_MESH_THIN` = thickness (default 0.2× the radius). |
 | `MARTIN_MORPH_COUNT=250000` | Gaussian budget (`0`=max ~1.15M ≈ 20 fps; 250k ≈ 60 fps on the iGPU). |

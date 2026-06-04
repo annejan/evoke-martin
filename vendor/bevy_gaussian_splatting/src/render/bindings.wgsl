@@ -38,6 +38,12 @@ struct GaussianUniforms {
     deform_amp: f32,             // displacement amplitude (object units; radians for twist)
     deform_freq: f32,            // spatial frequency
     deform_time: f32,            // animation phase (seconds) — completes the 16-byte block
+    // --- swarm: a per-particle swirling detour during a morph (martin fork; append-only 16-byte
+    //     block, so every offset above is unchanged; 0 = off → byte-identical to upstream). ---
+    swarm: f32,                  // turbulence amplitude (object-radius units) at the morph midpoint
+    _swarm_pad0: f32,
+    _swarm_pad1: f32,
+    _swarm_pad2: f32,
 };
 @group(1) @binding(0) var<uniform> gaussian_uniforms: GaussianUniforms;
 

@@ -99,6 +99,20 @@ byte-identical to upstream.** Append-only + default-off ⇒ also a clean candida
 > Same sort caveat as §4: lives in `vs_points`, invisible to the radix sort. Amplitudes are small
 > so the depth-sort error is negligible. The app advances `deform_time` from the show clock.
 
+## 6. Swarm morph detour  (`gaussian.wgsl` + 4 uniform spots — opt-in, default-off)
+
+`swarm: f32` (0 = off → byte-identical). During a morph (`interp_active`) each gaussian curls along
+its own pseudo-random + tangential (about the vertical axis) direction by `sin(pi*t)*swarm` — peaks
+mid-transition, **exactly zero at t=0/t=1** so both endpoints stay pixel-exact, like §2's ball-pulse.
+The effect: a shape→shape morph *flocks/swarms* between the two scenes instead of lerping straight
+(the app's `~swarm` transition). Same injection point as §1/§2, right after the ball-pulse block.
+
+- New uniform group (4 spots, like §2/§4/§5): `swarm: f32` + three `_swarm_pad` f32 — a **third
+  16-byte block appended after the deform group** in `bindings.wgsl` `GaussianUniforms`, `mod.rs`
+  `CloudUniform` (+ its construction), and `gaussian/settings.rs` `CloudSettings` (+ `Default`: 0).
+
+> Same sort caveat as §2/§4. Driven by the morph `time`, so it self-cancels at the endpoints.
+
 ---
 
 ## Not a fork (for reference)

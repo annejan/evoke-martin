@@ -285,6 +285,27 @@ fn vs_points(
         }
     }
 
+    // --- SWARM (martin fork): a per-particle swirling detour during a morph. Like the ball-pulse
+    //     it rides sin(pi*t) — EXACTLY zero at t=0/t=1, so both endpoints stay pixel-exact — but
+    //     instead of collapsing to a ball each gaussian curls along its own pseudo-random +
+    //     tangential (about the vertical axis) direction, so a shape→shape morph flocks/swarms
+    //     between the two scenes. swarm == 0 skips the block (byte-identical to upstream). ---
+    if (interp_active && gaussian_uniforms.swarm > 0.0) {
+        let denom = max(gaussian_uniforms.time_stop - gaussian_uniforms.time_start, 1e-6);
+        let mt = clamp((gaussian_uniforms.time - gaussian_uniforms.time_start) / denom, 0.0, 1.0);
+        let pulse = sin(mt * 3.1415927);
+        if (pulse > 0.0) {
+            let radius = max(length(gaussian_uniforms.max.xyz - gaussian_uniforms.min.xyz) * 0.5, 1e-4);
+            let rnd = explode_hash3(splat_index);
+            let jitter = (rnd - vec3<f32>(0.5)) * 2.0;
+            // tangential swirl about the vertical (Y) axis → coherent flocking, not pure noise.
+            let swirl = normalize(vec3<f32>(-position.z, 0.0, position.x) + vec3<f32>(1e-5));
+            let dir = normalize(jitter + swirl * 1.5 + vec3<f32>(1e-5));
+            let amp = radius * gaussian_uniforms.swarm * mix(0.5, 1.5, rnd.y);
+            position = vec4<f32>(position.xyz + dir * amp * pulse, 1.0);
+        }
+    }
+
     // --- per-particle TRANSITION phase (martin fork). Off by default: transition_mode == 0u
     //     skips the whole block, so mode 0 is byte-identical to upstream. Active only during a
     //     morph (interp_active), exactly like the ball-pulse above. Produces tx_reveal for the

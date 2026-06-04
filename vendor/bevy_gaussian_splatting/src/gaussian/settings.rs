@@ -96,6 +96,11 @@ pub struct CloudSettings {
     pub deform_freq: f32,
     /// Deform animation phase in seconds (the app advances it from the show clock).
     pub deform_time: f32,
+    /// Per-particle swarm detour during a GaussianInterpolate morph (0 = off → byte-identical to
+    /// upstream). Each gaussian swirls along a pseudo-random + tangential curl by `sin(pi*t)*swarm`
+    /// (peaks mid-morph, zero at both ends), so a shape→shape morph *flocks/swarms* between the two
+    /// scenes instead of lerping straight. See gaussian.wgsl / SHADER-BLUEPRINT.md.
+    pub swarm: f32,
 }
 
 impl Default for CloudSettings {
@@ -125,6 +130,7 @@ impl Default for CloudSettings {
             deform_amp: 0.0,
             deform_freq: 0.0,
             deform_time: 0.0,
+            swarm: 0.0, // off → byte-identical to upstream
         }
     }
 }

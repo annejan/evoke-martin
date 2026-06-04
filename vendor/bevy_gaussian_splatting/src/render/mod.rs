@@ -991,6 +991,11 @@ pub struct CloudUniform {
     pub deform_amp: f32,
     pub deform_freq: f32,
     pub deform_time: f32,
+    // per-particle swarm detour during a morph (martin fork; a 16-byte tail block after deform)
+    pub swarm: f32,
+    pub _swarm_pad0: f32,
+    pub _swarm_pad1: f32,
+    pub _swarm_pad2: f32,
 }
 
 #[allow(clippy::type_complexity)]
@@ -1063,6 +1068,10 @@ pub fn extract_gaussians<R: PlanarSync>(
             deform_amp: settings.deform_amp,
             deform_freq: settings.deform_freq,
             deform_time: settings.deform_time,
+            swarm: settings.swarm,
+            _swarm_pad0: 0.0,
+            _swarm_pad1: 0.0,
+            _swarm_pad2: 0.0,
         };
 
         commands_list.push((
