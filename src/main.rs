@@ -20,8 +20,11 @@ use bevy::window::{MonitorSelection, WindowMode};
 use bevy_gaussian_splatting::GaussianSplattingPlugin;
 
 mod audio;
+#[cfg(feature = "bundle")]
+mod bundle;
 mod camera;
 mod capture;
+mod loader;
 mod mesh;
 mod morph;
 mod music;
@@ -33,12 +36,18 @@ mod waypoints;
 
 use crate::camera::CameraPlugin;
 use crate::capture::CapturePlugin;
+use crate::loader::LoaderPlugin;
 use crate::music::{MusicPlugin, ScoreRes};
 use crate::scene::compose::{parse_compose, Composition};
 use crate::scene::sequence::{sequence_from_env, Sequence};
 use crate::scene::{parent_dir, AssetRoot, ScenePlugin};
 
 fn main() {
+    // Bundled single-binary build: self-extract the embedded assets + seed the baked-in show into
+    // the env BEFORE anything reads it (a no-op without `--features bundle`).
+    #[cfg(feature = "bundle")]
+    bundle::apply();
+
     // MARTIN_SCORE_DUMP=path: export the built-in score as an editable tracker file, then exit —
     // a ready-to-edit starting point (round-trips through MARTIN_SCORE).
     if let Ok(path) = std::env::var("MARTIN_SCORE_DUMP") {
@@ -123,6 +132,12 @@ fn main() {
         })
         .insert_resource(AssetRoot(asset_root_path))
         .insert_resource(ScoreRes(Arc::new(score)))
-        .add_plugins((CameraPlugin, ScenePlugin, CapturePlugin, MusicPlugin))
+        .add_plugins((
+            CameraPlugin,
+            ScenePlugin,
+            CapturePlugin,
+            MusicPlugin,
+            LoaderPlugin,
+        ))
         .run();
 }

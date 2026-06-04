@@ -130,6 +130,24 @@ cargo +nightly run --release
 #   ./record.sh out.mp4   renders the whole timeline to video
 ```
 
+## Single-binary bundle
+
+Ship a whole show as **one self-contained executable** — assets baked in, no files, no env vars:
+
+```bash
+./pipeline/bundle.sh            # or: cargo build --release --features bundle
+./target/release/martin         # runs the baked-in show anywhere
+```
+
+`cargo build --release --features bundle` *is* the pipeline: `build.rs` reads **`bundle.toml`**
+(the show — a `seq`/`compose` + optional `score`, `logo`, `morph_count`), auto-collects every
+`.ply`/PNG the show references, lz4-compresses them into the binary, and bakes the show string in.
+At startup the binary self-extracts the assets to a temp dir (reused across relaunches) and plays
+the show, with a loader screen (logo + progress bar) while the splats decompress. Env vars still
+override the baked-in defaults (e.g. `MARTIN_LOOP=1`). Fonts and the default score are already
+compiled into martin, so only splats (and any logo PNG) ship. Edit `bundle.toml` to pick the show;
+its `.ply` must be present locally at build time (they're git-ignored).
+
 ## Note on git
 
 Splats, captures, run outputs, and the external COLMAP/Brush checkouts are **git-ignored**

@@ -33,6 +33,19 @@ mesh-loader = "0.1"
 # Synth DSP — proper filtered/enveloped voices for the placeholder track. default-features=false
 # drops the `files` feature (symphonia/hound); we render to our own hand-rolled WAV.
 fundsp = { version = "0.23.0", default-features = false, features = ["std"] }
+# Decompress the embedded asset archive in a `--features bundle` single-binary build. Pure Rust
+# (no C toolchain → clean cross-compiles), only pulled in for bundled builds.
+lz4_flex = { version = "0.11", default-features = false, features = ["std"], optional = true }
+
+[features]
+# `cargo build --release --features bundle` IS the bundling pipeline: build.rs reads bundle.toml,
+# auto-collects the .ply/PNG the show references, compresses them into the binary; at startup the
+# binary self-extracts to a temp dir and plays the baked-in show (no asset files, no env needed).
+bundle = ["dep:lz4_flex"]
+
+# Compress the assets at build time for a bundled build (pure Rust; only used when `bundle` is on).
+[build-dependencies]
+lz4_flex = { version = "0.11", default-features = false, features = ["std"] }
 
 # Faster iteration: optimize deps hard, our crate lightly.
 [profile.dev]
