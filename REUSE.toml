@@ -33,6 +33,21 @@ SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
+path = ["assets/*.seq", "assets/*.txt"]
+SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
+SPDX-License-Identifier = "MIT"
+
+# score.txt is the music's composition (Cinder's), exported to the tracker DSL — mirror score.rs.
+[[annotations]]
+path = "assets/score.txt"
+precedence = "override"
+SPDX-FileCopyrightText = [
+    "2026 Kristian Vlaardingerbroek",
+    "2026 Anne Jan Brouwer <brouwer@annejan.com>",
+]
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = "assets/font.ttf"
 SPDX-FileCopyrightText = "2003 Bitstream, Inc."
 SPDX-License-Identifier = "LicenseRef-DejaVu"

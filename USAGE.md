@@ -80,6 +80,8 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_FLASH` | `0` | Over-bright **bloom flash on each part cut** (0 = off; `~0.6` = punchy). Synced to the music when parts are `@@`-anchored to beats/bars. |
 | `MARTIN_SYNTH_WAV` | — | Render the bundled deFEEST synth (Cinder) to a WAV at this path, then exit — for muxing audio onto a recording. See [Music](#music-the-synth). |
 | `MARTIN_MUTE` | — | `=1` silences the **live** synth playback (it plays in the window by default; starts with the show, restarts on Space). Doesn't affect recordings — those mux the WAV. |
+| `MARTIN_SCORE` | built-in | A **score file** (tracker DSL) defining the music — tempo, sections, drum patterns, dynamics. Drives the synth *and* the `@@anchor` section/bar times. See [The score file](#the-score-file). Example: `assets/score.txt`. |
+| `MARTIN_SCORE_DUMP` | — | Write the built-in score to this path as an editable score file, then exit — a ready-to-edit starting point (round-trips through `MARTIN_SCORE`). |
 | `MARTIN_CAMERAS` | — | A 3DGS/COLMAP `cameras.json` (graphdeco format); parks the camera at a real capture pose (transformed through the same normalize + rotation as the splats). `MARTIN_CAM_INDEX` picks which shot (default 0). *Experimental:* helps cleanly-captured scenes; soft 360° photogrammetry dumps still render abstract (see the scene heads-up above). |
 | `MARTIN_BULGE` | `0.9` | Ball-cloud size at a morph's midpoint, in object-radii. `0` = clean "puzzle-box" reorder (no explosion); `~0.9` = a ball roughly the object's size. (In sequences this is the per-part 3rd timing number instead.) |
 | `MARTIN_MORPH_COUNT` | `0` (shorthand) / `200000` (`MARTIN_SEQ`) | Gaussian budget every part is resampled to. `0` = the largest part's natural count (~1.15M for the Martins; crisp, ~20 fps). Lower = faster: **250k ≈ 60 fps, 500k ≈ 40 fps.** |
@@ -279,6 +281,9 @@ text:CODE ANNEJAN @2.5,3,0.6
 MARTIN_PLY=assets/doggo.ply MARTIN_SEQ=~/show.seq cargo +nightly run --release
 ```
 
+A ready-to-run example ships at **`assets/show.seq`** — a full director sequence with every part
+`@@`-anchored to the score's sections (intro→build→drop→…→outro), so the visuals ride the music.
+
 All parts are resampled to one gaussian count (`MARTIN_MORPH_COUNT`, default 200k in
 sequences) and the camera is framed once over everything, so it never pops between parts.
 
@@ -312,6 +317,45 @@ The synth track is ~92.6 s (`DEMO_LEN`); anchor the final part near `@@outro` so
 covers the whole track.
 
 ---
+
+## The score file
+
+The music is **data**, not code. By default it's the built-in score, but `MARTIN_SCORE=<file>`
+loads a **tracker-DSL** score, and `MARTIN_SCORE_DUMP=<file>` writes the built-in out as an editable
+starting point (it round-trips — the dumped file renders byte-identical music). **One score file
+drives both** the synth and the `@@anchor` section/bar times, so retiming the music retimes the
+show. The shipped example is **`assets/score.txt`**.
+
+```
+bpm 140
+
+# section <name> <bars> <phase-bars,csv> [fill]
+section intro      4             # 4 bars, one phase, no fill
+section build     10  4,5  fill  # 10 bars = phase0 (4 bars) + phase1 (5) + 1 fill bar
+section drop      10  4,5  fill
+
+# <section>.<kick|snare|hat|stab>  p<N>|fill:  16 steps   (x = hit, . = rest; spaces ignored)
+build.kick  p0:   x... .... .... x...
+build.kick  p1:   x... ..x. .... x...
+build.snare p1:   .... x... .... x...
+build.kick  fill: x... .... .... x...
+
+# dynamics 0..1 per section — `v` constant, or `a>b` to ramp across the section (a riser!)
+gain  intro 0.5  build 0.85  drop 1  breakdown 0.6  climax 1  outro 0.7
+sub   intro 0.25 build 0.25>0.8  drop 1  breakdown 0.15  climax 0.9  outro 0.4   # build's sub rises into the drop
+mids  intro 0.5  build 0.7  drop 0.9  breakdown 0.6  climax 1  outro 0.45
+```
+
+- **16 steps per bar** (16th notes); patterns you don't write are silent.
+- A section's `<bars>` is its total length; `<phase-bars>` is how the kit pattern changes *within*
+  it (plus a trailing fill bar when `fill`). Section **names** are what `@@anchor` matches — so a
+  custom score with custom section names re-anchors the show to them.
+- The *instrument* (how a kick/stab actually sounds — the synth DSP) stays in code; the file is the
+  **composition**. Edit `assets/score.txt`, run with `MARTIN_SCORE=assets/score.txt`, and you'll
+  hear it live (and the visuals re-anchor to the new section times).
+
+> **Bundling.** Because the score *and* `MARTIN_SEQ` (e.g. `assets/show.seq`) are now plain files,
+> a future single-binary build can ship them zipped alongside the splats instead of compiled in.
 
 ## Recording to video
 

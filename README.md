@@ -92,6 +92,8 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_FLASH=0.6` | Over-bright bloom flash on each part cut (0 = off). |
 | `MARTIN_SYNTH_WAV=/x.wav` | Render the bundled deFEEST synth to a WAV and exit (mux onto a recording). |
 | `MARTIN_MUTE=1` | Silence the live synth (it plays in the window by default; recordings still mux the WAV). |
+| `MARTIN_SCORE=score.txt` | Load a tracker-DSL **score file** (tempo / sections / drum patterns / dynamics) — drives the synth *and* the `@@anchor`s. Editable default ships at `assets/score.txt`. |
+| `MARTIN_SCORE_DUMP=score.txt` | Export the built-in score as an editable file and exit. |
 
 **`MARTIN_SEQ`** is a `;`-separated list of *parts* (or a path to a file of them, one per line;
 `#` comments allowed). Each part morphs into the next, through a ball cloud:

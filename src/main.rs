@@ -362,39 +362,6 @@ struct Part {
     anchor: Option<f32>,            // absolute start (s) on the music clock; None = relative
 }
 
-/// Parse a `@@anchor` token (the part after `@@`) into an absolute start time in seconds,
-/// anchored to the ported music clock (`score.rs`): a section name (`intro`/`build`/`drop`/
-/// `breakdown`/`climax`/`outro`), `bar<N>` / `bar:N`, `beat<N>` / `beat:N`, or a raw number of
-/// seconds. Lets a part lock to the music instead of being laid end-to-end.
-fn parse_anchor(s: &str) -> Option<f32> {
-    use crate::score::{BAR, BEAT, T_BREAKDOWN, T_BUILD, T_CLIMAX, T_DROP, T_OUTRO};
-    let s = s.trim().to_ascii_lowercase();
-    match s.as_str() {
-        "intro" | "start" => return Some(0.0),
-        "build" => return Some(T_BUILD),
-        "drop" => return Some(T_DROP),
-        "breakdown" => return Some(T_BREAKDOWN),
-        "climax" => return Some(T_CLIMAX),
-        "outro" => return Some(T_OUTRO),
-        _ => {}
-    }
-    if let Some(n) = s.strip_prefix("bar") {
-        return n
-            .trim_start_matches(':')
-            .parse::<f32>()
-            .ok()
-            .map(|b| b * BAR);
-    }
-    if let Some(n) = s.strip_prefix("beat") {
-        return n
-            .trim_start_matches(':')
-            .parse::<f32>()
-            .ok()
-            .map(|b| b * BEAT);
-    }
-    s.parse::<f32>().ok() // raw seconds
-}
-
 /// Load the capture-camera world positions from a 3DGS/COLMAP `cameras.json` (graphdeco format:
 /// an array of objects each with a `"position": [x,y,z]`). These are in the same coordinates as
 /// the scene's `.ply`, so applying the scene's normalize + cloud rotation places martin's camera
@@ -460,7 +427,7 @@ struct SeqClock {
 /// Parse `MARTIN_SEQ`: a file path OR an inline string. Parts are `;`/newline-separated.
 /// Each part: `text:STRING` or `splat:a.ply` (or `a.ply+b.ply` for side-by-side), optional
 /// trailing `@hold,morph,bulge`. `#` comments and blank lines are skipped.
-fn parse_seq(spec: &str) -> Vec<Part> {
+fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
     let raw = std::fs::read_to_string(spec).unwrap_or_else(|_| spec.to_string());
     let mut parts = Vec::new();
     for line in raw.split([';', '\n']) {
@@ -478,7 +445,7 @@ fn parse_seq(spec: &str) -> Vec<Part> {
         let s: String = s
             .split_whitespace()
             .filter(|tok| {
-                if let Some(a) = tok.strip_prefix("@@").and_then(parse_anchor) {
+                if let Some(a) = tok.strip_prefix("@@").and_then(|a| score.anchor_seconds(a)) {
                     anchor = Some(a);
                     return false;
                 }
@@ -1128,6 +1095,10 @@ fn fps_log(time: Res<Time>, clock: Res<SeqClock>, mut f: ResMut<FpsLog>) {
 // Live audio (monitor the synth while flying — the recorder muxes the WAV instead)
 // ===========================================================================================
 
+/// The loaded score (`MARTIN_SCORE` file or built-in), shared for live-audio rendering.
+#[derive(Resource, Clone)]
+struct ScoreRes(std::sync::Arc<score::Score>);
+
 /// Cinder's synth, rendered once and held for live playback (spawned in sync with the show).
 #[derive(Resource)]
 struct Music {
@@ -1168,7 +1139,7 @@ fn music_director(
 
 /// Build the show: `MARTIN_SEQ` if set, else a shorthand from `MARTIN_TEXT` /
 /// `MARTIN_PLY(+_PLY2)(+_REFORM)`. Returns the sequence + the asset root (the .ply folder).
-fn sequence_from_env() -> (Sequence, Option<String>) {
+fn sequence_from_env(score: &score::Score) -> (Sequence, Option<String>) {
     let count_default = if std::env::var("MARTIN_SEQ").is_ok() {
         200_000
     } else {
@@ -1184,7 +1155,7 @@ fn sequence_from_env() -> (Sequence, Option<String>) {
         let root = std::env::var("MARTIN_PLY").ok().and_then(parent_dir);
         return (
             Sequence {
-                parts: parse_seq(&spec),
+                parts: parse_seq(&spec, score),
                 count,
             },
             root,
@@ -1253,10 +1224,23 @@ fn parent_dir(p: String) -> Option<String> {
 }
 
 fn main() {
-    // MARTIN_SYNTH_WAV=path: render Cinder's synth to a WAV and exit (record.sh muxes it onto
-    // the frames). Done before the Bevy app so it needs no window/GPU.
+    // MARTIN_SCORE_DUMP=path: export the built-in score as an editable tracker file, then exit —
+    // a ready-to-edit starting point (round-trips through MARTIN_SCORE).
+    if let Ok(path) = std::env::var("MARTIN_SCORE_DUMP") {
+        match std::fs::write(&path, score::Score::builtin().to_dsl()) {
+            Ok(()) => eprintln!("score: built-in written to {path}"),
+            Err(e) => eprintln!("score dump error: {e}"),
+        }
+        return;
+    }
+
+    // The score (MARTIN_SCORE file, else built-in) drives both the synth AND the @@anchor times.
+    let score = score::Score::from_env();
+
+    // MARTIN_SYNTH_WAV=path: render the synth to a WAV and exit (record.sh muxes it onto the
+    // frames). Done before the Bevy app so it needs no window/GPU.
     if let Ok(path) = std::env::var("MARTIN_SYNTH_WAV") {
-        let track = audio::synth_track();
+        let track = audio::synth_track(&score);
         match audio::write_wav(&track, &path) {
             Ok(()) => eprintln!(
                 "synth: {} samples ({:.1}s) -> {path}",
@@ -1268,7 +1252,7 @@ fn main() {
         return;
     }
 
-    let (sequence, asset_root) = sequence_from_env();
+    let (sequence, asset_root) = sequence_from_env(&score);
     // where `image:` PNG parts are read from — the .ply folder, or `assets` by default.
     let asset_root_path =
         std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
@@ -1309,6 +1293,7 @@ fn main() {
                 .unwrap_or(0.0),
         ))
         .insert_resource(waypoints::Waypoints::from_env())
+        .insert_resource(ScoreRes(std::sync::Arc::new(score)))
         .init_resource::<SeqClock>()
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(FpsLog {
@@ -1360,6 +1345,7 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     seq: Res<Sequence>,
+    score_res: Res<ScoreRes>,
     mut audio_assets: ResMut<Assets<AudioSource>>,
 ) {
     // load every referenced splat (by filename in the asset folder); build_sequence
@@ -1406,7 +1392,7 @@ fn setup(
         && std::env::var("MARTIN_SHOT").is_err()
         && std::env::var("MARTIN_MUTE").is_err();
     if want_audio {
-        let track = audio::synth_track();
+        let track = audio::synth_track(&score_res.0);
         let src = AudioSource {
             bytes: audio::encode_wav(&track).into(),
         };
