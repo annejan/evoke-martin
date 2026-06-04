@@ -66,15 +66,11 @@ outro.stab p0: .... ..x. .... ....
 outro.stab fill: .... ..x. .... ....
 
 # melody: <section>.lead p<N>|fill: 16 note slots (A4 C#5 . E5 …; . = rest)
-build.lead p0: A4 . . .  . . E4 .  . . . .  A4 . . .
-build.lead p1: A4 . C5 .  E5 . . .  D5 . . .  E5 . . .
 drop.lead p0: A5 . E5 .  . C5 . .  D5 . E5 .  . A5 . .
 drop.lead p1: E5 . . A5  . G5 . E5  . . D5 .  C5 . . .
-breakdown.lead p1: A4 . . .  C5 . . .  E5 . . .  D5 . . .
 climax.lead p0: A5 . E5 .  C5 . E5 .  A5 . G5 .  E5 . D5 .
 climax.lead p1: E5 . G5 .  A5 . G5 .  E5 . D5 .  C5 . D5 .
 climax.lead p2: A5 G5 E5 D5  C5 D5 E5 G5  A5 G5 E5 D5  C5 D5 E5 A5
-outro.lead p0: A4 . . .  G4 . . .  E4 . . .  C4 . . .
 
 # dynamics 0..1 per section (`v` constant or `a>b` ramp across the section)
 gain intro 0.5 build 0.85 drop 1 breakdown 0.6 climax 1 outro 0.7

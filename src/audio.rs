@@ -168,13 +168,22 @@ fn synth_sample(score: &Score, t: f32) -> f32 {
         }
     });
 
+    // warm sustained pad on the current chord (+ a sub-octave) — fills the harmony so the track
+    // has body instead of sounding thin / elevator-empty. Slow swell, modulated by the mids level.
+    let pad = {
+        let tri = score.chord_at(t).triad();
+        let swell = 0.55 + 0.45 * (t / (4.0 * score.beat()) * TAU).sin();
+        let v = |f: f32| (t * f * TAU).sin() + 0.5 * (t * f * 0.5 * TAU).sin();
+        (v(tri[0]) + v(tri[1]) + v(tri[2])) * 0.03 * swell * (0.4 + 0.6 * lv.mids)
+    };
+
     let master = {
         let fade_in = (t / 1.5).clamp(0.0, 1.0);
         let fade_out = ((score.demo_len() - t) / 2.0).clamp(0.0, 1.0);
         fade_in * fade_out * score.gain_at(t)
     };
 
-    ((sub + kick + snare + hat + stab + bass + lead) * master).tanh()
+    ((sub + kick + snare + hat + stab + bass + lead + pad) * master).tanh()
 }
 
 /// Render the whole score to a mono sample buffer.

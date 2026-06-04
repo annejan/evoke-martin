@@ -12,5 +12,5 @@ text:MARTIN GAUS                  @@intro      @8,3       ~pen-write    # title,
 splat:martin.ply+martin-peace.ply @@build      @10,3,0.6  ~morph        # the two Martins assemble
 splat:doggo.ply                   @@drop       @16,3,0.6  ~morph        # …morph into the dog, on the drop
 wall:GREETINGS|TO ALL|DEMOSCENERS @@breakdown  @12,3      ~fade ^wave   # a wavy wall of greetings
-mesh:bitterbal.obj                @@climax     @14,4      ~drop         # a bitterbal drops in (deFEEST!)
+mesh:bornhack2026-hardware.dae    @@climax     @14,4      ~drop         # the BornHack 2026 badge drops in
 image:defeest-logo.png            @@outro      @10,3      ~ball         # the deFEEST logo for the outro

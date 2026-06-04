@@ -390,8 +390,9 @@ mids  intro 0.5  build 0.7  drop 0.9  breakdown 0.6  climax 1  outro 0.45
   it (plus a trailing fill bar when `fill`). Section **names** are what `@@anchor` matches — so a
   custom score with custom section names re-anchors the show to them.
 - The *instrument* (how a kick/stab actually sounds — the synth DSP) stays in code; the file is the
-  **composition**. Edit `assets/score.txt`, run with `MARTIN_SCORE=assets/score.txt`, and you'll
-  hear it live (and the visuals re-anchor to the new section times).
+  **composition**. **`assets/score.txt` is loaded by default** — just edit it and run (no recompile,
+  no env var; the visuals re-anchor to the new section times). `MARTIN_SCORE=<other>` overrides it,
+  and the file is also embedded in the binary as the fallback, so the music isn't duplicated in code.
 
 > **Bundling.** Because the score *and* `MARTIN_SEQ` (e.g. `assets/show.seq`) are now plain files,
 > a future single-binary build can ship them zipped alongside the splats instead of compiled in.

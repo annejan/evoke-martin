@@ -3,13 +3,18 @@
 //! (intro→build→drop→breakdown→climax→outro), the drum patterns and the per-section dynamics that
 //! the synth (`audio.rs`) and the visual `@@anchor`s both read.
 //!
-//! The score is no longer hard-coded: `Score::builtin()` is the default, but `MARTIN_SCORE=<file>`
-//! loads a **tracker-DSL** score (see `from_str` / `USAGE.md`), and `MARTIN_SCORE_DUMP=<file>`
-//! exports the built-in as an editable starting point. The *instrument* (how a kick/stab sounds)
-//! stays in `audio.rs` — this file is purely the score. 16 steps per bar (16th notes).
+//! The music lives in a **text file**, not in code: `assets/score.txt` (a tracker-DSL score) is
+//! loaded by default — edit it, no recompile — and `include_str!`'d as the embedded fallback for a
+//! bundled binary (so the notes/patterns/chords are not duplicated in Rust). `MARTIN_SCORE=<file>`
+//! overrides it; `MARTIN_SCORE_DUMP=<file>` writes a copy. The *instrument* (how a kick/stab
+//! sounds) stays in `audio.rs`. 16 steps per bar (16th notes).
 
 const SLOTS_PER_BAR: i64 = 16;
 const BEATS_PER_BAR: f32 = 4.0;
+
+/// The editable default score, loaded from disk when present (so editing it needs no recompile).
+/// The same file is `include_str!`'d as the embedded fallback — the music lives here, not in code.
+const DEFAULT_SCORE: &str = "assets/score.txt";
 
 /// Crossfade window (seconds) smoothing per-section dynamics steps at boundaries — long enough to
 /// kill the click, short enough not to smear the musical transition.
@@ -53,12 +58,6 @@ pub struct Lane {
 }
 
 impl Lane {
-    fn of(phases: &[[bool; 16]], fill: [bool; 16]) -> Self {
-        Self {
-            phases: phases.to_vec(),
-            fill,
-        }
-    }
     /// the grid for `phase` (255 = fill). An undefined phase is **silent** — lanes only carry the
     /// phases that have hits, so this keeps `MARTIN_SCORE_DUMP` → reload faithful and makes
     /// "didn't write a pattern" mean "doesn't play" (not "repeat the previous one").
@@ -419,7 +418,17 @@ impl Score {
     /// `MARTIN_SCORE=<file>` loads a tracker-DSL score; on any error we log + fall back to the
     /// built-in, so a bad score file never stops the show.
     pub fn from_env() -> Score {
-        let Ok(path) = std::env::var("MARTIN_SCORE") else {
+        // MARTIN_SCORE override, else the editable default file (edit it → no recompile), else the
+        // embedded built-in (a bundled binary with no assets/ folder).
+        let path = std::env::var("MARTIN_SCORE")
+            .ok()
+            .filter(|p| !p.is_empty())
+            .or_else(|| {
+                std::path::Path::new(DEFAULT_SCORE)
+                    .exists()
+                    .then(|| DEFAULT_SCORE.to_string())
+            });
+        let Some(path) = path else {
             return Score::builtin();
         };
         match std::fs::read_to_string(&path)
@@ -428,14 +437,14 @@ impl Score {
         {
             Ok(s) => {
                 eprintln!(
-                    "score: loaded {path} ({} sections, {:.1}s)",
+                    "score: {path} ({} sections, {:.0}s)",
                     s.sections.len(),
                     s.demo_len()
                 );
                 s
             }
             Err(e) => {
-                eprintln!("score: {path}: {e} — using built-in");
+                eprintln!("score: {path}: {e} — using embedded built-in");
                 Score::builtin()
             }
         }
@@ -666,152 +675,12 @@ impl Score {
         o
     }
 
-    /// The default score (six-section 140-BPM arc) — identical to the pre-data-driven hard-coded
-    /// version, so behaviour is unchanged when `MARTIN_SCORE` is unset.
+    /// The default score: the **embedded** `assets/score.txt`, so the notes / patterns / chords
+    /// live in the editable text file, not in code. `from_env` prefers the on-disk copy when it's
+    /// present (edit it → no recompile); this embedded copy is the fallback a bundled binary ships.
     pub fn builtin() -> Score {
-        let sec = |name,
-                   bars,
-                   phases: &[u32],
-                   fill,
-                   gain: (f32, f32),
-                   sub: (f32, f32),
-                   mids: (f32, f32),
-                   k,
-                   sn,
-                   h,
-                   st| Section {
-            name: String::from(name),
-            bars,
-            phases: phases.to_vec(),
-            fill,
-            gain: Ramp::new(gain.0, gain.1),
-            sub: Ramp::new(sub.0, sub.1),
-            mids: Ramp::new(mids.0, mids.1),
-            kick: k,
-            snare: sn,
-            hat: h,
-            stab: st,
-            lead: NoteLane::default(),
-            start_bar: 0,
-        };
-        let mut sections = vec![
-            sec(
-                "intro",
-                8,
-                &[8],
-                false,
-                (0.5, 0.5),
-                (0.25, 0.25),
-                (0.5, 0.5),
-                Lane::of(&[KICK_INTRO], EMPTY),
-                Lane::of(&[SNARE_INTRO], EMPTY),
-                Lane::of(&[HAT_INTRO], EMPTY),
-                Lane::of(&[STAB_INTRO], EMPTY),
-            ),
-            sec(
-                "build",
-                20,
-                &[9, 10],
-                true,
-                (0.85, 0.85),
-                (0.25, 0.8),
-                (0.7, 0.7),
-                Lane::of(&[KICK_BUILD_P0, KICK_BUILD_P1], KICK_BUILD_FILL),
-                Lane::of(&[SNARE_BUILD_P0, SNARE_BUILD_P1], SNARE_BUILD_FILL),
-                Lane::of(&[HAT_BUILD_P0, HAT_BUILD_P1], HAT_BUILD_FILL),
-                Lane::of(&[STAB_BUILD_P0, STAB_BUILD_P1], STAB_BUILD_FILL),
-            ),
-            sec(
-                "drop",
-                28,
-                &[13, 14],
-                true,
-                (1.0, 1.0),
-                (1.0, 1.0),
-                (0.9, 0.9),
-                Lane::of(&[KICK_DROP_P0, KICK_DROP_P1], KICK_DROP_FILL),
-                Lane::of(&[SNARE_DROP_P0, SNARE_DROP_P1], SNARE_DROP_FILL),
-                Lane::of(&[HAT_DROP_P0, HAT_DROP_P1], HAT_DROP_FILL),
-                Lane::of(&[STAB_DROP_P0, STAB_DROP_P1], STAB_DROP_FILL),
-            ),
-            sec(
-                "breakdown",
-                16,
-                &[7, 8],
-                true,
-                (0.6, 0.6),
-                (0.15, 0.15),
-                (0.6, 0.6),
-                Lane::of(&[KICK_BREAKDOWN_P0, KICK_BREAKDOWN_P1], KICK_BREAKDOWN_FILL),
-                Lane::of(
-                    &[SNARE_BREAKDOWN_P0, SNARE_BREAKDOWN_P1],
-                    SNARE_BREAKDOWN_FILL,
-                ),
-                Lane::of(&[HAT_BREAKDOWN_P0, HAT_BREAKDOWN_P1], HAT_BREAKDOWN_FILL),
-                Lane::of(&[STAB_BREAKDOWN_P0, STAB_BREAKDOWN_P1], STAB_BREAKDOWN_FILL),
-            ),
-            sec(
-                "climax",
-                36,
-                &[11, 12, 12],
-                true,
-                (1.0, 1.0),
-                (0.9, 0.9),
-                (1.0, 1.0),
-                Lane::of(
-                    &[KICK_CLIMAX_P0, KICK_CLIMAX_P1, KICK_CLIMAX_P2],
-                    KICK_CLIMAX_FILL,
-                ),
-                Lane::of(
-                    &[SNARE_CLIMAX_P0, SNARE_CLIMAX_P1, SNARE_CLIMAX_P2],
-                    SNARE_CLIMAX_FILL,
-                ),
-                Lane::of(
-                    &[HAT_CLIMAX_P0, HAT_CLIMAX_P1, HAT_CLIMAX_P2],
-                    HAT_CLIMAX_FILL,
-                ),
-                Lane::of(
-                    &[STAB_CLIMAX_P0, STAB_CLIMAX_P1, STAB_CLIMAX_P2],
-                    STAB_CLIMAX_FILL,
-                ),
-            ),
-            sec(
-                "outro",
-                14,
-                &[13],
-                true,
-                (0.7, 0.7),
-                (0.4, 0.4),
-                (0.45, 0.45),
-                Lane::of(&[KICK_OUTRO_P0], KICK_OUTRO_FILL),
-                Lane::of(&[SNARE_OUTRO_P0], SNARE_OUTRO_FILL),
-                Lane::of(&[HAT_OUTRO_P0], HAT_OUTRO_FILL),
-                Lane::of(&[STAB_OUTRO_P0], STAB_OUTRO_FILL),
-            ),
-        ];
-        // chord progression (per bar, cycling): driving minor — Am F C G.
-        let chords = ["Am", "F", "C", "G"]
-            .iter()
-            .map(|c| parse_chord(c).unwrap())
-            .collect();
-        // melodies — A-minor-pentatonic lines over the progression. Edit these in score.txt
-        // (MARTIN_SCORE_DUMP exports them); a section with no lead is silent there.
-        sections[1].lead.phases = vec![
-            notes("A4 . . . . . E4 . . . . . A4 . . ."),
-            notes("A4 . C5 . E5 . . . D5 . . . E5 . . ."),
-        ];
-        sections[2].lead.phases = vec![
-            notes("A5 . E5 . . C5 . . D5 . E5 . . A5 . ."),
-            notes("E5 . . A5 . G5 . E5 . . D5 . C5 . . ."),
-        ];
-        sections[3].lead.phases = vec![[None; 16], notes("A4 . . . C5 . . . E5 . . . D5 . . .")];
-        sections[4].lead.phases = vec![
-            notes("A5 . E5 . C5 . E5 . A5 . G5 . E5 . D5 ."),
-            notes("E5 . G5 . A5 . G5 . E5 . D5 . C5 . D5 ."),
-            notes("A5 G5 E5 D5 C5 D5 E5 G5 A5 G5 E5 D5 C5 D5 E5 A5"),
-        ];
-        sections[5].lead.phases = vec![notes("A4 . . . G4 . . . E4 . . . C4 . . .")];
-        Score::new(140.0, chords, sections)
+        Score::from_str(include_str!("../assets/score.txt"))
+            .expect("embedded assets/score.txt must parse")
     }
 }
 
@@ -926,11 +795,6 @@ fn chord_str(c: &Chord) -> String {
     format!("{letter}{}", if c.minor { "m" } else { "" })
 }
 
-/// Built-in-lead helper: parse a note string (panics on a bad literal — built-in use only).
-fn notes(s: &str) -> [Option<f32>; 16] {
-    parse_notes(s).expect("built-in lead pattern")
-}
-
 /// Parse a 16-step grid: `x`/`X` = hit, `.`/`-`/`_` = rest; spaces / `|` group separators ignored.
 fn parse_pattern(s: &str) -> Option<[bool; 16]> {
     let mut out = [false; 16];
@@ -974,76 +838,3 @@ fn ramp_str(r: &Ramp) -> String {
         format!("{}>{}", fnum(r.a), fnum(r.b))
     }
 }
-
-// ---- built-in patterns (16 slots per bar; X = hit) -----------------------------------------
-const F: bool = false;
-const X: bool = true;
-const EMPTY: [bool; 16] = [F; 16];
-
-const KICK_INTRO: [bool; 16] = [F; 16];
-const KICK_BUILD_P0: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const KICK_BUILD_P1: [bool; 16] = [X, F, F, F, F, F, X, F, F, F, F, F, X, F, F, F];
-const KICK_BUILD_FILL: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const KICK_DROP_P0: [bool; 16] = [X, F, F, F, F, F, X, F, F, F, X, F, F, F, F, F];
-const KICK_DROP_P1: [bool; 16] = [X, F, F, F, F, F, F, F, X, F, F, F, X, F, F, X];
-const KICK_DROP_FILL: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const KICK_BREAKDOWN_P0: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F];
-const KICK_BREAKDOWN_P1: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const KICK_BREAKDOWN_FILL: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F];
-const KICK_CLIMAX_P0: [bool; 16] = [X, F, F, X, F, F, X, F, F, F, X, F, X, F, F, F];
-const KICK_CLIMAX_P1: [bool; 16] = [X, F, F, F, X, F, F, X, F, X, F, F, X, F, F, X];
-const KICK_CLIMAX_P2: [bool; 16] = [X, F, X, F, X, F, X, F, X, F, X, F, X, F, X, F];
-const KICK_CLIMAX_FILL: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const KICK_OUTRO_P0: [bool; 16] = [X, F, F, F, F, F, F, F, X, F, F, F, F, F, F, F];
-const KICK_OUTRO_FILL: [bool; 16] = [X, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F];
-
-const SNARE_INTRO: [bool; 16] = [F; 16];
-const SNARE_BUILD_P0: [bool; 16] = [F; 16];
-const SNARE_BUILD_P1: [bool; 16] = [F, F, F, F, X, F, F, F, F, F, F, F, X, F, F, F];
-const SNARE_BUILD_FILL: [bool; 16] = [F, F, F, F, X, F, X, F, X, F, X, F, X, X, X, X];
-const SNARE_DROP_P0: [bool; 16] = [F, F, F, F, X, F, F, X, F, F, F, F, X, F, F, X];
-const SNARE_DROP_P1: [bool; 16] = [F, F, X, F, F, F, F, F, F, F, X, F, X, F, F, F];
-const SNARE_DROP_FILL: [bool; 16] = [F, F, F, F, X, F, X, X, F, X, X, X, X, X, X, X];
-const SNARE_BREAKDOWN_P0: [bool; 16] = [F; 16];
-const SNARE_BREAKDOWN_P1: [bool; 16] = [F, F, F, F, F, F, F, F, F, F, F, F, X, F, F, F];
-const SNARE_BREAKDOWN_FILL: [bool; 16] = [F, F, X, X, F, X, X, X, F, X, X, X, X, X, X, X];
-const SNARE_CLIMAX_P0: [bool; 16] = [F, F, F, F, X, F, F, X, F, F, F, F, X, F, X, X];
-const SNARE_CLIMAX_P1: [bool; 16] = [F, F, X, F, F, F, X, F, F, X, F, F, F, F, X, X];
-const SNARE_CLIMAX_P2: [bool; 16] = [X, F, X, F, X, F, X, F, X, F, X, F, X, F, X, X];
-const SNARE_CLIMAX_FILL: [bool; 16] = [F, F, F, F, X, X, X, X, X, X, X, X, X, X, X, X];
-const SNARE_OUTRO_P0: [bool; 16] = [F, F, F, F, X, F, F, F, F, F, F, F, X, F, F, F];
-const SNARE_OUTRO_FILL: [bool; 16] = [F, F, F, F, X, F, F, F, F, F, F, F, F, F, F, F];
-
-const HAT_INTRO: [bool; 16] = [F; 16];
-const HAT_BUILD_P0: [bool; 16] = [X, F, F, F, X, F, F, F, X, F, F, F, X, F, F, F];
-const HAT_BUILD_P1: [bool; 16] = [X, F, X, F, X, F, X, F, X, F, X, F, X, F, X, F];
-const HAT_BUILD_FILL: [bool; 16] = [X; 16];
-const HAT_DROP_P0: [bool; 16] = [X; 16];
-const HAT_DROP_P1: [bool; 16] = [X; 16];
-const HAT_DROP_FILL: [bool; 16] = [X; 16];
-const HAT_BREAKDOWN_P0: [bool; 16] = [F; 16];
-const HAT_BREAKDOWN_P1: [bool; 16] = [X, F, F, F, X, F, F, F, X, F, F, F, X, F, F, F];
-const HAT_BREAKDOWN_FILL: [bool; 16] = [X; 16];
-const HAT_CLIMAX_P0: [bool; 16] = [X; 16];
-const HAT_CLIMAX_P1: [bool; 16] = [X; 16];
-const HAT_CLIMAX_P2: [bool; 16] = [X; 16];
-const HAT_CLIMAX_FILL: [bool; 16] = [X; 16];
-const HAT_OUTRO_P0: [bool; 16] = [X, F, X, F, X, F, X, F, X, F, X, F, X, F, X, F];
-const HAT_OUTRO_FILL: [bool; 16] = [F; 16];
-
-const STAB_INTRO: [bool; 16] = [F; 16];
-const STAB_BUILD_P0: [bool; 16] = [F; 16];
-const STAB_BUILD_P1: [bool; 16] = [F, F, F, F, F, F, X, F, F, F, F, F, F, F, F, F];
-const STAB_BUILD_FILL: [bool; 16] = [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, X];
-const STAB_DROP_P0: [bool; 16] = [F, F, F, F, F, F, X, F, F, F, F, F, F, F, X, F];
-const STAB_DROP_P1: [bool; 16] = [F, F, F, F, X, F, F, F, F, F, F, F, X, F, F, F];
-const STAB_DROP_FILL: [bool; 16] = [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, X];
-const STAB_BREAKDOWN_P0: [bool; 16] = [F, F, F, F, F, F, F, F, X, F, F, F, F, F, F, F];
-const STAB_BREAKDOWN_P1: [bool; 16] = [F; 16];
-const STAB_BREAKDOWN_FILL: [bool; 16] = [F; 16];
-const STAB_CLIMAX_P0: [bool; 16] = [F, F, F, F, F, F, X, F, F, F, X, F, F, F, X, F];
-const STAB_CLIMAX_P1: [bool; 16] = [F, X, F, F, F, F, X, F, F, X, F, F, F, F, X, F];
-const STAB_CLIMAX_P2: [bool; 16] = [X, F, F, X, F, X, X, F, X, F, X, F, X, F, X, X];
-const STAB_CLIMAX_FILL: [bool; 16] = [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, X];
-const STAB_OUTRO_P0: [bool; 16] = [F, F, F, F, F, F, X, F, F, F, F, F, F, F, F, F];
-const STAB_OUTRO_FILL: [bool; 16] = [F, F, F, F, F, F, X, F, F, F, F, F, F, F, F, F];
