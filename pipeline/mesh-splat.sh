@@ -57,7 +57,10 @@ SAMPLES="$SAMPLES" "$BLENDER" -b -P "$SCRIPT_DIR/render_orbit.py" -- "$MESH" "$W
 EXPORT_DIR="$(cd "$WORK" && pwd)/exports"
 echo "==> [Brush] training on Vulkan (Radeon 860M / RADV) — known poses, no COLMAP"
 echo "    (sh-degree $SH_DEGREE for martin's sh0 loader; .ply every ${EXPORT_EVERY} steps -> $EXPORT_DIR/)"
-ARGS=(--export-path "$EXPORT_DIR/" --export-every "$EXPORT_EVERY" --total-train-iters "$ITERS" --sh-degree "$SH_DEGREE")
+# --alpha-mode transparent: the renders are RGBA on a transparent film, so tell Brush to treat the
+# alpha as transparency — otherwise it fits a low-opacity floater halo to the (noisy black)
+# background and the object smears in depth ("two puffs around the camera").
+ARGS=(--export-path "$EXPORT_DIR/" --export-every "$EXPORT_EVERY" --total-train-iters "$ITERS" --sh-degree "$SH_DEGREE" --alpha-mode transparent)
 [ -n "${MAX_SPLATS:-}" ] && ARGS+=(--max-splats "$MAX_SPLATS")
 [ "${VIEWER:-0}" = "1" ] && { ARGS+=(--with-viewer); echo "    VIEWER=1 -> opening live training window"; }
 brush "$WORK" "${ARGS[@]}"

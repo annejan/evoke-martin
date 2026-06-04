@@ -124,6 +124,12 @@ fn main() {
     App::new()
         .add_plugins(plugins)
         .add_plugins(GaussianSplattingPlugin)
+        // Keep rendering even when the window is unfocused — otherwise winit throttles updates and
+        // the recorder (record.sh runs in a background window) screenshots black frames.
+        .insert_resource(bevy::winit::WinitSettings {
+            focused_mode: bevy::winit::UpdateMode::Continuous,
+            unfocused_mode: bevy::winit::UpdateMode::Continuous,
+        })
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(sequence)
         .insert_resource(Composition {
