@@ -1214,24 +1214,39 @@ fn fps_log(time: Res<Time>, clock: Res<SeqClock>, mut f: ResMut<FpsLog>) {
 #[derive(Resource, Clone)]
 struct ScoreRes(std::sync::Arc<score::Score>);
 
-/// Cinder's synth, rendered once and held for live playback (spawned in sync with the show).
+/// Cinder's synth, rendered on a **background thread** (the render takes seconds; blocking startup
+/// stalls the first frame long enough to lose the Vulkan swapchain → crash). `music_director` picks
+/// up the WAV bytes when the thread finishes and spawns the player in sync with the show.
 #[derive(Resource)]
 struct Music {
-    handle: Handle<AudioSource>,
+    // Mutex so the !Sync Receiver can live in a (Send+Sync) Bevy resource.
+    rx: std::sync::Mutex<std::sync::mpsc::Receiver<Vec<u8>>>,
+    handle: Option<Handle<AudioSource>>,
     entity: Option<Entity>,
     prev_t: f32,
 }
 
-/// Play the synth live: spawn it once the sequence is built (so it starts in time with the show),
-/// and restart it on a clock reset (Space) so audio + visuals stay together. Only present when
-/// windowed — recording / screenshot / mute don't insert `Music`, so this no-ops there.
+/// Live playback: turn the background-rendered WAV bytes into an `AudioSource` when ready, spawn it
+/// once the sequence is built (so it starts in time with the show), and restart it on a clock reset
+/// (Space). Only present when windowed — recording / screenshot / mute don't insert `Music`.
 fn music_director(
     mut commands: Commands,
     music: Option<ResMut<Music>>,
     state: Option<Res<SeqState>>,
     clock: Res<SeqClock>,
+    mut audio_assets: ResMut<Assets<AudioSource>>,
 ) {
     let Some(mut music) = music else { return };
+    // background render finished → make an AudioSource from its WAV bytes (once).
+    if music.handle.is_none() {
+        let received = music.rx.lock().unwrap().try_recv().ok();
+        if let Some(bytes) = received {
+            music.handle = Some(audio_assets.add(AudioSource {
+                bytes: bytes.into(),
+            }));
+            info!("live audio: synth ready");
+        }
+    }
     // clock jumped backwards (Space restart) → despawn so it respawns from the top, resynced.
     if clock.t + 0.05 < music.prev_t {
         if let Some(e) = music.entity.take() {
@@ -1241,10 +1256,13 @@ fn music_director(
     music.prev_t = clock.t;
     let built = state.map(|s| s.built).unwrap_or(false);
     if built && music.entity.is_none() {
-        let e = commands
-            .spawn((AudioPlayer(music.handle.clone()), PlaybackSettings::ONCE))
-            .id();
-        music.entity = Some(e);
+        if let Some(h) = music.handle.clone() {
+            music.entity = Some(
+                commands
+                    .spawn((AudioPlayer(h), PlaybackSettings::ONCE))
+                    .id(),
+            );
+        }
     }
 }
 
@@ -1465,7 +1483,6 @@ fn setup(
     asset_server: Res<AssetServer>,
     seq: Res<Sequence>,
     score_res: Res<ScoreRes>,
-    mut audio_assets: ResMut<Assets<AudioSource>>,
 ) {
     // load every referenced splat (by filename in the asset folder); build_sequence
     // assembles the per-part shapes once they're all available.
@@ -1505,22 +1522,25 @@ fn setup(
         OrbitCam::default(),
     ));
 
-    // Live audio: render Cinder's synth once and hold it for playback (`music_director` spawns it
-    // in sync with the show). Skipped while recording (the recorder muxes the WAV separately), for
-    // a one-off screenshot, or when muted.
+    // Live audio: render Cinder's synth on a BACKGROUND THREAD — it takes a few seconds, and doing
+    // it here would block startup long enough to stall the first frame and lose the swapchain (the
+    // crash). music_director picks up the bytes when ready (audio starts a beat into the show).
+    // Skipped while recording (the recorder muxes the WAV separately), for a screenshot, or muted.
     let want_audio = std::env::var("MARTIN_RECORD").is_err()
         && std::env::var("MARTIN_SHOT").is_err()
         && std::env::var("MARTIN_MUTE").is_err();
     if want_audio {
-        let track = audio::synth_track(&score_res.0);
-        let src = AudioSource {
-            bytes: audio::encode_wav(&track).into(),
-        };
+        let score = score_res.0.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(audio::encode_wav(&audio::synth_track(&score)));
+        });
         commands.insert_resource(Music {
-            handle: audio_assets.add(src),
+            rx: std::sync::Mutex::new(rx),
+            handle: None,
             entity: None,
             prev_t: 0.0,
         });
-        info!("live audio: Cinder's synth playing (MARTIN_MUTE=1 to silence)");
+        info!("live audio: rendering Cinder's synth in the background (MARTIN_MUTE=1 to silence)");
     }
 }
