@@ -50,3 +50,8 @@ assets/defeest-logo.png
 *.swp
 .idea/
 .vscode/
+
+# ── Mesh→splat bake outputs (Blender renders + Brush .ply) ──
+/mesh_splat_run/
+__pycache__/
+*.pyc

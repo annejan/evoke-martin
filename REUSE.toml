@@ -72,6 +72,8 @@ path = [
     "record.sh",
     "pipeline/splat-setup.sh",
     "pipeline/splat.sh",
+    "pipeline/mesh-splat.sh",
+    "pipeline/render_orbit.py",
     ".gitignore",
     ".github/dependabot.yml",
     ".github/workflows/build.yml",
