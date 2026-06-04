@@ -45,28 +45,30 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete()
 
 
-# ---- import the mesh (extension picks the importer; new + legacy op names) --
+# Formats Blender 5.0 imports natively. Anything else (notably COLLADA .dae, which
+# Blender 5.0 dropped) is converted to .glb with `assimp` first — assimp reads ~everything and
+# .glb keeps materials/UVs/textures.
+import subprocess
+import tempfile
+
+NATIVE = {
+    ".obj": lambda p: bpy.ops.wm.obj_import(filepath=p),
+    ".ply": lambda p: bpy.ops.wm.ply_import(filepath=p),
+    ".stl": lambda p: bpy.ops.wm.stl_import(filepath=p),
+    ".fbx": lambda p: bpy.ops.import_scene.fbx(filepath=p),
+    ".glb": lambda p: bpy.ops.import_scene.gltf(filepath=p),
+    ".gltf": lambda p: bpy.ops.import_scene.gltf(filepath=p),
+}
+
+
 def import_mesh(path):
     ext = os.path.splitext(path)[1].lower()
-    importers = {
-        ".obj": [lambda: bpy.ops.wm.obj_import(filepath=path),
-                 lambda: bpy.ops.import_scene.obj(filepath=path)],
-        ".dae": [lambda: bpy.ops.wm.collada_import(filepath=path)],
-        ".stl": [lambda: bpy.ops.wm.stl_import(filepath=path),
-                 lambda: bpy.ops.import_mesh.stl(filepath=path)],
-        ".ply": [lambda: bpy.ops.wm.ply_import(filepath=path),
-                 lambda: bpy.ops.import_mesh.ply(filepath=path)],
-        ".glb": [lambda: bpy.ops.import_scene.gltf(filepath=path)],
-        ".gltf": [lambda: bpy.ops.import_scene.gltf(filepath=path)],
-        ".fbx": [lambda: bpy.ops.import_scene.fbx(filepath=path)],
-    }
-    for attempt in importers.get(ext, []):
-        try:
-            attempt()
-            return
-        except Exception as e:  # try the next operator name
-            print(f"importer fallback ({e})")
-    raise RuntimeError(f"no importer for {ext}")
+    if ext not in NATIVE:
+        glb = os.path.join(tempfile.gettempdir(), "render_orbit_convert.glb")
+        print(f"converting {ext} -> .glb via assimp")
+        subprocess.run(["assimp", "export", path, glb], check=True)
+        path, ext = glb, ".glb"
+    NATIVE[ext](path)
 
 
 import_mesh(mesh_path)
@@ -118,9 +120,17 @@ bpy.context.scene.camera = cam
 cam_dist = radius * 2.8
 
 scene = bpy.context.scene
-scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in [
-    e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items
-] else "BLENDER_EEVEE"
+# Cycles on CPU: renders headless with no GL/display (EEVEE needs a GL context and segfaults over
+# SSH / without an X server), is deterministic, uses every core, and lights the model cleanly.
+# SAMPLES env tunes quality vs. speed (denoised, so low counts stay clean).
+scene.render.engine = "CYCLES"
+scene.cycles.device = "CPU"
+scene.cycles.samples = int(os.environ.get("SAMPLES", "48"))
+try:
+    scene.cycles.use_denoising = True
+    bpy.context.view_layer.cycles.use_denoising = True
+except Exception as e:
+    print(f"denoise unavailable ({e})")
 scene.render.resolution_x = res
 scene.render.resolution_y = res
 scene.render.film_transparent = True
