@@ -7,9 +7,10 @@ OUT="${1:-$HERE/martin.mp4}"
 FR="$(mktemp -d)"
 export DISPLAY="${DISPLAY:-:0}"
 
-echo "==> building martin"
-cargo +nightly build --manifest-path "$HERE/Cargo.toml"
-BIN="$(find "$HERE/target/debug" -maxdepth 1 -type f -executable -name martin | head -n1)"
+echo "==> building martin (release — debug can render the splats black, and release is far"
+echo "    faster for big .ply clouds)"
+cargo +nightly build --release --manifest-path "$HERE/Cargo.toml"
+BIN="$(find "$HERE/target/release" -maxdepth 1 -type f -executable -name martin | head -n1)"
 
 echo "==> recording the timeline -> $FR"
 MARTIN_RECORD="$FR" BEVY_ASSET_ROOT="$HERE" "$BIN"
