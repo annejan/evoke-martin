@@ -77,18 +77,16 @@ fn stab_envelope(dt: f32) -> f32 {
     }
 }
 
-/// Bright saw-ish lead voice (first few harmonics) with a fast attack + exponential decay.
+/// Mellow lead voice — fundamental + a soft 2nd harmonic (a harsh 4-harmonic saw was grating),
+/// gentle attack + longer decay so it sits *under* the groove rather than stabbing over it.
 fn lead_voice(t: f32, freq: f32, dt: f32) -> f32 {
     use std::f32::consts::TAU;
-    let osc = (t * freq * TAU).sin()
-        + 0.5 * (t * 2.0 * freq * TAU).sin()
-        + 0.33 * (t * 3.0 * freq * TAU).sin()
-        + 0.25 * (t * 4.0 * freq * TAU).sin();
-    let attack = 0.008;
+    let osc = (t * freq * TAU).sin() + 0.25 * (t * 2.0 * freq * TAU).sin();
+    let attack = 0.02;
     let env = if dt < attack {
         dt / attack
     } else {
-        (-(dt - attack) / 0.45).exp()
+        (-(dt - attack) / 0.6).exp()
     };
     osc * env
 }
@@ -166,7 +164,7 @@ fn synth_sample(score: &Score, t: f32) -> f32 {
         if dt > 1.5 {
             0.0
         } else {
-            lead_voice(t, freq, dt) * 0.16
+            lead_voice(t, freq, dt) * 0.05 // well under the groove — a hint, not a stab
         }
     });
 

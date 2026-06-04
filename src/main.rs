@@ -1159,6 +1159,27 @@ fn shot_driver(
     }
 }
 
+/// In a live window (not recording / screenshotting), **exit when the show is done** instead of
+/// sitting on the last part forever. `Space` restarts; `MARTIN_LOOP=1` keeps it up (for tuning).
+fn live_end(
+    rec: Res<RecordState>,
+    shot: Res<ShotConfig>,
+    seq: Option<Res<Sequence>>,
+    state: Option<Res<SeqState>>,
+    clock: Res<SeqClock>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    if rec.dir.is_some() || shot.path.is_some() || std::env::var("MARTIN_LOOP").is_ok() {
+        return; // the recorder/screenshot exit on their own; MARTIN_LOOP = stay up
+    }
+    let (Some(seq), Some(state)) = (seq, state) else {
+        return;
+    };
+    if state.built && clock.t > show_end(&seq.parts, &state.starts) + 2.5 {
+        exit.write(AppExit::Success);
+    }
+}
+
 /// MARTIN_FPS=1: log smoothed FPS + frame-time + timeline clock every ~0.5s.
 #[derive(Resource)]
 struct FpsLog {
@@ -1433,6 +1454,7 @@ fn main() {
                 shot_driver,
                 fps_log,
                 music_director,
+                live_end,
             ),
         )
         .run();
