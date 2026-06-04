@@ -1446,6 +1446,9 @@ fn build_composition(
         commands.spawn((
             // a static GaussianInterpolate (lhs == rhs) — the same render path the morph engine
             // uses (a plain PlanarGaussian3dHandle isn't picked up by martin's pipeline).
+            // NB: do NOT add NoFrustumCulling here — `calculate_bounds` skips culling-exempt
+            // entities, so they'd never get an Aabb and `extract_gaussians` would drop them
+            // (black screen). Static stage clouds want frustum culling anyway.
             GaussianInterpolate::<Gaussian3d> {
                 lhs: PlanarGaussian3dHandle(handle.clone()),
                 rhs: PlanarGaussian3dHandle(handle),
@@ -1464,7 +1467,6 @@ fn build_composition(
                 rotation: rot,
                 scale: Vec3::splat(obj.scale),
             },
-            NoFrustumCulling,
             ComposeAnim {
                 base_pos: obj.pos,
                 base_rot: rot,
