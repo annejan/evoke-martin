@@ -289,9 +289,10 @@ pub(crate) fn animate_composition(
         } else {
             1.0
         };
-        // snare flares the bloom (scaled by current visibility so it doesn't fight the fade-in).
+        // snare flares the bloom, hat shimmers — scaled by current visibility so beats don't
+        // fight the fade-in.
         let vis = fin.min(fout);
-        cs.global_opacity = vis * (1.0 + beat.snare * 0.4 * k);
+        cs.global_opacity = vis * (1.0 + (beat.snare * 0.4 + beat.hat * 0.12) * k);
     }
 }
 

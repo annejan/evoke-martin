@@ -733,7 +733,7 @@ pub(crate) fn part_director(
     let k = beat.intensity;
     if k > 0.0 {
         tf.scale = Vec3::splat(1.0 + beat.kick * 0.05 * k);
-        cs.global_opacity += beat.snare * 0.45 * k;
+        cs.global_opacity += (beat.snare * 0.45 + beat.hat * 0.12) * k;
         if morphing {
             cs.bulge += beat.kick * 0.3 * k;
         }

@@ -41,12 +41,20 @@ impl Default for OrbitCam {
     }
 }
 
-/// Place the camera on a sphere around `target` from `yaw`/`pitch`/`dist`.
-fn orbit_camera(mut q: Query<(&mut Transform, &OrbitCam)>) {
+/// Place the camera on a sphere around `target` from `yaw`/`pitch`/`dist`. The kick beat-pumps a
+/// transient lunge inward (without mutating the stored `dist`, so it's a clean per-frame offset —
+/// deterministic from the clock, so it bakes identically into recordings).
+fn orbit_camera(
+    beat: Option<Res<crate::scene::beat::Beat>>,
+    mut q: Query<(&mut Transform, &OrbitCam)>,
+) {
+    let pump = beat
+        .map(|b| 1.0 - b.kick * 0.04 * b.intensity)
+        .unwrap_or(1.0);
     for (mut tf, cam) in &mut q {
         let (sp, cp) = cam.pitch.sin_cos();
         let (sy, cy) = cam.yaw.sin_cos();
-        tf.translation = cam.target + Vec3::new(cp * cy, sp, cp * sy) * cam.dist;
+        tf.translation = cam.target + Vec3::new(cp * cy, sp, cp * sy) * (cam.dist * pump);
         tf.look_at(cam.target, Vec3::Y);
     }
 }
