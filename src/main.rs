@@ -97,12 +97,14 @@ fn main() {
     let asset_root_path =
         std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
 
-    // MARTIN_FULLSCREEN=1 → start borderless-fullscreen (ignored while recording, which
-    // needs the fixed 1280×720 window for uniform frames). Toggle live with F11 / F.
-    let fullscreen =
-        std::env::var("MARTIN_FULLSCREEN").is_ok() && std::env::var("MARTIN_RECORD").is_err();
+    // Recording runs HEADLESS — no window at all. On this AMD/RADV setup the window surface
+    // renders black whenever it isn't the focused/visible window, so the recorder renders the
+    // camera into an offscreen image (capture.rs) and drives the schedule itself; live runs keep
+    // a normal window. MARTIN_FULLSCREEN=1 → borderless fullscreen (live only).
+    let recording = std::env::var("MARTIN_RECORD").is_ok();
+    let fullscreen = std::env::var("MARTIN_FULLSCREEN").is_ok() && !recording;
     let mut plugins = DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
+        primary_window: (!recording).then(|| Window {
             title: "martin — splat fly-around".into(),
             resolution: (1280, 720).into(), // fixed size so recorded frames are uniform
             mode: if fullscreen {
@@ -112,6 +114,11 @@ fn main() {
             },
             ..default()
         }),
+        exit_condition: if recording {
+            bevy::window::ExitCondition::DontExit
+        } else {
+            bevy::window::ExitCondition::OnAllClosed
+        },
         ..default()
     });
     if let Some(root) = asset_root {
@@ -120,17 +127,26 @@ fn main() {
             ..default()
         });
     }
+    if recording {
+        plugins = plugins.disable::<bevy::winit::WinitPlugin>();
+    }
 
-    App::new()
-        .add_plugins(plugins)
-        .add_plugins(GaussianSplattingPlugin)
-        // Keep rendering even when the window is unfocused — otherwise winit throttles updates and
-        // the recorder (record.sh runs in a background window) screenshots black frames.
-        .insert_resource(bevy::winit::WinitSettings {
+    let mut app = App::new();
+    app.add_plugins(plugins)
+        .add_plugins(GaussianSplattingPlugin);
+    if recording {
+        // No winit event loop — drive the schedule ourselves; record_driver exits via AppExit.
+        app.add_plugins(bevy::app::ScheduleRunnerPlugin::run_loop(
+            std::time::Duration::ZERO,
+        ));
+    } else {
+        // Keep rendering even when the window is unfocused (live preview).
+        app.insert_resource(bevy::winit::WinitSettings {
             focused_mode: bevy::winit::UpdateMode::Continuous,
             unfocused_mode: bevy::winit::UpdateMode::Continuous,
-        })
-        .insert_resource(ClearColor(Color::BLACK))
+        });
+    }
+    app.insert_resource(ClearColor(Color::BLACK))
         .insert_resource(sequence)
         .insert_resource(Composition {
             objects: composition.unwrap_or_default(),
