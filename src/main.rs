@@ -1353,7 +1353,8 @@ fn parse_compose(spec: &str, score: &score::Score) -> Vec<Composed> {
         let rest = &toks[split..];
         let (mut pos, mut scale, mut rot) = (Vec3::ZERO, 1.0_f32, Vec3::ZERO);
         let (mut spin, mut bob, mut drift) = (Vec3::ZERO, 0.0_f32, Vec3::ZERO);
-        let (mut appear, mut out_t, fade) = (0.0_f32, f32::MAX, 0.8_f32);
+        // appear < 0 = no fade-in (visible from the start); `in <anchor>` sets it to a real time.
+        let (mut appear, mut out_t, fade) = (-1.0_f32, f32::MAX, 0.8_f32);
         let mut i = 0;
         while i < rest.len() {
             let t = rest[i];
@@ -1491,14 +1492,22 @@ fn build_composition(
         .and_then(|s| s.parse::<f32>().ok())
         .filter(|z| *z > 0.0)
         .unwrap_or(1.0);
+    let dist = radius * 2.5 / zoom;
     for mut c in &mut cam {
         c.target = center;
-        c.dist = radius * 2.5 / zoom;
+        c.dist = dist;
         c.yaw = FRONT_YAW;
         c.pitch = DEFAULT_PITCH;
         c.framed = true;
     }
-    info!("composition: {} objects on stage", placed.len());
+    info!(
+        "composition: {} objects on stage, centre [{:.2},{:.2},{:.2}], dist {:.2}",
+        placed.len(),
+        center.x,
+        center.y,
+        center.z,
+        dist
+    );
 }
 
 /// Animate the stage from the show clock: spin + bob + drift each object, fade it in (and out, if
@@ -1517,7 +1526,11 @@ fn animate_composition(
             0.0
         };
         tf.translation = a.base_pos + a.drift * t + Vec3::Y * bob;
-        let fin = ((t - a.appear) / a.fade.max(1e-3)).clamp(0.0, 1.0);
+        let fin = if a.appear < 0.0 {
+            1.0 // no `in` → visible from the start (robust even if the clock hasn't advanced)
+        } else {
+            ((t - a.appear) / a.fade.max(1e-3)).clamp(0.0, 1.0)
+        };
         let fout = if a.out < f32::MAX {
             ((a.out + a.fade - t) / a.fade.max(1e-3)).clamp(0.0, 1.0)
         } else {
