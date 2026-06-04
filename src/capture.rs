@@ -4,10 +4,65 @@
 use std::f32::consts::PI;
 
 use bevy::app::AppExit;
+use bevy::asset::RenderAssetUsages;
+use bevy::camera::{ImageRenderTarget, RenderTarget};
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::render::view::screenshot::{save_to_disk, Screenshot};
 
 use crate::camera::{OrbitCam, FRONT_YAW, SWAY};
+
+/// Offscreen render target for recording: the camera renders the show into this image and the
+/// recorder screenshots *it* — so frames don't depend on the OS window being visible/focused
+/// (a background or unfocused window screenshots black on many compositors). Only set when recording.
+#[derive(Resource)]
+pub(crate) struct RecordTarget(pub Handle<Image>);
+
+/// Create the offscreen image (window-sized) when recording, before the camera is retargeted to it.
+fn setup_record_target(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    if std::env::var_os("MARTIN_RECORD").is_none() {
+        return;
+    }
+    let size = Extent3d {
+        width: 1280,
+        height: 720,
+        depth_or_array_layers: 1,
+    };
+    let mut image = Image::new_fill(
+        size,
+        TextureDimension::D2,
+        &[0, 0, 0, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::all(),
+    );
+    image.texture_descriptor.usage =
+        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_SRC | TextureUsages::RENDER_ATTACHMENT;
+    commands.insert_resource(RecordTarget(images.add(image)));
+}
+
+/// Point the orbit camera at the offscreen image (once). After this the window shows nothing while
+/// recording — that's fine, the recorder reads the image, not the window.
+fn attach_record_target(
+    mut commands: Commands,
+    target: Option<Res<RecordTarget>>,
+    cams: Query<Entity, With<OrbitCam>>,
+    mut done: Local<bool>,
+) {
+    if *done {
+        return;
+    }
+    let Some(target) = target else { return };
+    for e in &cams {
+        // RenderTarget is a component in 0.18 — insert it to point this camera at the image.
+        commands
+            .entity(e)
+            .insert(RenderTarget::Image(ImageRenderTarget {
+                handle: target.0.clone(),
+                scale_factor: 1.0,
+            }));
+        *done = true;
+    }
+}
 use crate::scene::sequence::{show_end, SeqState, Sequence};
 use crate::scene::SeqClock;
 
@@ -29,6 +84,7 @@ fn record_driver(
     mut rec: ResMut<RecordState>,
     seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
+    target: Option<Res<RecordTarget>>,
     mut clock: ResMut<SeqClock>,
     mut camq: Query<&mut OrbitCam>,
     mut commands: Commands,
@@ -71,8 +127,14 @@ fn record_driver(
             c.yaw = yaw;
         }
     }
+    // Screenshot the offscreen image the camera renders into (window-independent); fall back to the
+    // window only if the target wasn't set up.
+    let shot = match &target {
+        Some(t) => Screenshot::image(t.0.clone()),
+        None => Screenshot::primary_window(),
+    };
     commands
-        .spawn(Screenshot::primary_window())
+        .spawn(shot)
         .observe(save_to_disk(format!("{dir}/frame_{i:05}.png")));
     rec.i += 1;
 }
@@ -194,6 +256,16 @@ impl Plugin for CapturePlugin {
             accum: 0.0,
             frames: 0,
         })
-        .add_systems(Update, (record_driver, shot_driver, live_end, fps_log));
+        .add_systems(Startup, setup_record_target)
+        .add_systems(
+            Update,
+            (
+                attach_record_target,
+                record_driver,
+                shot_driver,
+                live_end,
+                fps_log,
+            ),
+        );
     }
 }
