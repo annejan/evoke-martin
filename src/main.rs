@@ -1443,9 +1443,18 @@ fn build_composition(
         ) * base;
         let handle = assets.add(PlanarGaussian3d::from(raw));
         commands.spawn((
-            PlanarGaussian3dHandle(handle),
+            // a static GaussianInterpolate (lhs == rhs) — the same render path the morph engine
+            // uses (a plain PlanarGaussian3dHandle isn't picked up by martin's pipeline).
+            GaussianInterpolate::<Gaussian3d> {
+                lhs: PlanarGaussian3dHandle(handle.clone()),
+                rhs: PlanarGaussian3dHandle(handle),
+            },
             CloudSettings {
                 sort_mode: SortMode::Radix,
+                time: 0.0,
+                time_start: 0.0,
+                time_stop: 1.0,
+                bulge: 0.0,
                 global_opacity: 0.0, // animate_composition fades it in
                 ..default()
             },
