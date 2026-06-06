@@ -149,6 +149,24 @@ override the baked-in defaults (e.g. `MARTIN_LOOP=1`). Fonts and the default sco
 compiled into martin, so only splats (and any logo PNG) ship. Edit `bundle.toml` to pick the show;
 its `.ply` must be present locally at build time (they're git-ignored).
 
+## Releasing
+
+`./pipeline/release.sh` builds a **single self-contained binary** (the show + all its assets baked
+in) from `bundle.toml`, then verifies it self-extracts and plays:
+
+```bash
+./pipeline/release.sh                 # → target/release/martin (one file, no assets, no env)
+./target/release/martin               # plays the baked-in show anywhere
+```
+
+`bundle.toml` points at the release show (`assets/release.seq` — a ~song-length showcase using only
+*light* assets: the procedural demo shapes + doggo + the Martins + text, so it stays self-contained
+without the 500 MB photogrammetry scenes). The example bundles to ~182 MB (Bevy base ~75 MB + ~108 MB
+lz4-compressed splats). To shrink it: ship fewer / **downsampled** `.ply` (the real lever — splat
+floats dominate), or trim the show. Cross-OS: run `release.sh` on each OS (the bundling is the same
+`cargo build --features bundle` everywhere; GitHub Actions can do it where the assets are present),
+then `gh release upload`.
+
 ## Note on git
 
 Splats, captures, run outputs, and the external COLMAP/Brush checkouts are **git-ignored**

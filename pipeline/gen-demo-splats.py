@@ -138,8 +138,46 @@ def ring():
     return pos, hsv(u / (2 * np.pi), 1.0, 1.0)
 
 
+def knot():
+    # trefoil knot tube
+    t = rng.uniform(0, 2 * np.pi, N)
+    pos = np.stack([np.sin(t) + 2 * np.sin(2 * t),
+                    np.cos(t) - 2 * np.cos(2 * t),
+                    -np.sin(3 * t)], 1) / 3.2
+    pos += rng.normal(0, 0.035, (N, 3))  # tube thickness
+    return pos, hsv(t / (2 * np.pi), 0.9, 1.0)
+
+
+def mobius():
+    u = rng.uniform(0, 2 * np.pi, N)
+    half = rng.uniform(-1, 1, N) * 0.4
+    pos = np.stack([(1 + half * np.cos(u / 2)) * np.cos(u),
+                    (1 + half * np.cos(u / 2)) * np.sin(u),
+                    half * np.sin(u / 2)], 1) * 0.82
+    return pos, hsv(u / (2 * np.pi), 0.85, 1.0)
+
+
+def supershape():
+    # 3D superformula — one organic "bloom" of many lobes.
+    def sf(a, m, n1, n2, n3):
+        t = m * a / 4.0
+        r = (np.abs(np.cos(t)) ** n2 + np.abs(np.sin(t)) ** n3 + 1e-9) ** (-1.0 / n1)
+        return np.clip(np.nan_to_num(r), 0.0, 3.0)
+    th = rng.uniform(-np.pi / 2, np.pi / 2, N)
+    ph = rng.uniform(-np.pi, np.pi, N)
+    r1 = sf(th, 7, 0.3, 1.7, 1.7)
+    r2 = sf(ph, 7, 0.3, 1.7, 1.7)
+    pos = np.stack([r1 * np.cos(th) * r2 * np.cos(ph),
+                    r2 * np.sin(th),
+                    r1 * np.cos(th) * r2 * np.sin(ph)], 1)
+    pos = np.nan_to_num(pos)
+    pos /= max(np.max(np.abs(pos)), 1e-6)
+    return pos, hsv(0.55 + 0.4 * np.sin(2 * ph), 0.9, 1.0)
+
+
 print(f"generating demo splats -> {OUT}/ ({N} each)")
 for name, fn in [("sphere", sphere), ("cube", cube), ("torus", torus), ("helix", helix),
-                 ("galaxy", galaxy), ("star", star), ("wave", wave), ("ring", ring)]:
+                 ("galaxy", galaxy), ("star", star), ("wave", wave), ("ring", ring),
+                 ("knot", knot), ("mobius", mobius), ("supershape", supershape)]:
     write_ply(name, *fn())
 print("done — morph through them with MARTIN_SEQ (see assets/demo-show.seq).")

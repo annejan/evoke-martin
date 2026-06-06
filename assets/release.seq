@@ -1,0 +1,43 @@
+# martin — the RELEASE show: a self-contained ~song-length (~205s) showcase using only LIGHT assets
+# (the procedural demo shapes + doggo + the two Martins + text), so it bundles into a reasonably-
+# sized single binary (no 500MB photogrammetry scenes). This is what `bundle.toml` bakes in.
+#
+# Live:  MARTIN_PLY=assets/doggo.ply MARTIN_SEQ=assets/release.seq MARTIN_BEAT=2 cargo +nightly run --release
+# Bundle: ./pipeline/release.sh   (→ one self-contained binary)
+
+# --- intro ---
+text:martin GAUS      @4,4    ~typewriter ^wave
+splat:sphere.ply      @3.5,4  ~swarm
+splat:galaxy.ply      @3.5,4  ~vortex
+splat:helix.ply       @3.5,4  ~swarm
+# --- build ---
+splat:torus.ply       @2.5,3  ~morph ^twist
+splat:knot.ply        @2.5,3  ~swarm
+splat:cube.ply        @2,3    ~swarm
+splat:star.ply        @2,3    ~explode
+splat:mobius.ply      @2.5,3  ~swarm ^twist
+# --- drop: the subjects ---
+text:DOGGOS & MARTINS @2,3    ~swarm
+splat:doggo.ply       @2.5,3  ~swarm
+splat:martin.ply+martin-peace.ply @2.5,3 ~swarm
+splat:doggo.ply       @2.5,3  ~morph
+text:deFEEST          @2.5,3  ~outline ^wave
+# --- breakdown: calm abstract ---
+splat:supershape.ply  @5,4    ~swarm
+splat:wave.ply        @5,4    ~swarm ^cloth
+splat:galaxy.ply      @5,4    ~swarm
+splat:ring.ply        @4,4    ~swirl
+# --- climax: fast cuts ---
+splat:supershape.ply  @1.5,2.5 ~vortex
+splat:star.ply        @1.5,2.5 ~explode
+splat:knot.ply        @1.5,2.5 ~swarm ^twist
+splat:doggo.ply       @2,3    ~swarm
+splat:martin.ply+martin-peace.ply @2,3 ~swarm
+splat:sphere.ply      @1.5,2.5 ~swarm
+# --- outro: credits ---
+text:CODE ANUS & KLOOT @3.5,3  ~typewriter
+text:MUSIC CINDER      @3.5,3  ~typewriter
+text:GREETINGS BADGE.TEAM @3.5,3 ~typewriter
+text:a deFEEST production @4,4 ~outline ^wave
+splat:torus.ply       @4,4    ~swarm
+text:martin           @8,5    ~swarm ^wave

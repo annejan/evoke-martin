@@ -78,6 +78,7 @@ path = [
     "pipeline/render_orbit.py",
     "pipeline/gen-demo-splats.py",
     "pipeline/bundle.sh",
+    "pipeline/release.sh",
     ".gitignore",
     ".github/dependabot.yml",
     ".github/workflows/build.yml",
