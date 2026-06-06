@@ -90,10 +90,12 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Lead: a filtered saw — mellow, sits under the groove.
+/// Lead: a **detuned triple-saw** (a supersaw-lite) through a gentler low-pass — warm and thick
+/// instead of thin/piercing. The ±0.6% detune gives it chorus/movement; reverb (in the mix) adds air.
 fn lead(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        (saw_hz(freq) >> lowpass_hz(2200.0, 0.9))
+        ((saw_hz(freq) + saw_hz(freq * 1.006) + saw_hz(freq * 0.994)) * 0.4
+            >> lowpass_hz(1800.0, 0.8))
             * envelope(|t: f32| {
                 let a = 0.02;
                 if t < a {
@@ -104,6 +106,30 @@ fn lead(freq: f32) -> Box<dyn AudioUnit> {
             })
             * 0.5,
     )
+}
+
+/// A light reverb send: 3 parallel damped feedback combs → a short room tail (the dry signal is
+/// excluded, so the caller mixes this in as wet). Mono, cheap, pure DSP — adds the space a bone-dry
+/// synth lacks.
+fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
+    let combs = [(0.0297_f32, 0.78_f32), (0.0371, 0.80), (0.0411, 0.76)]; // (delay s, feedback)
+    let damp = 0.35_f32;
+    let mut wet = vec![0f32; bed.len()];
+    for &(ds, fb) in &combs {
+        let d = (ds * sr) as usize;
+        if d == 0 {
+            continue;
+        }
+        let mut line = vec![0f32; bed.len()];
+        let mut lp = 0f32;
+        for i in 0..bed.len() {
+            let fb_in = if i >= d { line[i - d] } else { 0.0 };
+            lp += damp * (fb_in - lp); // damping low-pass on the feedback
+            line[i] = bed[i] + fb * lp; // recirculate dry + damped feedback
+            wet[i] += fb * lp; // tail only (delayed feedback — no immediate dry)
+        }
+    }
+    wet
 }
 
 /// Render a voice `node` into `buf` starting at `start_t` seconds for `dur` seconds, scaled by
@@ -136,22 +162,26 @@ pub fn synth_track(score: &Score) -> Track {
     use std::f32::consts::TAU;
     let sr = SAMPLE_RATE as f32;
     let total = (score.demo_len() * sr).ceil() as usize;
-    let mut buf = vec![0f32; total];
+    // Kick goes in its own buffer (it's the sidechain *source*, never ducked); everything else is
+    // the "bed" that gets pumped under it + sent to reverb.
+    let mut kickbuf = vec![0f32; total];
+    let mut bed = vec![0f32; total];
 
-    for kt in score.hits(Inst::Kick) {
-        render_into(&mut buf, kt, 0.45, 0.7, kick());
-        render_into(&mut buf, kt, 0.55, 0.5, bass(score.chord_at(kt).root * 0.5));
+    let kicks = score.hits(Inst::Kick);
+    for &kt in &kicks {
+        render_into(&mut kickbuf, kt, 0.45, 0.7, kick());
+        render_into(&mut bed, kt, 0.55, 0.5, bass(score.chord_at(kt).root * 0.5));
     }
     for t in score.hits(Inst::Snare) {
-        render_into(&mut buf, t, 0.4, 0.5, snare());
+        render_into(&mut bed, t, 0.4, 0.5, snare());
     }
     for t in score.hits(Inst::Hat) {
-        render_into(&mut buf, t, 0.12, 0.2, hat());
+        render_into(&mut bed, t, 0.12, 0.2, hat());
     }
     for t in score.hits(Inst::Stab) {
         let m = score.levels(t).mids;
         render_into(
-            &mut buf,
+            &mut bed,
             t,
             0.5,
             0.10 + 0.10 * m,
@@ -159,7 +189,7 @@ pub fn synth_track(score: &Score) -> Track {
         );
     }
     for (t, f) in score.lead_notes() {
-        render_into(&mut buf, t, 0.6, 0.13, lead(f));
+        render_into(&mut bed, t, 0.6, 0.13, lead(f));
     }
     // sustained pad: one chord per bar (warmth/body)
     let bar = score.bar();
@@ -168,25 +198,51 @@ pub fn synth_track(score: &Score) -> Track {
         let t = b as f32 * bar;
         let m = score.levels(t).mids;
         render_into(
-            &mut buf,
+            &mut bed,
             t,
             bar,
             0.06 + 0.06 * m,
             pad(score.chord_at(t).triad()),
         );
     }
-
-    // continuous sub-bass + per-section master gain (fade-in/out × gain_at) + soft clip.
+    // continuous sub-bass into the bed (so it pumps with the sidechain → clean low end under the kick)
     let dt = 1.0 / sr;
-    let demo = score.demo_len();
-    for (i, s) in buf.iter_mut().enumerate() {
+    for (i, s) in bed.iter_mut().enumerate() {
         let t = i as f32 * dt;
         let lv = score.levels(t);
-        let sub = (TAU * 55.0 * t).sin() * (0.12 + 0.45 * lv.sub_bass);
+        *s += (TAU * 55.0 * t).sin() * (0.12 + 0.45 * lv.sub_bass);
+    }
+
+    // sidechain pump: a fast dip right on each kick that recovers over ~0.11s → the dance "breath".
+    let mut duck = vec![1.0f32; total];
+    let (depth, tau) = (0.55f32, 0.11f32);
+    for &kt in &kicks {
+        let k0 = (kt * sr) as usize;
+        for j in 0..(0.34 * sr) as usize {
+            let i = k0 + j;
+            if i >= total {
+                break;
+            }
+            let d = 1.0 - depth * (-(j as f32 / sr) / tau).exp();
+            if d < duck[i] {
+                duck[i] = d;
+            }
+        }
+    }
+
+    // light room reverb on the bed (excludes the kick, so it stays punchy).
+    let wet = reverb_send(&bed, sr);
+
+    // master: dry kick + pumped bed + reverb tail, per-section fades × gain_at, soft clip.
+    let demo = score.demo_len();
+    let mut buf = vec![0f32; total];
+    for i in 0..total {
+        let t = i as f32 * dt;
+        let mix = kickbuf[i] + bed[i] * duck[i] + wet[i] * 0.16;
         let fade_in = (t / 1.5).clamp(0.0, 1.0);
         let fade_out = ((demo - t) / 2.0).clamp(0.0, 1.0);
         let g = fade_in * fade_out * score.gain_at(t);
-        *s = ((*s + sub) * g).tanh();
+        buf[i] = (mix * g).tanh();
     }
     Track {
         samples: Arc::new(buf),
