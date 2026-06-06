@@ -1,9 +1,9 @@
 //! Synth — the *instrument* (voices + DSP) for the placeholder track. The *score* it plays (tempo,
 //! sections, drum patterns, chords, melody, dynamics) is data in `score.rs` (`assets/score.txt`).
-//! Voices are FunDSP graphs (filtered/enveloped oscillators) — far richer than bare sines — built
-//! per hit/note and rendered into one mono buffer; `score.rs` supplies all the timing + dynamics.
-//! The whole track renders offline; martin plays it live (bevy_audio) and/or writes a WAV that
-//! ffmpeg muxes onto recorded frames. (Still a placeholder — the real track comes from Cinder.)
+//! Voices are FunDSP graphs (filtered/enveloped oscillators); each is rendered + panned into a
+//! **stereo** bed, sidechain-pumped under the kick, with a spread reverb send, an arp counter-line,
+//! and a forward detuned lead. The whole track renders offline; martin plays it live (bevy_audio)
+//! and/or writes a WAV that ffmpeg muxes onto recorded frames. (Placeholder — real track: Cinder.)
 
 use std::sync::Arc;
 
@@ -15,12 +15,13 @@ pub const SAMPLE_RATE: u32 = 44_100;
 
 #[derive(Clone)]
 pub struct Track {
-    samples: Arc<Vec<f32>>,
+    samples: Arc<Vec<f32>>, // interleaved stereo: L, R, L, R, …
 }
 
 impl Track {
+    /// Frame count (stereo pairs) — i.e. duration·sample_rate.
     pub fn len(&self) -> usize {
-        self.samples.len()
+        self.samples.len() / 2
     }
 }
 
@@ -48,10 +49,11 @@ fn hat() -> Box<dyn AudioUnit> {
     Box::new((noise() >> highpass_hz(7000.0, 0.7)) * envelope(|t: f32| (-t * 80.0).exp()))
 }
 
-/// Stab: the chord triad as saws through a low-pass, with a plucky attack.
-fn stab(tri: [f32; 3]) -> Box<dyn AudioUnit> {
+/// Stab: one chord note as a saw through a low-pass with a plucky attack (rendered per triad note
+/// so the three can be panned wide).
+fn stab(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((saw_hz(tri[0]) + saw_hz(tri[1]) + saw_hz(tri[2])) >> lowpass_hz(1600.0, 0.8))
+        (saw_hz(freq) >> lowpass_hz(1600.0, 0.8))
             * envelope(|t: f32| {
                 let a = 0.01;
                 if t < a {
@@ -64,13 +66,12 @@ fn stab(tri: [f32; 3]) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Pad: the triad an octave down through a soft low-pass, slow swell — warmth/body under it all.
-fn pad(tri: [f32; 3]) -> Box<dyn AudioUnit> {
+/// Pad: one chord note an octave down through a soft low-pass, slow swell (panned per note for width).
+fn pad(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((saw_hz(tri[0] * 0.5) + saw_hz(tri[1] * 0.5) + saw_hz(tri[2] * 0.5))
-            >> lowpass_hz(900.0, 0.6))
+        (saw_hz(freq * 0.5) >> lowpass_hz(900.0, 0.6))
             * envelope(|t: f32| (t * 2.0).min(1.0))
-            * 0.25,
+            * 0.22,
     )
 }
 
@@ -90,60 +91,68 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Lead: a **detuned triple-saw** (a supersaw-lite) through a gentler low-pass — warm and thick
-/// instead of thin/piercing. The ±0.6% detune gives it chorus/movement; reverb (in the mix) adds air.
+/// Lead: a **forward** voice — detuned saws + a square for body, through a brighter resonant
+/// low-pass, with a longer sustain so it reads as a melody on top rather than background texture.
 fn lead(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((saw_hz(freq) + saw_hz(freq * 1.006) + saw_hz(freq * 0.994)) * 0.4
-            >> lowpass_hz(1800.0, 0.8))
+        ((saw_hz(freq) + saw_hz(freq * 1.007) + saw_hz(freq * 0.993) + square_hz(freq) * 0.5)
+            * 0.32
+            >> lowpass_hz(3200.0, 1.6))
             * envelope(|t: f32| {
-                let a = 0.02;
+                let a = 0.012;
                 if t < a {
                     t / a
                 } else {
-                    (-(t - a) * 2.2).exp()
+                    0.25 + 0.75 * (-(t - a) * 1.4).exp() // longer, more sustained tail
                 }
             })
-            * 0.5,
+            * 0.85,
     )
 }
 
-/// A light reverb send: 3 parallel damped feedback combs → a short room tail (the dry signal is
-/// excluded, so the caller mixes this in as wet). Mono, cheap, pure DSP — adds the space a bone-dry
-/// synth lacks.
-fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
-    let combs = [(0.0297_f32, 0.78_f32), (0.0371, 0.80), (0.0411, 0.76)]; // (delay s, feedback)
-    let damp = 0.35_f32;
-    let mut wet = vec![0f32; bed.len()];
-    for &(ds, fb) in &combs {
-        let d = (ds * sr) as usize;
-        if d == 0 {
-            continue;
-        }
-        let mut line = vec![0f32; bed.len()];
-        let mut lp = 0f32;
-        for i in 0..bed.len() {
-            let fb_in = if i >= d { line[i - d] } else { 0.0 };
-            lp += damp * (fb_in - lp); // damping low-pass on the feedback
-            line[i] = bed[i] + fb * lp; // recirculate dry + damped feedback
-            wet[i] += fb * lp; // tail only (delayed feedback — no immediate dry)
-        }
-    }
-    wet
+/// Arp: a bright plucky counter-line (saw + square through a resonant low-pass, fast decay) — the
+/// second melodic voice, an octave up, panned to dance opposite the lead.
+fn arp(freq: f32) -> Box<dyn AudioUnit> {
+    Box::new(
+        ((saw_hz(freq) + square_hz(freq) * 0.6) * 0.5 >> lowpass_hz(3800.0, 1.2))
+            * envelope(|t: f32| {
+                let a = 0.004;
+                if t < a {
+                    t / a
+                } else {
+                    (-(t - a) * 9.0).exp()
+                }
+            })
+            * 0.45,
+    )
 }
 
-/// Render a voice `node` into `buf` starting at `start_t` seconds for `dur` seconds, scaled by
-/// `amp`, with a 4 ms release fade so sustained voices don't click at their cut-off.
-fn render_into(buf: &mut [f32], start_t: f32, dur: f32, amp: f32, mut node: Box<dyn AudioUnit>) {
+/// Equal-power pan gains for `pan` in [-1, 1] (-1 = hard left, 0 = centre, 1 = hard right).
+fn pan_gains(pan: f32) -> (f32, f32) {
+    let a = (pan.clamp(-1.0, 1.0) + 1.0) * (std::f32::consts::FRAC_PI_4); // 0..PI/2
+    (a.cos(), a.sin())
+}
+
+/// Render a voice `node` into the interleaved-stereo `buf` at `start_t`s for `dur`s, scaled by
+/// `amp` and panned by `pan`, with a 4 ms release fade so sustained voices don't click at cut-off.
+fn render_into(
+    buf: &mut [f32],
+    start_t: f32,
+    dur: f32,
+    amp: f32,
+    pan: f32,
+    mut node: Box<dyn AudioUnit>,
+) {
     let sr = SAMPLE_RATE as f32;
     node.set_sample_rate(SAMPLE_RATE as f64);
     node.reset();
+    let (lg, rg) = pan_gains(pan);
     let start = (start_t * sr) as usize;
     let n = (dur * sr) as usize;
     let rel = (0.004 * sr) as usize;
     for i in 0..n {
         let idx = start + i;
-        if idx >= buf.len() {
+        if 2 * idx + 1 >= buf.len() {
             break;
         }
         let fade = if n > rel && i >= n - rel {
@@ -151,69 +160,154 @@ fn render_into(buf: &mut [f32], start_t: f32, dur: f32, amp: f32, mut node: Box<
         } else {
             1.0
         };
-        buf[idx] += node.get_mono() * amp * fade;
+        let v = node.get_mono() * amp * fade;
+        buf[2 * idx] += v * lg;
+        buf[2 * idx + 1] += v * rg;
     }
 }
 
-/// Render the whole score to a mono buffer: build a FunDSP voice at every drum hit / lead note /
-/// per-bar chord (timing + chord + dynamics all from `score`), then add the continuous sub and the
-/// per-section master gain (fades + `gain_at`) and soft-clip.
+/// Render the triad as three voices panned across the field (wide chords), via `voice(freq)`.
+fn chord_spread(
+    buf: &mut [f32],
+    t: f32,
+    dur: f32,
+    amp: f32,
+    spread: f32,
+    tri: [f32; 3],
+    voice: fn(f32) -> Box<dyn AudioUnit>,
+) {
+    for (i, &f) in tri.iter().enumerate() {
+        let pan = (i as f32 - 1.0) * spread; // -spread, 0, +spread
+        render_into(buf, t, dur, amp, pan, voice(f));
+    }
+}
+
+/// Spread reverb send: a mono sum of the stereo bed through 3 damped feedback combs per channel,
+/// with slightly different delays L vs R → a wide, decorrelated room tail (dry excluded).
+fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
+    let frames = bed.len() / 2;
+    let damp = 0.35_f32;
+    // mono sum of the bed feeds the reverb.
+    let mono: Vec<f32> = (0..frames)
+        .map(|i| 0.5 * (bed[2 * i] + bed[2 * i + 1]))
+        .collect();
+    let comb = |delays: &[(f32, f32)]| -> Vec<f32> {
+        let mut wet = vec![0f32; frames];
+        for &(ds, fb) in delays {
+            let d = (ds * sr) as usize;
+            if d == 0 {
+                continue;
+            }
+            let mut line = vec![0f32; frames];
+            let mut lp = 0f32;
+            for i in 0..frames {
+                let fb_in = if i >= d { line[i - d] } else { 0.0 };
+                lp += damp * (fb_in - lp);
+                line[i] = mono[i] + fb * lp;
+                wet[i] += fb * lp;
+            }
+        }
+        wet
+    };
+    let wl = comb(&[(0.0297, 0.78), (0.0371, 0.80), (0.0411, 0.76)]);
+    let wr = comb(&[(0.0319, 0.79), (0.0353, 0.77), (0.0431, 0.80)]);
+    let mut out = vec![0f32; bed.len()];
+    for i in 0..frames {
+        out[2 * i] = wl[i];
+        out[2 * i + 1] = wr[i];
+    }
+    out
+}
+
+/// Render the whole score to an interleaved-stereo buffer: voices panned into a "bed" (everything
+/// but the kick), an arp counter-line in the energetic sections, sidechain pump under the kick, a
+/// spread reverb send, the continuous sub, per-section fades × gain, soft clip.
 pub fn synth_track(score: &Score) -> Track {
     use std::f32::consts::TAU;
     let sr = SAMPLE_RATE as f32;
     let total = (score.demo_len() * sr).ceil() as usize;
-    // Kick goes in its own buffer (it's the sidechain *source*, never ducked); everything else is
-    // the "bed" that gets pumped under it + sent to reverb.
-    let mut kickbuf = vec![0f32; total];
-    let mut bed = vec![0f32; total];
+    let stereo = total * 2;
+    let mut kickbuf = vec![0f32; stereo]; // sidechain source (never ducked)
+    let mut bed = vec![0f32; stereo]; // everything else (pumped + reverbed)
 
     let kicks = score.hits(Inst::Kick);
     for &kt in &kicks {
-        render_into(&mut kickbuf, kt, 0.45, 0.7, kick());
-        render_into(&mut bed, kt, 0.55, 0.5, bass(score.chord_at(kt).root * 0.5));
+        render_into(&mut kickbuf, kt, 0.45, 0.7, 0.0, kick());
+        render_into(
+            &mut bed,
+            kt,
+            0.55,
+            0.5,
+            0.0,
+            bass(score.chord_at(kt).root * 0.5),
+        );
     }
     for t in score.hits(Inst::Snare) {
-        render_into(&mut bed, t, 0.4, 0.5, snare());
+        render_into(&mut bed, t, 0.4, 0.5, 0.0, snare());
     }
-    for t in score.hits(Inst::Hat) {
-        render_into(&mut bed, t, 0.12, 0.2, hat());
+    for (i, t) in score.hits(Inst::Hat).into_iter().enumerate() {
+        let pan = if i % 2 == 0 { 0.5 } else { -0.5 }; // hats dance across the field
+        render_into(&mut bed, t, 0.12, 0.2, pan, hat());
     }
     for t in score.hits(Inst::Stab) {
         let m = score.levels(t).mids;
-        render_into(
+        chord_spread(
             &mut bed,
             t,
             0.5,
             0.10 + 0.10 * m,
-            stab(score.chord_at(t).triad()),
+            0.6,
+            score.chord_at(t).triad(),
+            stab,
         );
     }
+    // lead: forward + centre.
     for (t, f) in score.lead_notes() {
-        render_into(&mut bed, t, 0.6, 0.13, lead(f));
+        render_into(&mut bed, t, 0.6, 0.22, 0.0, lead(f));
     }
-    // sustained pad: one chord per bar (warmth/body)
+    // arp counter-line: eighth notes off the bar's chord, octave up, only in energetic sections
+    // (gain ≥ 0.85 = drop/climax), panned alternately.
     let bar = score.bar();
+    let eighth = score.beat() / 2.0;
     let nbars = (score.demo_len() / bar).ceil() as usize;
+    for b in 0..nbars {
+        for e in 0..8usize {
+            let t = b as f32 * bar + e as f32 * eighth;
+            if score.gain_at(t) < 0.85 {
+                continue;
+            }
+            let tri = score.chord_at(t).triad();
+            let pool = [tri[0], tri[1], tri[2], tri[0] * 2.0];
+            let k = b * 8 + e;
+            let f = pool[k % 4] * 2.0; // octave up sparkle
+            let pan = if k % 2 == 0 { 0.55 } else { -0.55 };
+            render_into(&mut bed, t, 0.2, 0.11, pan, arp(f));
+        }
+    }
+    // sustained pad: one chord per bar, spread wide (warmth/body).
     for b in 0..nbars {
         let t = b as f32 * bar;
         let m = score.levels(t).mids;
-        render_into(
+        chord_spread(
             &mut bed,
             t,
             bar,
             0.06 + 0.06 * m,
-            pad(score.chord_at(t).triad()),
+            0.7,
+            score.chord_at(t).triad(),
+            pad,
         );
     }
-    // continuous sub-bass into the bed (so it pumps with the sidechain → clean low end under the kick)
+    // continuous sub-bass (centre) into the bed so it pumps with the sidechain.
     let dt = 1.0 / sr;
-    for (i, s) in bed.iter_mut().enumerate() {
+    for i in 0..total {
         let t = i as f32 * dt;
-        let lv = score.levels(t);
-        *s += (TAU * 55.0 * t).sin() * (0.12 + 0.45 * lv.sub_bass);
+        let s = (TAU * 55.0 * t).sin() * (0.12 + 0.45 * score.levels(t).sub_bass);
+        bed[2 * i] += s;
+        bed[2 * i + 1] += s;
     }
 
-    // sidechain pump: a fast dip right on each kick that recovers over ~0.11s → the dance "breath".
+    // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
     let (depth, tau) = (0.55f32, 0.11f32);
     for &kt in &kicks {
@@ -230,30 +324,30 @@ pub fn synth_track(score: &Score) -> Track {
         }
     }
 
-    // light room reverb on the bed (excludes the kick, so it stays punchy).
     let wet = reverb_send(&bed, sr);
 
-    // master: dry kick + pumped bed + reverb tail, per-section fades × gain_at, soft clip.
+    // master: dry kick + pumped bed + spread reverb tail, per-section fades × gain_at, soft clip.
     let demo = score.demo_len();
-    let mut buf = vec![0f32; total];
+    let mut buf = vec![0f32; stereo];
     for i in 0..total {
         let t = i as f32 * dt;
-        let mix = kickbuf[i] + bed[i] * duck[i] + wet[i] * 0.16;
         let fade_in = (t / 1.5).clamp(0.0, 1.0);
         let fade_out = ((demo - t) / 2.0).clamp(0.0, 1.0);
         let g = fade_in * fade_out * score.gain_at(t);
-        buf[i] = (mix * g).tanh();
+        for c in 0..2 {
+            let mix = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.18;
+            buf[2 * i + c] = (mix * g).tanh();
+        }
     }
     Track {
         samples: Arc::new(buf),
     }
 }
 
-/// Encode the track as a 16-bit PCM mono WAV (`SAMPLE_RATE`) into a byte buffer — hand-rolled RIFF
-/// header, no audio dependency. Reused for the on-disk WAV (`write_wav`) and for in-app live
-/// playback (bevy_audio decodes these bytes).
+/// Encode the track as a 16-bit PCM **stereo** WAV (`SAMPLE_RATE`) into a byte buffer — hand-rolled
+/// RIFF header, no audio dependency. Reused for the on-disk WAV (`write_wav`) and live playback.
 pub fn encode_wav(track: &Track) -> Vec<u8> {
-    let data_bytes = (track.samples.len() * 2) as u32;
+    let data_bytes = (track.samples.len() * 2) as u32; // interleaved samples × 2 bytes
     let mut out = Vec::with_capacity(44 + data_bytes as usize);
     out.extend_from_slice(b"RIFF");
     out.extend_from_slice(&(36 + data_bytes).to_le_bytes());
@@ -261,10 +355,10 @@ pub fn encode_wav(track: &Track) -> Vec<u8> {
     out.extend_from_slice(b"fmt ");
     out.extend_from_slice(&16u32.to_le_bytes()); // PCM fmt chunk size
     out.extend_from_slice(&1u16.to_le_bytes()); // format = PCM
-    out.extend_from_slice(&1u16.to_le_bytes()); // channels = mono
+    out.extend_from_slice(&2u16.to_le_bytes()); // channels = stereo
     out.extend_from_slice(&SAMPLE_RATE.to_le_bytes()); // sample rate
-    out.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes()); // byte rate (rate * block align)
-    out.extend_from_slice(&2u16.to_le_bytes()); // block align (mono * 2 bytes)
+    out.extend_from_slice(&(SAMPLE_RATE * 4).to_le_bytes()); // byte rate (rate × block align)
+    out.extend_from_slice(&4u16.to_le_bytes()); // block align (2 ch × 2 bytes)
     out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
     out.extend_from_slice(b"data");
     out.extend_from_slice(&data_bytes.to_le_bytes());
