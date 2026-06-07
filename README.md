@@ -1,4 +1,4 @@
-# martin — CUDA-free Gaussian-splat morphing on AMD
+# martin — deFEEST 3D splatting engine
 
 [![build](https://github.com/annejan/evoke-martin/actions/workflows/build.yml/badge.svg)](https://github.com/annejan/evoke-martin/actions/workflows/build.yml)
 
