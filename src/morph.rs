@@ -151,6 +151,27 @@ pub fn drop_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
         .collect()
 }
 
+/// RAIN source: particles start high AND scattered sideways (staggered heights), so they fall
+/// diagonally inward into place — a shower raining in, vs `drop`'s straight vertical fall.
+pub fn rain_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let spread = height * 0.6;
+            let mut s = *g;
+            s.position_visibility.position = [
+                p[0] + (hash01(k, 40_503) - 0.5) * spread,
+                p[1] + height * (0.2 + 1.4 * hash01(k, 2_654_435_761)), // staggered fall heights
+                p[2] + (hash01(k, 2_246_822_519) - 0.5) * spread,
+            ];
+            s
+        })
+        .collect()
+}
+
 /// SWIRL source: shape rotated about the vertical (Y) axis and pushed out, so it sweeps in.
 /// (Linear position lerp → an approximate spiral; a true arc would need the shader.)
 pub fn swirl_of(shape: &[Gaussian3d], angle: f32, expand: f32) -> Vec<Gaussian3d> {

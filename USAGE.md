@@ -219,6 +219,7 @@ of them). It can sit anywhere on the line, but reads best last:
 | `~explode` | gathers in from an outward burst |
 | `~implode` | expands out from a dense point |
 | `~drop` | falls straight down into place |
+| `~rain` | falls in from scattered high points — a staggered shower (vs `~drop`'s straight fall) |
 | `~swirl` | sweeps/spirals in around the vertical axis (cheap, straight-line) |
 
 **Per-particle** (the vendored shader staggers each splat — great for text):

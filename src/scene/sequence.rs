@@ -14,7 +14,9 @@ use bevy_gaussian_splatting::{
 };
 
 use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
-use crate::morph::{ball_of, drop_of, explode_of, fade_of, implode_of, resample_morton, swirl_of};
+use crate::morph::{
+    ball_of, drop_of, explode_of, fade_of, implode_of, rain_of, resample_morton, swirl_of,
+};
 use crate::scene::content::{parse_source, part_gaussians, side_by_side, PartContent};
 use crate::scene::{cloud_base_rotation, file_name_of, parent_dir, AssetRoot, NORMALIZE_EXTENT};
 use crate::score;
@@ -41,6 +43,7 @@ pub(crate) enum Transition {
     Explode, // gather in from an outward burst
     Implode, // expand out from a dense point
     Drop,    // fall straight down into place
+    Rain,    // fall in from scattered high points (a shower), staggered
     Swirl,   // sweep/spiral in around the vertical axis
     // --- per-particle (shader transition_mode) ---
     Typewriter, // reveal left→right as a moving edge (great for text)
@@ -62,6 +65,7 @@ impl Transition {
             "explode" => Transition::Explode,
             "implode" => Transition::Implode,
             "drop" => Transition::Drop,
+            "rain" => Transition::Rain,
             "swirl" => Transition::Swirl,
             "typewriter" | "type" => Transition::Typewriter,
             "wipe" => Transition::Wipe,
@@ -508,6 +512,7 @@ pub(crate) fn build_sequence(
             Transition::Explode => Some(explode_of(&shaped, r * 1.6)),
             Transition::Implode => Some(implode_of(&shaped)),
             Transition::Drop => Some(drop_of(&shaped, r * 2.5)),
+            Transition::Rain => Some(rain_of(&shaped, r * 3.0)),
             Transition::Swirl => Some(swirl_of(&shaped, 2.4, 1.5)),
             // Per-particle (shader) transitions: identity source — positions/opacity match the
             // target and the vendored shader staggers them per particle over the morph.
