@@ -439,6 +439,7 @@ pub(crate) fn build_sequence(
             PartContent::Text(s) => format!("text \"{s}\""),
             PartContent::Image(name) => format!("image {name}"),
             PartContent::Mesh(name) => format!("mesh {name}"),
+            PartContent::Model(name) => format!("model {name}"),
             PartContent::Splats(list) => list
                 .iter()
                 .map(|(n, _)| n.as_str())

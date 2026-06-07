@@ -24,6 +24,10 @@ pub(crate) enum PartContent {
     Mesh(String),
     /// one or more splats (filename in the asset dir, world offset) combined into one shape
     Splats(Vec<(String, Vec3)>),
+    /// a **real glTF mesh** (`.glb`/`.gltf`) rendered as PBR geometry *alongside* the splats (not
+    /// sampled to gaussians) — they share the camera + depth, so meshes and splats coexist.
+    /// Compose-stage only (a rigid prop; it doesn't morph).
+    Model(String),
 }
 
 /// Parse a source head (`text:` / `wall:` / `image:` / `mesh:` / `splat:`) into a `PartContent`.
@@ -40,6 +44,8 @@ pub(crate) fn parse_source(head: &str) -> Option<PartContent> {
         PartContent::Image(name.trim().to_string())
     } else if let Some(name) = head.strip_prefix("mesh:") {
         PartContent::Mesh(name.trim().to_string())
+    } else if let Some(name) = head.strip_prefix("model:") {
+        PartContent::Model(name.trim().to_string())
     } else if let Some(p) = head.strip_prefix("splat:") {
         PartContent::Splats(side_by_side(
             p.split('+').map(str::trim).filter(|x| !x.is_empty()),
@@ -122,6 +128,8 @@ pub(crate) fn part_gaussians(
                 .unwrap_or(0.2);
             mesh::build_mesh_gaussians(&root.join(name), count, splat, thin, rgb)
         }
+        // A real glTF mesh isn't sampled to gaussians — build_composition spawns it as PBR geometry.
+        PartContent::Model(_) => Vec::new(),
         PartContent::Splats(list) => {
             let mut out = Vec::new();
             for (name, off) in list {

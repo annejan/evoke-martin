@@ -113,6 +113,14 @@ The effect: a shape→shape morph *flocks/swarms* between the two scenes instead
 
 > Same sort caveat as §2/§4. Driven by the morph `time`, so it self-cancels at the endpoints.
 
+## 7. Don't claim gltf/glb extensions in the scene loader  (`src/io/scene.rs` — martin app need)
+
+`GaussianSceneLoader` (KHR_gaussian_splatting glTF) claimed `["gltf","glb"]`, shadowing Bevy's native
+`GltfLoader`. martin loads its splats from `.ply` and wants Bevy's glTF loader free so it can render
+**real PBR meshes alongside the splats** (the app's `model:` compose source — meshes + splats share
+the camera + the depth test, so they composite). Changed `extensions()` to return `&[]`; the loader
+still exists for explicit type-loads, it just no longer grabs the extension. (One-line, reversible.)
+
 ---
 
 ## Not a fork (for reference)

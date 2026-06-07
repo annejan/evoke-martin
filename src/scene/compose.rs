@@ -3,6 +3,7 @@
 
 use std::f32::consts::PI;
 
+use bevy::gltf::GltfAssetLabel;
 use bevy::prelude::*;
 use bevy_gaussian_splatting::sort::SortMode;
 use bevy_gaussian_splatting::{CloudSettings, PlanarGaussian3d, PlanarGaussian3dHandle};
@@ -35,6 +36,22 @@ impl Composed {
     /// The object's source content — so the splat loader can collect its `splat:` filenames.
     pub(crate) fn content(&self) -> &PartContent {
         &self.content
+    }
+
+    /// The motion state carried on the spawned entity (shared by splat clouds + mesh props).
+    fn anim(&self, base_rot: Quat) -> ComposeAnim {
+        ComposeAnim {
+            base_pos: self.pos,
+            base_rot,
+            base_scale: self.scale,
+            spin: self.spin * (PI / 180.0),
+            sway: self.sway * (PI / 180.0),
+            bob: self.bob,
+            drift: self.drift,
+            appear: self.appear,
+            out: self.out,
+            fade: self.fade,
+        }
     }
 }
 
@@ -155,9 +172,11 @@ fn vec3_csv(s: &str) -> Vec3 {
 
 /// Build the stage once every referenced splat has loaded: each object → its own gaussian cloud
 /// entity placed at its transform with a `ComposeAnim` for motion. Frames the camera on the union.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_composition(
     mut commands: Commands,
     mut assets: ResMut<Assets<PlanarGaussian3d>>,
+    asset_server: Res<AssetServer>,
     comp: Option<ResMut<Composition>>,
     state: Option<Res<SeqState>>,
     root: Res<AssetRoot>,
@@ -179,7 +198,31 @@ pub(crate) fn build_composition(
         .and_then(|s| s.parse().ok())
         .unwrap_or(120_000);
     let mut placed: Vec<(Vec3, f32)> = Vec::new(); // (centre, radius) per object, for framing
+    let mut any_model = false;
     for obj in &comp.objects {
+        // A real glTF mesh prop: rendered as PBR geometry alongside the splats (no flip — glTF is
+        // Y-up native; the splats are flipped to match). It shares the camera + depth buffer, so it
+        // composites with the splat clouds. Spawned, not sampled to gaussians.
+        if let PartContent::Model(name) = &obj.content {
+            let rot = Quat::from_euler(
+                EulerRot::XYZ,
+                obj.rot.x.to_radians(),
+                obj.rot.y.to_radians(),
+                obj.rot.z.to_radians(),
+            );
+            commands.spawn((
+                SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(name.clone()))),
+                Transform {
+                    translation: obj.pos,
+                    rotation: rot,
+                    scale: Vec3::splat(obj.scale),
+                },
+                obj.anim(rot),
+            ));
+            placed.push((obj.pos, 1.0)); // rough radius (the mesh size is async); tune with MARTIN_ZOOM
+            any_model = true;
+            continue;
+        }
         let mut raw = part_gaussians(&obj.content, &state, &assets, &root.0);
         if raw.is_empty() {
             continue;
@@ -217,20 +260,28 @@ pub(crate) fn build_composition(
                 rotation: rot,
                 scale: Vec3::splat(obj.scale),
             },
-            ComposeAnim {
-                base_pos: obj.pos,
-                base_rot: rot,
-                base_scale: obj.scale,
-                spin: obj.spin * (PI / 180.0),
-                sway: obj.sway * (PI / 180.0),
-                bob: obj.bob,
-                drift: obj.drift,
-                appear: obj.appear,
-                out: obj.out,
-                fade: obj.fade,
-            },
+            obj.anim(rot),
         ));
         placed.push((obj.pos, NORMALIZE_EXTENT * 0.5 * obj.scale));
+    }
+    // Mesh props need lighting (the splats don't); a key + a soft fill so no side goes black.
+    if any_model {
+        commands.spawn((
+            DirectionalLight {
+                illuminance: 9000.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.9, 0.6, 0.0)),
+        ));
+        commands.spawn((
+            DirectionalLight {
+                illuminance: 3500.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.7, -0.8, 0.0)),
+        ));
     }
     comp.built = true;
     if placed.is_empty() {
@@ -269,11 +320,13 @@ pub(crate) fn build_composition(
 pub(crate) fn animate_composition(
     clock: Res<SeqClock>,
     beat: Res<crate::scene::beat::Beat>,
-    mut q: Query<(&ComposeAnim, &mut Transform, &mut CloudSettings)>,
+    // CloudSettings is optional: splat objects have it (opacity fade/flare), mesh props don't (they
+    // still spin/bob/drift via Transform).
+    mut q: Query<(&ComposeAnim, &mut Transform, Option<&mut CloudSettings>)>,
 ) {
     let t = clock.t;
     let k = beat.intensity;
-    for (a, mut tf, mut cs) in &mut q {
+    for (a, mut tf, cs) in &mut q {
         // spin = continuous rotation; sway = a gentle oscillation around the base orientation
         // (swings a hollow-back single-image splat left/right without ever facing away).
         let osc = (t * 0.6).sin();
@@ -292,20 +345,22 @@ pub(crate) fn animate_composition(
         tf.translation = a.base_pos + a.drift * t + Vec3::Y * bob;
         // kick thumps the object's scale (bulge is a no-op on a static cloud, so scale carries it).
         tf.scale = Vec3::splat(a.base_scale * (1.0 + beat.kick * 0.06 * k));
-        let fin = if a.appear < 0.0 {
-            1.0 // no `in` → visible from the start (robust even if the clock hasn't advanced)
-        } else {
-            ((t - a.appear) / a.fade.max(1e-3)).clamp(0.0, 1.0)
-        };
-        let fout = if a.out < f32::MAX {
-            ((a.out + a.fade - t) / a.fade.max(1e-3)).clamp(0.0, 1.0)
-        } else {
-            1.0
-        };
-        // snare flares the bloom, hat shimmers — scaled by current visibility so beats don't
-        // fight the fade-in.
-        let vis = fin.min(fout);
-        cs.global_opacity = vis * (1.0 + (beat.snare * 0.4 + beat.hat * 0.12) * k);
+        // splat objects fade in/out via global_opacity (+ snare flare / hat shimmer); mesh props
+        // have no CloudSettings and just animate their transform above.
+        if let Some(mut cs) = cs {
+            let fin = if a.appear < 0.0 {
+                1.0 // no `in` → visible from the start (robust even if the clock hasn't advanced)
+            } else {
+                ((t - a.appear) / a.fade.max(1e-3)).clamp(0.0, 1.0)
+            };
+            let fout = if a.out < f32::MAX {
+                ((a.out + a.fade - t) / a.fade.max(1e-3)).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            let vis = fin.min(fout);
+            cs.global_opacity = vis * (1.0 + (beat.snare * 0.4 + beat.hat * 0.12) * k);
+        }
     }
 }
 
