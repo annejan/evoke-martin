@@ -331,10 +331,12 @@ Tips so it reads well once sampled into splats:
   edits (recolour, apply transforms, re-export) — good for a repeatable asset bake.
 - **SVG → OpenSCAD extrude (the deFEEST logo, no Blender on the box).**
   `pipeline/svg_extrude_logo.py` builds the 3D logo from the official vector `assets/defeest.svg`: it
-  splits the SVG into its three colour layers (yellow base ellipse / blue ellipse / yellow letters),
-  `openscad linear_extrude(center=true)` each to its own thickness (yellow thinnest → blue → letters
-  thickest), and assembles them — every layer centred on z=0, so the logo is **mirror-symmetric**
-  (reads from the front *and* the back). One command regenerates both `assets/defeest.glb` (canonical
+  splits the SVG into its three colour layers (yellow base ellipse / blue ellipse / yellow letters)
+  and `openscad`-extrudes each, centred on z=0 (so the logo is **mirror-symmetric** — reads front
+  *and* back) in a coin/badge layout: the yellow **rim** (ellipse minus the blue field) and the
+  **letters** stand proud at the same thickness, the **blue** field is thinner so it sits **inset**,
+  and only the rim's outer edge gets a very subtle soft bevel (the letters stay crisp). One command
+  regenerates both `assets/defeest.glb` (canonical
   glTF) and `assets/defeest.dae` (what the show loads via `mesh:`), each layer its own coloured
   material. Self-verify headless: `pipeline/logo-check.compose` (one `mesh:` line) +
   `MARTIN_SHOT=/tmp/x.png MARTIN_SHOT_AT=3`.

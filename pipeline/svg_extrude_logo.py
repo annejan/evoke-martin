@@ -4,17 +4,18 @@
 End-to-end (needs `openscad` on PATH; no Blender required):
   1. split defeest.svg into its three colour layers — yellow base ellipse,
      blue ellipse, yellow letters (path order: [0]=base, [1]=blue, [2:]=text);
-  2. `openscad linear_extrude(center=true)` each to its own thickness, so every
-     layer is centred on z=0 → the logo is **mirror-symmetric** (reads from the
-     front AND the back);
+  2. `openscad` extrude each, centred on z=0 (so the logo is **mirror-symmetric**,
+     reading from the front AND the back), in a coin/badge layout: the yellow RIM
+     (the ellipse minus the blue field) and the LETTERS stand proud at the SAME
+     thickness, while the BLUE field is thinner so it sits INSET (recessed). Only
+     the yellow rim's OUTER edge gets a very subtle soft bevel (minkowski on the
+     convex ellipse, then the blue field is punched out with a crisp inner edge);
+     the letters stay crisp;
   3. assemble the three extrusions into ONE glTF (`defeest.glb`, canonical) and
      Collada (`defeest.dae`, what the show loads via `mesh:`), each layer its
      own coloured material.
 
-Depths are layered like the original logo: yellow thinnest → blue → letters
-thickest (ratio 1:4:6), tuned to this logo's ~60-unit extruded width.
-
-    python3 assets/svg_extrude_logo.py        # regenerates defeest.glb + .dae
+    python3 pipeline/svg_extrude_logo.py      # regenerates defeest.glb + .dae
 """
 import struct, json, os, re, subprocess, tempfile
 import xml.etree.ElementTree as ET
@@ -27,10 +28,13 @@ SVG_NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", SVG_NS)   # default ns (no ns0: prefixes — openscad needs clean SVG)
 YELLOW = (1.0, 0.9608, 0.4274)        # SVG fill rgb(100%,96.08%,42.74%)
 BLUE   = (0.1098, 0.3882, 0.6863)     # SVG fill rgb(10.98%,38.82%,68.63%)
-# (svg-key, layer-name, rgb, thickness) — base thinnest, letters thickest
-LAYERS = [("base", "Yellow", YELLOW, 0.5),
-          ("blue", "Blue",   BLUE,   2.0),
-          ("text", "Letters", YELLOW, 3.0)]
+# Coin/badge build: the yellow RIM (the ellipse minus the blue field) and the
+# LETTERS stand proud at the SAME thickness; the BLUE field is thinner so it sits
+# INSET (recessed) between them. Everything centred on z=0 → mirror-symmetric.
+# Only the yellow rim gets a soft bevel — its outer edge is the coin's rim.
+RIM_T = LETTER_T = 3.0     # rim + letters: same thickness, the proud top level
+BLUE_T = 2.0              # thinner → recessed / inset between rim and letters
+RIM_BEVEL = 0.04          # VERY subtle soft rim radius, as a fraction of RIM_T (just-rounded edge)
 
 # ---- 1. split defeest.svg into base / blue / text path groups ----
 root = ET.parse(SVG).getroot()
@@ -49,14 +53,32 @@ def write_svg(key):
     ET.ElementTree(svg).write(path, xml_declaration=True, encoding="utf-8")
     return path
 
-# ---- 2. openscad extrude each layer, centred on z=0 ----
-def extrude(key, thickness):
-    svg_path = write_svg(key)
-    scad = os.path.join(tmp, f"{key}.scad")
-    stl = os.path.join(tmp, f"{key}.stl")
+base_svg, blue_svg, text_svg = write_svg("base"), write_svg("blue"), write_svg("text")
+def imp(p): return f'import("{p}", center=false)'
+
+# Bodies, all centred on z=0. The yellow rim rounds only its OUTER edge: minkowski
+# on the **convex full ellipse** (fast), THEN punch the blue field out — a sharp
+# inner edge, which is right where it meets the recessed blue. Letters + blue are
+# plain extrudes (crisp). r is tiny → a barely-there soft edge.
+r = RIM_BEVEL * RIM_T
+rim_body = (
+    f'difference() {{\n'
+    f'  minkowski() {{ linear_extrude(height={RIM_T - 2*r:.4f}, center=true) '
+    f'offset(delta={-r:.4f}) {imp(base_svg)}; sphere(r={r:.4f}, $fn=12); }}\n'
+    f'  linear_extrude(height={RIM_T * 2:.4f}, center=true) {imp(blue_svg)};\n'
+    f'}}')
+BUILD = [
+    ("Yellow_rim", YELLOW, rim_body),
+    ("Letters",    YELLOW, f'linear_extrude(height={LETTER_T}, center=true) {imp(text_svg)};'),
+    ("Blue",       BLUE,   f'linear_extrude(height={BLUE_T}, center=true) {imp(blue_svg)};'),
+]
+
+# ---- 2. openscad: run each body to an STL ----
+def extrude(name, body):
+    scad = os.path.join(tmp, f"{name}.scad")
+    stl = os.path.join(tmp, f"{name}.stl")
     with open(scad, "w") as f:
-        f.write(f'$fn=96;\nlinear_extrude(height={thickness}, center=true) '
-                f'import("{svg_path}", center=false);\n')
+        f.write(f'$fn=96;\n{body}\n')
     subprocess.run(["openscad", "-o", stl, scad], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return stl
@@ -78,7 +100,7 @@ def read_stl(path):
             pos.append(v); nrm.append(fn)
     return pos, nrm
 
-layers = [(name, rgb, *read_stl(extrude(key, th))) for key, name, rgb, th in LAYERS]
+layers = [(name, rgb, *read_stl(extrude(name, body))) for name, rgb, body in BUILD]
 
 # ---- 3a. glTF (.glb, canonical) ----
 bin_ = bytearray()
