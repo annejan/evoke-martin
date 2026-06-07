@@ -329,16 +329,19 @@ Tips so it reads well once sampled into splats:
   node transforms** in the JSON (geometry is binary, but those bits are plain JSON — git-diffable).
 - **Headless Blender Python** — `blender-5.0 --background --python edit.py` for reproducible scripted
   edits (recolour, apply transforms, re-export) — good for a repeatable asset bake.
-- **Pure-stdlib glTF/Collada surgery** (no Blender on the box) — the JSON node matrices + geometry
-  arrays are plain text/binary you can rewrite directly. The deFEEST logo was finished this way
-  (`assets/smooth_cylinders{,_dae}.py` rebuild the two disc cylinders 32→128-seg smooth;
-  `assets/layer_depths.py` retunes per-part Z thickness/offset for a **mirror-symmetric** real-object
-  look — letters thickest, centred on z=0 so both faces read). Each script patches **both**
-  `defeest.glb` (canonical) and `defeest.dae` (what the show loads) so they stay in sync. Self-verify
-  headless: `assets/logo-check.compose` (one `mesh:` line) + `MARTIN_SHOT=/tmp/x.png MARTIN_SHOT_AT=3`.
+- **SVG → OpenSCAD extrude (the deFEEST logo, no Blender on the box).**
+  `pipeline/svg_extrude_logo.py` builds the 3D logo from the official vector `assets/defeest.svg`: it
+  splits the SVG into its three colour layers (yellow base ellipse / blue ellipse / yellow letters),
+  `openscad linear_extrude(center=true)` each to its own thickness (yellow thinnest → blue → letters
+  thickest), and assembles them — every layer centred on z=0, so the logo is **mirror-symmetric**
+  (reads from the front *and* the back). One command regenerates both `assets/defeest.glb` (canonical
+  glTF) and `assets/defeest.dae` (what the show loads via `mesh:`), each layer its own coloured
+  material. Self-verify headless: `pipeline/logo-check.compose` (one `mesh:` line) +
+  `MARTIN_SHOT=/tmp/x.png MARTIN_SHOT_AT=3`.
 **Asset provenance** (licences declared in `REUSE.toml`):
-- **deFEEST logo** (`defeest.dae`/`.glb` from [scene.rs](https://scene.rs/collada/deFEEST.dae);
-  `defeest-logo.png` from [defeest.nl](https://defeest.nl)) — scene.rs is deFEEST (= Anne Jan); **MIT**.
+- **deFEEST logo** — official vector `defeest.svg` (via [Iconape](https://iconape.com)); the 3D
+  `defeest.dae`/`.glb` are extruded from it (`pipeline/svg_extrude_logo.py`). `defeest-logo.png` from
+  [defeest.nl](https://defeest.nl). deFEEST = Anne Jan; **MIT**.
 - **Bornhack Ægg / badge board** (`aegg.dae`/`.glb`, `bornhack2026-hardware.dae`) — from
   [codeberg.org/Ranzbak/bornhack2026-hardware](https://codeberg.org/Ranzbak/bornhack2026-hardware),
   **MIT © Badge.Team**.

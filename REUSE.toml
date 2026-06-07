@@ -60,9 +60,10 @@ SPDX-FileCopyrightText = "2022 The Relief SingleLine Project Authors"
 SPDX-License-Identifier = "OFL-1.1"
 
 # ── Branded mesh assets (provenance + permissions in USAGE "Asset provenance") ──
-# deFEEST logo — from scene.rs / defeest.nl; scene.rs is deFEEST (= Anne Jan).
+# deFEEST logo — official vector defeest.svg (via Iconape); .dae/.glb are extruded from it
+# (pipeline/svg_extrude_logo.py). defeest-logo.png from defeest.nl. deFEEST = Anne Jan.
 [[annotations]]
-path = ["assets/defeest.dae", "assets/defeest.glb", "assets/defeest-logo.png"]
+path = ["assets/defeest.svg", "assets/defeest.dae", "assets/defeest.glb", "assets/defeest-logo.png"]
 SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
 SPDX-License-Identifier = "MIT"
 
@@ -78,9 +79,9 @@ path = "assets/bitterbal.obj"
 SPDX-FileCopyrightText = "Maali <https://maali.nl>"
 SPDX-License-Identifier = "LicenseRef-Maali"
 
-# logo / mesh helper scripts.
+# logo build tooling + render harness.
 [[annotations]]
-path = "assets/*.py"
+path = ["pipeline/svg_extrude_logo.py", "pipeline/logo-check.compose"]
 SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
 SPDX-License-Identifier = "MIT"
 
