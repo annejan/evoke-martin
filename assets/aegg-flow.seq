@@ -10,6 +10,8 @@
 # MARTIN_ROT orients the WHOLE cloud (mesh + its splats together — they always coincide); 90,0,0
 # stands this board upright/face-on. MARTIN_MESH_COUNT/_SPLAT/_THIN tune the sampled disks (as mesh:).
 
-glb:aegg.glb       @5,1               # real mesh, crisp — then dissolves into its own splats
-splat:doggo.ply    @2,3.5   ~swarm    # …which SWARM into the doggo
+# the arc: ball of random splats → the badge AS splats → the splats MATERIALIZE into the crisp mesh
+# → it holds → DISSOLVES back to splats → which swarm into the doggo → and flow on into a title.
+glb:aegg.glb       @3,3     ~ball     # random splats → badge splats → materialize → mesh → dissolve
+splat:doggo.ply    @2,3.5   ~swarm    # …the splats SWARM into the doggo
 text:deFEEST       @3,3     ~swarm    # …and flow on into a title

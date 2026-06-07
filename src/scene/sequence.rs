@@ -794,6 +794,15 @@ pub(crate) fn part_director(
             cs.deform_amp *= 1.0 + (beat.kick * 0.6 + beat.snare * 0.3) * k;
         }
     }
+
+    // glb: dissolve — hide the coincident splats while the solid mesh is crisp (so they don't poke
+    // through it), crossfading them out over MODEL_FADE as the mesh materializes. They're visible
+    // during the splat-assemble (morphing) and come back automatically on the morph-out (next part),
+    // when they flow away as the mesh dissolves. Complements animate_seq_model's mesh-alpha envelope.
+    if matches!(parts[idx].content, PartContent::GlMesh(_)) && !morphing {
+        let into_hold = t - (starts[idx] + parts[idx].morph);
+        cs.global_opacity *= (1.0 - into_hold / MODEL_FADE).clamp(0.0, 1.0);
+    }
 }
 
 /// Add `NoFrustumCulling` to the sequence entity once its Aabb exists, so morph/ball
@@ -1009,22 +1018,25 @@ pub(crate) fn animate_seq_model(
         return;
     }
     let (starts, parts) = (&state.starts, &seq.parts);
-    // Crisp from the part's START (covering its assemble — so the ball/morph-in hides behind the
-    // opaque mesh), holding until the NEXT part's morph, over which it dissolves.
-    let appear = starts[m.part];
+    // The crossfade choreography (complemented by part_director suppressing the coincident splats):
+    // the part first assembles AS SPLATS (mesh hidden), then the mesh MATERIALIZES over MODEL_FADE
+    // (splats → mesh), holds crisp, then DISSOLVES over the next part's morph (mesh → splats), which
+    // then morph on. So: …→ splats → mesh → splats → … reads as one continuous arc.
+    let assemble_end = starts[m.part] + parts[m.part].morph;
+    let materialize_end = assemble_end + MODEL_FADE;
     let (dissolve_start, dissolve_end) = match m.part + 1 {
         next if next < parts.len() => (starts[next], starts[next] + parts[next].morph),
         _ => (f32::MAX, f32::MAX), // last part: never dissolves, just stays
     };
     let t = clock.t;
-    let vis = if t < appear {
-        0.0
-    } else if t < appear + MODEL_FADE {
-        (t - appear) / MODEL_FADE
+    let vis = if t < assemble_end {
+        0.0 // still assembling as splats — mesh hidden
+    } else if t < materialize_end {
+        (t - assemble_end) / MODEL_FADE // splats coalesce into the solid mesh
     } else if t < dissolve_start {
-        1.0
+        1.0 // crisp hold
     } else if t < dissolve_end {
-        1.0 - (t - dissolve_start) / (dissolve_end - dissolve_start).max(1e-3)
+        1.0 - (t - dissolve_start) / (dissolve_end - dissolve_start).max(1e-3) // dissolve back
     } else {
         0.0
     }
