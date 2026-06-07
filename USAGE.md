@@ -271,6 +271,31 @@ up by eye. `glb:` sidesteps it entirely by sampling the gaussians **from the ren
 (normalizing the gaussians and placing the mesh on the identical `(centroid, scale)`), so they're
 coincident *by construction* — no rotation/scale/mirror knobs.
 
+### Authoring / editing the mesh assets (Blender)
+
+Edit the 3D objects (the deFEEST logo, the Ægg board, …) in **Blender 5.0** (`/usr/bin/blender-5.0`
+— installed, all-AMD friendly). **glTF is the canonical format** both ways: Blender imports + exports
+it natively (materials/PBR included) and martin loads `.glb` directly, so there's no lossy hop.
+
+Workflow:
+1. **Import** the object into Blender — `File ▸ Import ▸ glTF 2.0` on `assets/<name>.glb`. (The old
+   `.dae` is legacy; if you only have a `.dae`, convert once with `assimp export in.dae out.glb`.)
+2. **Save it as `<name>.blend`** — that becomes your editable master (keep it out of git; it's big).
+3. Edit / finish the model.
+4. **Export** `File ▸ Export ▸ glTF 2.0 (.glb)` over `assets/<name>.glb`. That's the file martin uses
+   (`glb:<name>.glb` for the dissolve, or `model:<name>.glb` as a compose prop). **So: edit the
+   `.blend`, ship the `.glb`.**
+
+Tips so it reads well once sampled into splats:
+- **Give it real depth/volume.** The sampler scatters disks over the *surface*, so a paper-thin logo
+  becomes a flat disc — a little extrude/bevel gives the splat cloud body.
+- **Set each part's material Base Color.** The `glb:` sampler reads `StandardMaterial.base_color`
+  (one flat colour per material/primitive) — separate materials (e.g. yellow ring / blue field /
+  text) → correctly coloured splats. (Textures aren't sampled by `glb:` yet — use materials.)
+- **Apply transforms** (`Object ▸ Apply ▸ All Transforms`) so the export is in a clean frame; martin
+  orients the whole thing with `MARTIN_ROT` (it moves mesh + splats together).
+- Poly count isn't critical — sampling is area-weighted to the splat budget (`MARTIN_MESH_COUNT`).
+
 > **`~outline` vs `~pen-write` (both text-only).** Same shader mechanism (reveal along the pen
 > path), different font. `~outline` traces the bundled *filled* font (DejaVu) → a glowing neon
 > outline drawing itself on. `~pen-write` traces a bundled *single-stroke* font (Relief
