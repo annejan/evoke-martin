@@ -322,6 +322,32 @@ fn parse_euler_deg(s: &str) -> Option<Quat> {
 /// Build the show: `MARTIN_SEQ` if set, else a shorthand from `MARTIN_TEXT` /
 /// `MARTIN_PLY(+_PLY2)(+_REFORM)`. Returns the sequence + the asset root (the .ply folder).
 pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<String>) {
+    // With NOTHING set, play the bundled default demo (assets/demo.seq) — a self-contained show from
+    // the published, licence-cleared mesh/logo assets — so a fresh `cargo run` is a working demo.
+    let nothing_set = [
+        "MARTIN_SEQ",
+        "MARTIN_COMPOSE",
+        "MARTIN_TEXT",
+        "MARTIN_PLY",
+        "MARTIN_PLY2",
+        "MARTIN_REFORM",
+    ]
+    .iter()
+    .all(|k| std::env::var(k).is_err());
+    if nothing_set {
+        let count = std::env::var("MARTIN_MORPH_COUNT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(200_000);
+        return (
+            Sequence {
+                parts: parse_seq("assets/demo.seq", score),
+                count,
+            },
+            None, // → asset root defaults to `assets/`
+        );
+    }
+
     let count_default = if std::env::var("MARTIN_SEQ").is_ok() {
         200_000
     } else {

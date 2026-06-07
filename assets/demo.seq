@@ -1,16 +1,11 @@
-# martin — a simple demo from the bits we KNOW render crisp: the two Martins, the dog, a wavy wall
-# of text, a falling bitterbal, the deFEEST logo. These are objects (not scene captures), so they
-# fill the frame — no waypoint camera needed; the default front framing + gentle sway just works.
-#
-#   MARTIN_PLY=assets/doggo.ply MARTIN_SEQ=assets/demo.seq MARTIN_SCORE=assets/score.txt \
-#     MARTIN_MORPH_COUNT=300000 ./record.sh demo.mp4
-#
-# Live preview (hear + see it, no file): same line but `cargo +nightly run --release` at the end.
-# It's all data — edit the titles, the order, the effects (~name) and deforms (^name) to taste.
+# martin — the DEFAULT demo. A self-contained show built only from the PUBLISHED, licence-cleared
+# mesh + logo assets (no .ply needed), so a fresh `cargo +nightly run --release` just works out of
+# the box. Anchored to the built-in score; it's all data — edit the titles, order and effects
+# (~arrival, ^deform, out:departure, rot:) to taste.
 
-text:MARTIN GAUS                  @@intro      @8,3       ~pen-write    # title, handwritten on
-splat:martin.ply+martin-peace.ply @@build      @10,3,0.6  ~morph        # the two Martins assemble
-splat:doggo.ply                   @@drop       @16,3,0.6  ~morph        # …morph into the dog, on the drop
-wall:GREETINGS|TO ALL|DEMOSCENERS @@breakdown  @12,3      ~fade ^wave   # a wavy wall of greetings
-mesh:bornhack2026-hardware.dae    @@climax     @14,4      ~drop         # the BornHack 2026 badge drops in
-image:defeest-logo.png            @@outro      @10,3      ~ball         # the deFEEST logo for the outro
+glb:defeest.glb   rot:-90,0,0   @@intro      @9,4               # deFEEST logo: random splats → crisp MESH → dissolve
+mesh:bitterbal.obj              @@build      @8,3   ~drop ^wind   # a brown bitterbal drops in, wobbling
+mesh:aegg.dae                   @@drop       @10,4  ~rain         # the Bornhack Ægg badge rains in on the drop
+wall:GREETINGS|TO ALL|DEMOSCENERS @@breakdown @12,3  ~fade ^wave  # a wavy wall of greetings
+image:defeest-logo.png          @@climax     @10,3  ~ball         # the deFEEST logo (flat image splats)
+text:deFEEST                    @@outro      @8,3   ~rain ^wind    # outro title, fluttering

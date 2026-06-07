@@ -93,9 +93,15 @@ fn main() {
     } else {
         sequence_from_env(&score)
     };
-    // where `image:` PNG parts are read from — the .ply folder, or `assets` by default.
-    let asset_root_path =
-        std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
+    // Asset root: the .ply folder, or `assets` by default. Resolve to an ABSOLUTE path so Bevy's
+    // AssetServer (glb:/model: loads) and martin's own std::fs reads (mesh:/image:) agree regardless
+    // of how the binary is launched (`cargo run` uses CARGO_MANIFEST_DIR; a bare `./target/release/
+    // martin` would otherwise resolve Bevy assets next to the executable → "Path not found").
+    let asset_root_path = {
+        let p =
+            std::path::PathBuf::from(asset_root.clone().unwrap_or_else(|| "assets".to_string()));
+        std::fs::canonicalize(&p).unwrap_or(p)
+    };
 
     // Recording runs HEADLESS — no window at all. On this AMD/RADV setup the window surface
     // renders black whenever it isn't the focused/visible window, so the recorder renders the
@@ -121,12 +127,11 @@ fn main() {
         },
         ..default()
     });
-    if let Some(root) = asset_root {
-        plugins = plugins.set(AssetPlugin {
-            file_path: root,
-            ..default()
-        });
-    }
+    // Point Bevy's AssetServer at the SAME (absolute) root martin's std::fs reads use.
+    plugins = plugins.set(AssetPlugin {
+        file_path: asset_root_path.to_string_lossy().into_owned(),
+        ..default()
+    });
     if recording {
         plugins = plugins.disable::<bevy::winit::WinitPlugin>();
     }
