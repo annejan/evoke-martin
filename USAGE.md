@@ -336,11 +336,17 @@ Tips so it reads well once sampled into splats:
   look — letters thickest, centred on z=0 so both faces read). Each script patches **both**
   `defeest.glb` (canonical) and `defeest.dae` (what the show loads) so they stay in sync. Self-verify
   headless: `assets/logo-check.compose` (one `mesh:` line) + `MARTIN_SHOT=/tmp/x.png MARTIN_SHOT_AT=3`.
-**Asset provenance.** The branded meshes shipped in `assets/` carry clear provenance: the deFEEST
-logo (`defeest.dae`/`.glb` + `defeest-logo.png`) is from [scene.rs](https://scene.rs/collada/deFEEST.dae);
-the Bornhack **Ægg** (`aegg.*`) and `bornhack2026-hardware.dae` are Bornhack's; `bitterbal.obj` is a
-Dutch snack. (`bawl-e.dae` — [bawlsec.com](https://bawlsec.com/), a friend of deFEEST — lives locally
-but isn't published yet.) The large splat bakes (`*.ply`) stay out of git; regenerate from the meshes.
+**Asset provenance** (licences declared in `REUSE.toml`):
+- **deFEEST logo** (`defeest.dae`/`.glb` from [scene.rs](https://scene.rs/collada/deFEEST.dae);
+  `defeest-logo.png` from [defeest.nl](https://defeest.nl)) — scene.rs is deFEEST (= Anne Jan); **MIT**.
+- **Bornhack Ægg / badge board** (`aegg.dae`/`.glb`, `bornhack2026-hardware.dae`) — from
+  [codeberg.org/Ranzbak/bornhack2026-hardware](https://codeberg.org/Ranzbak/bornhack2026-hardware),
+  **MIT © Badge.Team**.
+- **`bitterbal.obj`** — © [Maali](https://maali.nl), used **with Maali's permission**
+  (`LICENSES/LicenseRef-Maali.txt`).
+- `bawl-e.dae` — [bawlsec.com](https://bawlsec.com/)'s logo (Anne Jan's object via scene.rs/deFEEST,
+  originally from [M42D](https://bawlsec.com/authors/m42d.html)) — stays **local** (gitignored, not
+  published). The large splat bakes (`*.ply`) stay out of git too — regenerate from the meshes.
 
 - **Flat-logo shortcut:** if it's really 2D, skip the mesh — `image:logo.png` rasterises a PNG
   straight to crisp flat splats (edit the PNG in GIMP/Inkscape). The 3D `.glb` is only for the

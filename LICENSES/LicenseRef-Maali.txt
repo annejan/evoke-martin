@@ -1,0 +1,6 @@
+LicenseRef-Maali
+
+The "bitterbal" 3D model (assets/bitterbal.obj) is © Maali — https://maali.nl
+
+Maali has granted permission for this model to be used in the deFEEST / martin
+production. All other rights remain with Maali; for any other use, contact Maali.
