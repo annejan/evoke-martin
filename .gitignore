@@ -34,11 +34,10 @@
 **/assets/**/*.ply
 **/assets/**/*.gcloud
 
-# ── 3D meshes + downloaded third-party branding (license-unclear; keep out of git) ──
-*.dae
-*.obj
-*.mtl
-assets/defeest-logo.png
+# ── Branded mesh assets (deFEEST / Bornhack Ægg / hardware / bitterbal) now live
+#    in-repo with provenance — see USAGE.md. bawl-e.dae (bawlsec.com, a friend of
+#    deFEEST) is a pending keeper, not published yet. ──
+/bawl-e.dae
 
 # ── Camera-path scratch (default MARTIN_WAYPOINTS target; name a keeper differently) ──
 /waypoints.json
@@ -63,5 +62,3 @@ assets/hd-test.png
 *.wav
 assets/badge-front.png
 assets/badge-back.png
-assets/aegg.glb
-assets/aegg.dae

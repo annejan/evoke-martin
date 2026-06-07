@@ -4,8 +4,24 @@
 //! so consecutive parts pair k-th↔k-th and *flow* into one another instead of teleporting.
 //! Pure functions over `Gaussian3d` — no Bevy/ECS.
 
-use bevy::math::Vec3;
+use bevy::math::{Quat, Vec3};
 use bevy_gaussian_splatting::Gaussian3d;
+
+/// Rotate a gaussian set in place by `q` (about the origin): both each splat's position AND its
+/// orientation quaternion. Used to bake a per-part rotation into a shape so different parts of a
+/// morph timeline can sit at different orientations (and the morph between them reorients smoothly).
+pub fn rotate_gaussians(v: &mut [Gaussian3d], q: Quat) {
+    if q == Quat::IDENTITY {
+        return;
+    }
+    for g in v.iter_mut() {
+        let p = g.position_visibility.position;
+        g.position_visibility.position = (q * Vec3::from_array(p)).to_array();
+        let r = g.rotation.rotation;
+        let nq = (q * Quat::from_xyzw(r[0], r[1], r[2], r[3])).normalize();
+        g.rotation = [nq.x, nq.y, nq.z, nq.w].into();
+    }
+}
 
 /// Spread a 10-bit integer so its bits occupy every 3rd position (for Morton/Z-order).
 fn part1by2(mut n: u32) -> u32 {

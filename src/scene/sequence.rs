@@ -168,6 +168,7 @@ pub(crate) struct Part {
     pub anchor: Option<f32>,            // absolute start (s) on the music clock; None = relative
     pub deform: Option<Deform>, // persistent deform while held (None = none / MARTIN_DEFORM)
     pub out: Option<Departure>, // how the part LEAVES (`out:name`); None = cross-morph to the next
+    pub rot: Option<Quat>,      // per-part orientation (`rot:rx,ry,rz` deg), baked into the shape
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -242,6 +243,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
         let mut anchor = None;
         let mut deform = None;
         let mut out = None;
+        let mut rot = None;
         let s: String = s
             .split_whitespace()
             .filter(|tok| {
@@ -255,6 +257,10 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
                 }
                 if let Some(d) = tok.strip_prefix("out:").and_then(Departure::parse) {
                     out = Some(d);
+                    return false;
+                }
+                if let Some(q) = tok.strip_prefix("rot:").and_then(parse_euler_deg) {
+                    rot = Some(q);
                     return false;
                 }
                 if let Some(tr) = tok.strip_prefix('~').and_then(Transition::parse) {
@@ -294,9 +300,23 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
             anchor,
             deform,
             out,
+            rot,
         });
     }
     parts
+}
+
+/// Parse `rx,ry,rz` euler **degrees** into a quaternion (for a part's `rot:` token). Needs all three.
+fn parse_euler_deg(s: &str) -> Option<Quat> {
+    let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+    (n.len() == 3).then(|| {
+        Quat::from_euler(
+            EulerRot::XYZ,
+            n[0].to_radians(),
+            n[1].to_radians(),
+            n[2].to_radians(),
+        )
+    })
 }
 
 /// Build the show: `MARTIN_SEQ` if set, else a shorthand from `MARTIN_TEXT` /
@@ -334,6 +354,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             anchor: None,
             deform: None,
             out: None,
+            rot: None,
         };
         return (
             Sequence {
@@ -368,6 +389,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
         anchor: None,
         deform: None,
         out: None,
+        rot: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -379,6 +401,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             anchor: None,
             deform: None,
             out: None,
+            rot: None,
         });
     }
     (Sequence { parts, count }, root)
@@ -543,7 +566,14 @@ pub(crate) fn build_sequence(
     let mut sources: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
     let mut out_clouds: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
     for (idx, raw) in raws.into_iter().enumerate() {
-        let shaped = resample_morton(raw, n);
+        let mut shaped = resample_morton(raw, n);
+        // bake the part's own `rot:` into its shape (so sources/out clouds inherit it, and the morph
+        // between differently-oriented parts reorients smoothly). glb parts rotate in sample_gl_mesh.
+        if let Some(q) = seq.parts[idx].rot {
+            if !matches!(seq.parts[idx].content, PartContent::GlMesh(_)) {
+                crate::morph::rotate_gaussians(&mut shaped, q);
+            }
+        }
         let tr = transitions[idx];
         let r = content_radius;
         // if the PREVIOUS part DEPARTS (washes/disperses away), there's no shape to flow from →
@@ -674,6 +704,7 @@ pub(crate) fn build_sequence(
                 name,
                 idx,
                 entity_rot,
+                part.rot.unwrap_or(Quat::IDENTITY),
                 shapes[idx].clone(),
                 n,
             );
@@ -907,7 +938,8 @@ pub(crate) fn seq_no_cull(
 #[derive(Component)]
 pub(crate) struct SeqModel {
     part: usize,    // sequence part this mesh shadows (drives the cue timing)
-    base_rot: Quat, // the cloud's orientation; the mesh + its splats share it
+    base_rot: Quat, // the cloud's global orientation; the mesh + its splats share it
+    rot: Quat,      // this part's own `rot:` (baked into the sampled splats + the mesh transform)
     shape: Handle<PlanarGaussian3d>, // this part's shape asset, filled from the sampled mesh
     morph_n: usize, // gaussian budget the shape resamples to
     sample_count: usize, // disks to scatter over the mesh before resampling
@@ -925,6 +957,7 @@ fn spawn_gl_dissolve(
     name: &str,
     part: usize,
     base_rot: Quat,
+    rot: Quat,
     shape: Handle<PlanarGaussian3d>,
     morph_n: usize,
 ) {
@@ -941,6 +974,7 @@ fn spawn_gl_dissolve(
         SeqModel {
             part,
             base_rot,
+            rot,
             shape,
             morph_n,
             sample_count: std::env::var("MARTIN_MESH_COUNT")
@@ -1054,14 +1088,18 @@ pub(crate) fn sample_gl_mesh(
         );
         // normalize like every morph part — capture (centroid, scale) to place the mesh identically.
         let (c, k) = crate::morph::normalize_to(&mut raw, NORMALIZE_EXTENT);
+        // bake the part's own `rot:` into the gaussians; the mesh transform gets the same below, so
+        // mesh + splats stay coincident at any orientation.
+        crate::morph::rotate_gaussians(&mut raw, model.rot);
         let shaped = resample_morton(raw, model.morph_n);
         if let Some(cloud) = clouds.get_mut(&model.shape) {
             *cloud = PlanarGaussian3d::from(shaped);
         }
-        // gaussian world = base_rot · (k·(p − c)); match it: scale k, rotate base_rot, shift back.
+        // gaussian world = base_rot · rot · (k·(p − c)); match it on the mesh transform.
+        let br = model.base_rot * model.rot;
         *tf = Transform {
-            translation: -(model.base_rot * (c * k)),
-            rotation: model.base_rot,
+            translation: -(br * (c * k)),
+            rotation: br,
             scale: Vec3::splat(k),
         };
         *vis = Visibility::Visible;

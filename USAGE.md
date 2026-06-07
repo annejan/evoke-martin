@@ -197,7 +197,7 @@ glb:badge.glb                    # a real glTF mesh: rendered crisp, THEN dissol
                                  #   sampled splats (coincident by construction) which morph on
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge   ~transition   ^deform   @@anchor
+…any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   @@anchor
 ```
 
 The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount):
@@ -251,6 +251,13 @@ following part then assembles fresh (a Morph/Swarm arrival after a departure bec
 
 Example: `splat:dog.ply out:wash ; text:HELLO ~rain out:disperse ; splat:dog.ply ~ball` → the dog
 washes away → text rains in then blows to dust → the dog re-forms from the void.
+
+**Per-part rotation** (`rot:rx,ry,rz`, euler **degrees**) orients a single part, *baked into its
+shape* — so different parts can sit at different angles in one show (and the morph between them
+reorients smoothly), without a global `MARTIN_ROT` that would tilt everything. It composes on top of
+`MARTIN_ROT`. Handy when one object's natural frame differs — e.g. a flat logo that needs standing
+up while the dog stays upright: `glb:defeest.glb rot:-90,0,0 ; splat:dog.ply ; text:HELLO`. (Works
+for `glb:` too — the mesh and its sampled splats rotate together.)
 
 ---
 
@@ -322,6 +329,19 @@ Tips so it reads well once sampled into splats:
   node transforms** in the JSON (geometry is binary, but those bits are plain JSON — git-diffable).
 - **Headless Blender Python** — `blender-5.0 --background --python edit.py` for reproducible scripted
   edits (recolour, apply transforms, re-export) — good for a repeatable asset bake.
+- **Pure-stdlib glTF/Collada surgery** (no Blender on the box) — the JSON node matrices + geometry
+  arrays are plain text/binary you can rewrite directly. The deFEEST logo was finished this way
+  (`assets/smooth_cylinders{,_dae}.py` rebuild the two disc cylinders 32→128-seg smooth;
+  `assets/layer_depths.py` retunes per-part Z thickness/offset for a **mirror-symmetric** real-object
+  look — letters thickest, centred on z=0 so both faces read). Each script patches **both**
+  `defeest.glb` (canonical) and `defeest.dae` (what the show loads) so they stay in sync. Self-verify
+  headless: `assets/logo-check.compose` (one `mesh:` line) + `MARTIN_SHOT=/tmp/x.png MARTIN_SHOT_AT=3`.
+**Asset provenance.** The branded meshes shipped in `assets/` carry clear provenance: the deFEEST
+logo (`defeest.dae`/`.glb` + `defeest-logo.png`) is from [scene.rs](https://scene.rs/collada/deFEEST.dae);
+the Bornhack **Ægg** (`aegg.*`) and `bornhack2026-hardware.dae` are Bornhack's; `bitterbal.obj` is a
+Dutch snack. (`bawl-e.dae` — [bawlsec.com](https://bawlsec.com/), a friend of deFEEST — lives locally
+but isn't published yet.) The large splat bakes (`*.ply`) stay out of git; regenerate from the meshes.
+
 - **Flat-logo shortcut:** if it's really 2D, skip the mesh — `image:logo.png` rasterises a PNG
   straight to crisp flat splats (edit the PNG in GIMP/Inkscape). The 3D `.glb` is only for the
   mesh-dissolve.
