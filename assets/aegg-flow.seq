@@ -1,21 +1,15 @@
-# martin — "Ægg flow": the Ægg sampled to GENERATED SPLATS (mesh: surface-samples the badge into
-# gaussians), then the morph engine flows those particles smoothly into the doggo and a title.
-# This is the smooth "mesh → generated splats → hondje/text" — all one gaussian morph. Run:
+# martin — "Ægg dissolve": the Ægg as a REAL glTF mesh that dissolves into its OWN sampled splats,
+# which then morph on into the doggo and a title. `glb:` renders the crisp mesh AND surface-samples
+# its gaussians from that same loaded mesh, so they coincide by construction — no alignment knobs.
+# The mesh holds crisp, then dissolves (material alpha) over the next part's morph while the splats
+# it crumbles into swarm away. Run:
 #
 #   MARTIN_PLY=assets/doggo.ply MARTIN_SEQ=assets/aegg-flow.seq \
-#   MARTIN_MESH_COUNT=250000 MARTIN_MORPH_COUNT=250000 MARTIN_BEAT=2 cargo +nightly run --release
+#   MARTIN_ROT="90,0,0" MARTIN_MORPH_COUNT=250000 MARTIN_BEAT=2 cargo +nightly run --release
 #
-# THE DISSOLVE: overlay the real crisp 3D mesh on part 0 — it shows solid while part 0 holds, then
-# DISSOLVES (material alpha) as the morph to the doggo begins, so the board crumbles into these same
-# generated splats which then swarm away. Add to the run above:
-#
-#   MARTIN_MODEL=aegg.glb MARTIN_MODEL_PART=0 MARTIN_MODEL_SCALE=22 MARTIN_MODEL_ROT="90,0,0"
-#
-# (MARTIN_MODEL_SCALE/_ROT align the mesh with the part's generated splats — tune to taste. The
-# mesh shares the cloud's base flip, so MODEL_ROT is on top of that.) NOTE: part 0 holds STILL (no
-# ^twist/spin) so the rigid mesh and the splats stay aligned for a seamless crumble — a persistent
-# deform would twist the splats out from under the static mesh.
+# MARTIN_ROT orients the WHOLE cloud (mesh + its splats together — they always coincide); 90,0,0
+# stands this board upright/face-on. MARTIN_MESH_COUNT/_SPLAT/_THIN tune the sampled disks (as mesh:).
 
-mesh:aegg.dae      @3,3     ~ball            # the Ægg as generated splats — assembles (held still)
-splat:doggo.ply    @2,3.5   ~swarm           # the particles SWARM into the doggo
-text:deFEEST       @3,3     ~swarm           # …and flow on into a title
+glb:aegg.glb       @5,1               # real mesh, crisp — then dissolves into its own splats
+splat:doggo.ply    @2,3.5   ~swarm    # …which SWARM into the doggo
+text:deFEEST       @3,3     ~swarm    # …and flow on into a title

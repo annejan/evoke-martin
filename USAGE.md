@@ -107,11 +107,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_MESH_SPLAT` | `0.006` | Gaussian splat **in-plane disk size** for a `mesh:` part, as a **fraction of the mesh's largest dimension** (scale-invariant). Each sample is a flat disk aligned to the surface normal. |
 | `MARTIN_MESH_THIN` | `0.2` | Mesh disk thickness as a fraction of `MARTIN_MESH_SPLAT` (how flat the surface splats are). |
 | `MARTIN_MESH_RGB` | texture / vertex / `0.8,0.85,0.95` | Flat `r,g,b` fallback for a `mesh:` part. Colour priority: the material's **diffuse texture** (sampled at the UV; PNG/JPEG) > vertex colours > material diffuse > this. |
-| `MARTIN_MODEL` | — | **The dissolve effect.** Path (in the asset root) to a real `.glb`/`.gltf` mesh overlaid on one sequence part: it shows **solid + crisp** (lit PBR) while that part holds, then **dissolves** (material alpha fades to transparent) as the part morphs out — so a solid mesh crumbles into its coincident `mesh:`-sampled splats, which the morph then swarms away. Pair with a `mesh:` part of the *same* object so the splats match the mesh. |
-| `MARTIN_MODEL_PART` | `0` | Which sequence part the `MARTIN_MODEL` mesh shadows (and dissolves out of). |
-| `MARTIN_MODEL_SCALE` | `1.0` | Uniform scale to fit the model onto its part's generated splats (e.g. a metres-unit `.glb` over a normalized ~2-unit part ≈ `22`). |
-| `MARTIN_MODEL_ROT` | — | `rx,ry,rz` euler **degrees** orienting the model to line up with the part's splats. Tune to taste. |
-| `MARTIN_ROT` | — | `rx,ry,rz` euler **degrees** applied to the cloud — e.g. stand a COLMAP scene upright for a "normal" POV. Default = the portrait flip (gives scenes their abstract sideways look). |
+| `MARTIN_ROT` | — | `rx,ry,rz` euler **degrees** applied to the cloud — e.g. stand a COLMAP scene upright for a "normal" POV. Default = the portrait flip (gives scenes their abstract sideways look). Also orients a `glb:` dissolve (mesh + its splats together). |
 
 ---
 
@@ -197,6 +193,8 @@ text:STRING                      # splat-text (glowing)
 wall:LINE1|LINE2|LINE3           # a multi-line WALL of text (| = newline), or wall:greets.txt
 image:logo.png                   # a PNG in the asset folder, rasterized to gaussians (a logo)
 mesh:logo.dae                    # a 3D mesh (.dae/.obj/.stl/.ply), surface-sampled into gaussians
+glb:badge.glb                    # a real glTF mesh: rendered crisp, THEN dissolves into its own
+                                 #   sampled splats (coincident by construction) which morph on
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
 …any of the above… @hold,morph,bulge   ~transition   ^deform   @@anchor

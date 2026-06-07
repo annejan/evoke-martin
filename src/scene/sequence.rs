@@ -5,6 +5,7 @@
 use bevy::camera::primitives::Aabb;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::gltf::GltfAssetLabel;
+use bevy::mesh::Indices;
 use bevy::prelude::*;
 use bevy_gaussian_splatting::morph::interpolate::GaussianInterpolate;
 use bevy_gaussian_splatting::sort::SortMode;
@@ -443,6 +444,7 @@ pub(crate) fn build_sequence(
             PartContent::Image(name) => format!("image {name}"),
             PartContent::Mesh(name) => format!("mesh {name}"),
             PartContent::Model(name) => format!("model {name}"),
+            PartContent::GlMesh(name) => format!("gl-mesh {name}"),
             PartContent::Splats(list) => list
                 .iter()
                 .map(|(n, _)| n.as_str())
@@ -454,7 +456,9 @@ pub(crate) fn build_sequence(
             crate::morph::extent_of(raw),
             raw.len()
         );
-        if normalize {
+        // a glb: part is a placeholder here (sample_gl_mesh fills + normalizes it from the loaded
+        // mesh later) — don't normalize the placeholder (its zero extent would blow up the scale).
+        if normalize && !matches!(part.content, PartContent::GlMesh(_)) {
             let norm = crate::morph::normalize_to(raw, NORMALIZE_EXTENT);
             if i == 0 {
                 scene_norm = norm;
@@ -599,9 +603,21 @@ pub(crate) fn build_sequence(
         c.framed = true;
     }
 
-    // MARTIN_MODEL: overlay a real mesh on one part that dissolves into its generated splats.
-    // It shares the cloud's base orientation so it lands in the same frame as those splats.
-    spawn_dissolve_model(&mut commands, &asset_server, seq.parts.len(), entity_rot);
+    // `glb:` parts: render the real mesh AND sample its gaussians from that same mesh (filled by
+    // sample_gl_mesh) so the mesh can dissolve into its own splats. Shares the cloud's base frame.
+    for (idx, part) in seq.parts.iter().enumerate() {
+        if let PartContent::GlMesh(name) = &part.content {
+            spawn_gl_dissolve(
+                &mut commands,
+                &asset_server,
+                name,
+                idx,
+                entity_rot,
+                shapes[idx].clone(),
+                n,
+            );
+        }
+    }
 
     state.shapes = shapes;
     state.sources = sources;
@@ -802,58 +818,56 @@ pub(crate) fn seq_no_cull(
     }
 }
 
-/// A real PBR mesh overlaid on one sequence part, dissolving (material alpha) as that part morphs
-/// out — so a solid mesh crumbles into its coincident generated splats. Carries which part it
-/// shadows; `animate_seq_model` reads that part's cue times to drive the fade.
+/// The `glb:` dissolve: a real PBR glTF mesh rendered crisp on one sequence part, whose gaussians
+/// are sampled from that SAME loaded mesh (`sample_gl_mesh`) so they coincide exactly. As the part
+/// morphs out the mesh dissolves (material alpha) and the splats it crumbles into morph away.
 #[derive(Component)]
 pub(crate) struct SeqModel {
-    part: usize,
+    part: usize,    // sequence part this mesh shadows (drives the cue timing)
+    base_rot: Quat, // the cloud's orientation; the mesh + its splats share it
+    shape: Handle<PlanarGaussian3d>, // this part's shape asset, filled from the sampled mesh
+    morph_n: usize, // gaussian budget the shape resamples to
+    sample_count: usize, // disks to scatter over the mesh before resampling
+    splat: f32,     // disk size (fraction of the mesh's largest dim)
+    thin: f32,      // disk thickness fraction
+    sampled: bool,  // done once the mesh has loaded + been sampled
 }
 
-/// `MARTIN_MODEL=<file.glb>`: overlay a real lit mesh on sequence part `MARTIN_MODEL_PART`
-/// (default 0). It fades in crisp as that part finishes assembling, holds, then DISSOLVES as the
-/// part morphs out — revealing the coincident `mesh:`-sampled splats, which the morph swarms away.
-/// `MARTIN_MODEL_SCALE` / `MARTIN_MODEL_ROT` (euler degrees) align it with those splats. Returns
-/// whether a model was spawned (only the lights are needed if so). Splats are unlit, so we add a
-/// key + fill light for the PBR mesh. `base_rot` is the cloud's own orientation (the portrait flip
-/// / `MARTIN_ROT`) — the model shares it so it lands in the same frame as the generated splats, then
-/// `MARTIN_MODEL_ROT` fine-tunes on top.
-fn spawn_dissolve_model(
+/// Spawn a `glb:` dissolve overlay: the rendered glTF mesh (hidden + identity until sampled, so
+/// `sample_gl_mesh` can read its node-local geometry, then place it to coincide with the splats) +
+/// a key/fill light (splats are unlit, the PBR mesh needs light).
+fn spawn_gl_dissolve(
     commands: &mut Commands,
     assets: &AssetServer,
-    part_count: usize,
+    name: &str,
+    part: usize,
     base_rot: Quat,
+    shape: Handle<PlanarGaussian3d>,
+    morph_n: usize,
 ) {
-    let Ok(name) = std::env::var("MARTIN_MODEL") else {
-        return;
+    let env_f = |k: &str, d: f32| {
+        std::env::var(k)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(d)
     };
-    let env_f = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<f32>().ok());
-    let part = std::env::var("MARTIN_MODEL_PART")
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(0)
-        .min(part_count.saturating_sub(1));
-    let scale = env_f("MARTIN_MODEL_SCALE").unwrap_or(1.0);
-    let rot = std::env::var("MARTIN_MODEL_ROT")
-        .ok()
-        .map(|s| {
-            let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-            Quat::from_euler(
-                EulerRot::XYZ,
-                n.first().copied().unwrap_or(0.0).to_radians(),
-                n.get(1).copied().unwrap_or(0.0).to_radians(),
-                n.get(2).copied().unwrap_or(0.0).to_radians(),
-            )
-        })
-        .unwrap_or(Quat::IDENTITY);
     commands.spawn((
-        SceneRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(name))),
-        Transform {
-            rotation: base_rot * rot, // share the cloud's frame; MARTIN_MODEL_ROT tweaks on top
-            scale: Vec3::splat(scale),
-            ..default()
+        SceneRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(name.to_string()))),
+        Transform::IDENTITY,
+        Visibility::Hidden,
+        SeqModel {
+            part,
+            base_rot,
+            shape,
+            morph_n,
+            sample_count: std::env::var("MARTIN_MESH_COUNT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(morph_n),
+            splat: env_f("MARTIN_MESH_SPLAT", 0.006),
+            thin: env_f("MARTIN_MESH_THIN", 0.2),
+            sampled: false,
         },
-        SeqModel { part },
     ));
     commands.spawn((
         DirectionalLight {
@@ -873,10 +887,113 @@ fn spawn_dissolve_model(
     ));
 }
 
-/// Drive the dissolve-model's opacity: invisible until its part is nearly assembled, crisp (opaque)
-/// while the part holds, then fading to transparent over the *next* part's morph — the moment the
-/// generated splats flow away. The only PBR materials in a sequence are this overlay's, so we fade
-/// every `StandardMaterial`.
+/// Once a `glb:` mesh has loaded, surface-sample it into gaussians IN ITS OWN FRAME and fill the
+/// part's shape with them — then place the rendered mesh on the very same `(centroid, scale)` the
+/// gaussians were normalized by, so mesh and splats coincide by construction (no alignment knobs).
+/// The only glTF meshes in a sequence are the overlay's, so we read every `Mesh3d`.
+#[allow(clippy::type_complexity)]
+pub(crate) fn sample_gl_mesh(
+    mut models: Query<(&mut SeqModel, &mut Transform, &mut Visibility)>,
+    prims: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>, &GlobalTransform)>,
+    meshes: Res<Assets<Mesh>>,
+    mats: Res<Assets<StandardMaterial>>,
+    mut clouds: ResMut<Assets<PlanarGaussian3d>>,
+) {
+    for (mut model, mut tf, mut vis) in &mut models {
+        if model.sampled {
+            continue;
+        }
+        let prims: Vec<_> = prims.iter().collect();
+        // wait until the scene has spawned its meshes and every mesh asset is loaded.
+        if prims.is_empty() || prims.iter().any(|(m, _, _)| meshes.get(&m.0).is_none()) {
+            continue;
+        }
+        // triangles in the scene's own frame (the entity is still identity → each child's
+        // GlobalTransform is its node-local transform), one flat material colour per primitive.
+        let mut tris: Vec<[[f32; 3]; 3]> = Vec::new();
+        let mut tri_norms: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
+        let mut tri_rgb: Vec<[f32; 3]> = Vec::new();
+        for (m, mat, gt) in &prims {
+            let Some(mesh) = meshes.get(&m.0) else {
+                continue;
+            };
+            let Some(pos) = mesh
+                .attribute(Mesh::ATTRIBUTE_POSITION)
+                .and_then(|a| a.as_float3())
+            else {
+                continue;
+            };
+            let norms = mesh
+                .attribute(Mesh::ATTRIBUTE_NORMAL)
+                .and_then(|a| a.as_float3());
+            let rgb = mats
+                .get(&mat.0)
+                .map(|sm| {
+                    let c = sm.base_color.to_srgba();
+                    [c.red, c.green, c.blue]
+                })
+                .unwrap_or([0.8, 0.8, 0.8]);
+            let xf = |p: [f32; 3]| gt.transform_point(Vec3::from_array(p)).to_array();
+            let xn = |n: [f32; 3]| {
+                gt.affine()
+                    .transform_vector3(Vec3::from_array(n))
+                    .to_array()
+            };
+            let idxs: Vec<usize> = match mesh.indices() {
+                Some(Indices::U16(v)) => v.iter().map(|&i| i as usize).collect(),
+                Some(Indices::U32(v)) => v.iter().map(|&i| i as usize).collect(),
+                None => (0..pos.len()).collect(),
+            };
+            for t in idxs.chunks_exact(3) {
+                let (Some(&pa), Some(&pb), Some(&pc)) =
+                    (pos.get(t[0]), pos.get(t[1]), pos.get(t[2]))
+                else {
+                    continue;
+                };
+                tris.push([xf(pa), xf(pb), xf(pc)]);
+                tri_norms.push(norms.and_then(|nn| {
+                    Some([xn(*nn.get(t[0])?), xn(*nn.get(t[1])?), xn(*nn.get(t[2])?)])
+                }));
+                tri_rgb.push(rgb);
+            }
+        }
+        if tris.is_empty() {
+            model.sampled = true;
+            continue;
+        }
+        let mut raw = crate::mesh::build_gaussians_from_tris(
+            &tris,
+            &tri_norms,
+            &tri_rgb,
+            model.sample_count,
+            model.splat,
+            model.thin,
+        );
+        // normalize like every morph part — capture (centroid, scale) to place the mesh identically.
+        let (c, k) = crate::morph::normalize_to(&mut raw, NORMALIZE_EXTENT);
+        let shaped = resample_morton(raw, model.morph_n);
+        if let Some(cloud) = clouds.get_mut(&model.shape) {
+            *cloud = PlanarGaussian3d::from(shaped);
+        }
+        // gaussian world = base_rot · (k·(p − c)); match it: scale k, rotate base_rot, shift back.
+        *tf = Transform {
+            translation: -(model.base_rot * (c * k)),
+            rotation: model.base_rot,
+            scale: Vec3::splat(k),
+        };
+        *vis = Visibility::Visible;
+        model.sampled = true;
+        info!(
+            "gl dissolve: sampled {} triangles → {} gaussians",
+            tris.len(),
+            model.morph_n
+        );
+    }
+}
+
+/// Drive the dissolve-mesh's opacity: crisp (opaque) from its part's start through the hold, then
+/// fading to transparent over the *next* part's morph — the moment its splats flow away. The only
+/// PBR materials in a sequence are the overlay's, so we fade every `StandardMaterial`.
 pub(crate) fn animate_seq_model(
     seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
@@ -892,16 +1009,18 @@ pub(crate) fn animate_seq_model(
         return;
     }
     let (starts, parts) = (&state.starts, &seq.parts);
-    let full_at = starts[m.part] + parts[m.part].morph;
+    // Crisp from the part's START (covering its assemble — so the ball/morph-in hides behind the
+    // opaque mesh), holding until the NEXT part's morph, over which it dissolves.
+    let appear = starts[m.part];
     let (dissolve_start, dissolve_end) = match m.part + 1 {
         next if next < parts.len() => (starts[next], starts[next] + parts[next].morph),
         _ => (f32::MAX, f32::MAX), // last part: never dissolves, just stays
     };
     let t = clock.t;
-    let vis = if t < full_at - MODEL_FADE {
+    let vis = if t < appear {
         0.0
-    } else if t < full_at {
-        (t - (full_at - MODEL_FADE)) / MODEL_FADE
+    } else if t < appear + MODEL_FADE {
+        (t - appear) / MODEL_FADE
     } else if t < dissolve_start {
         1.0
     } else if t < dissolve_end {

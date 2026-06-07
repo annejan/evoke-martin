@@ -28,6 +28,10 @@ pub(crate) enum PartContent {
     /// sampled to gaussians) — they share the camera + depth, so meshes and splats coexist.
     /// Compose-stage only (a rigid prop; it doesn't morph).
     Model(String),
+    /// a **real glTF mesh** (`.glb`/`.gltf`) rendered crisp AND surface-sampled into gaussians from
+    /// that *same* loaded mesh — so the mesh can DISSOLVE into its own splats (which then morph on).
+    /// Sequence-only; the gaussians are filled at runtime by `sample_gl_mesh` (see sequence.rs).
+    GlMesh(String),
 }
 
 /// Parse a source head (`text:` / `wall:` / `image:` / `mesh:` / `splat:`) into a `PartContent`.
@@ -46,6 +50,11 @@ pub(crate) fn parse_source(head: &str) -> Option<PartContent> {
         PartContent::Mesh(name.trim().to_string())
     } else if let Some(name) = head.strip_prefix("model:") {
         PartContent::Model(name.trim().to_string())
+    } else if let Some(name) = head
+        .strip_prefix("glb:")
+        .or_else(|| head.strip_prefix("gltf:"))
+    {
+        PartContent::GlMesh(name.trim().to_string())
     } else if let Some(p) = head.strip_prefix("splat:") {
         PartContent::Splats(side_by_side(
             p.split('+').map(str::trim).filter(|x| !x.is_empty()),
@@ -130,6 +139,9 @@ pub(crate) fn part_gaussians(
         }
         // A real glTF mesh isn't sampled to gaussians — build_composition spawns it as PBR geometry.
         PartContent::Model(_) => Vec::new(),
+        // A glTF dissolve part: a transparent placeholder now; sample_gl_mesh fills it from the
+        // loaded mesh once it's ready (invisible until then, and the rendered mesh covers it).
+        PartContent::GlMesh(_) => mesh::transparent_placeholder(256),
         PartContent::Splats(list) => {
             let mut out = Vec::new();
             for (name, off) in list {

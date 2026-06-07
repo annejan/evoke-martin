@@ -129,6 +129,7 @@ impl Plugin for ScenePlugin {
                     sequence::build_sequence,
                     sequence::part_director,
                     sequence::seq_no_cull,
+                    sequence::sample_gl_mesh,
                     sequence::animate_seq_model,
                     advance_seq_clock,
                     compose::build_composition,

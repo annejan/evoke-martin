@@ -98,6 +98,134 @@ fn tangent_basis(n: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     (t, b)
 }
 
+/// Append one flat-disk gaussian at `pos`, lying in the surface plane (local +Z = `n_axis`).
+fn push_disk(
+    out: &mut Vec<Gaussian3d>,
+    pos: [f32; 3],
+    n_axis: [f32; 3],
+    sh: SphericalHarmonicCoefficients,
+    r_plane: f32,
+    r_thin: f32,
+) {
+    let (t, b) = tangent_basis(n_axis);
+    out.push(Gaussian3d {
+        position_visibility: [pos[0], pos[1], pos[2], 1.0].into(),
+        spherical_harmonic: sh,
+        rotation: quat_from_basis(t, b, n_axis).into(),
+        scale_opacity: [r_plane, r_plane, r_thin, 1.0].into(),
+    });
+}
+
+/// Area-weighted surface sampling shared by the file loader and the glTF dissolve: scatter
+/// `target_count` flat disks across the triangles (≥1 per triangle so thin features survive),
+/// oriented to the interpolated vertex normal (face normal fallback), coloured by `color(tri, bw,
+/// bu, bv)`. `flip_y` negates Y (the file path stores Y-down so `cloud_base_rotation` flips it
+/// upright; the glTF path samples in the mesh's own frame so it coincides with the rendered mesh).
+fn sample_surface_disks<F>(
+    tris: &[[[f32; 3]; 3]],
+    tri_norms: &[Option<[[f32; 3]; 3]>],
+    target_count: usize,
+    splat: f32,
+    thin: f32,
+    flip_y: bool,
+    mut color: F,
+) -> Vec<Gaussian3d>
+where
+    F: FnMut(usize, f32, f32, f32) -> SphericalHarmonicCoefficients,
+{
+    // Splat size proportional to the model: `splat` is a FRACTION of the largest dimension.
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    for t in tris {
+        for v in t {
+            for k in 0..3 {
+                lo[k] = lo[k].min(v[k]);
+                hi[k] = hi[k].max(v[k]);
+            }
+        }
+    }
+    let extent = (0..3).map(|k| hi[k] - lo[k]).fold(0.0_f32, f32::max);
+    let r_plane = (splat * extent).max(1e-6);
+    let r_thin = (r_plane * thin).max(1e-7);
+    let yd = |v: [f32; 3]| {
+        if flip_y {
+            [v[0], -v[1], v[2]]
+        } else {
+            v
+        }
+    };
+    let weights: Vec<f32> = tris.iter().map(double_area).collect();
+    let total: f32 = weights.iter().sum::<f32>().max(1e-9);
+    let mut out: Vec<Gaussian3d> = Vec::with_capacity(target_count + tris.len());
+    let mut idx: u32 = 0;
+    for (ti, tri) in tris.iter().enumerate() {
+        let face_n = norm_or(
+            cross(sub(yd(tri[1]), yd(tri[0])), sub(yd(tri[2]), yd(tri[0]))),
+            [0.0, 0.0, 1.0],
+        );
+        let n = ((target_count as f32 * weights[ti] / total).round() as usize).max(1);
+        for _ in 0..n {
+            let (mut bu, mut bv) = (hash01(idx * 2), hash01(idx * 2 + 1));
+            idx = idx.wrapping_add(1);
+            if bu + bv > 1.0 {
+                bu = 1.0 - bu;
+                bv = 1.0 - bv;
+            }
+            let bw = 1.0 - bu - bv;
+            let lerp3 = |f: [[f32; 3]; 3]| {
+                [
+                    f[0][0] * bw + f[1][0] * bu + f[2][0] * bv,
+                    f[0][1] * bw + f[1][1] * bu + f[2][1] * bv,
+                    f[0][2] * bw + f[1][2] * bu + f[2][2] * bv,
+                ]
+            };
+            let p = lerp3(*tri);
+            let sh = color(ti, bw, bu, bv);
+            let n_axis = match tri_norms[ti] {
+                Some(nn) => norm_or(yd(lerp3(nn)), face_n),
+                None => face_n,
+            };
+            push_disk(&mut out, yd(p), n_axis, sh, r_plane, r_thin);
+        }
+    }
+    out
+}
+
+/// N fully-transparent gaussians at the origin — a placeholder for a glTF-dissolve part until
+/// `sample_gl_mesh` fills it from the loaded mesh (invisible meanwhile; keeps the morph's count).
+pub fn transparent_placeholder(n: usize) -> Vec<Gaussian3d> {
+    vec![
+        Gaussian3d {
+            position_visibility: [0.0, 0.0, 0.0, 0.0].into(),
+            spherical_harmonic: sh_of([0.0, 0.0, 0.0]),
+            rotation: [0.0, 0.0, 0.0, 1.0].into(),
+            scale_opacity: [0.001, 0.001, 0.001, 0.0].into(),
+        };
+        n.max(1)
+    ]
+}
+
+/// Build flat-disk gaussians from triangles already in their final frame (positions + normals in
+/// the SAME space the mesh renders), one flat colour per triangle. No Y-flip — the glTF dissolve
+/// wants the splats to coincide with the rendered mesh, not the Y-down splat convention.
+pub fn build_gaussians_from_tris(
+    tris: &[[[f32; 3]; 3]],
+    tri_norms: &[Option<[[f32; 3]; 3]>],
+    tri_rgb: &[[f32; 3]],
+    target_count: usize,
+    splat: f32,
+    thin: f32,
+) -> Vec<Gaussian3d> {
+    sample_surface_disks(
+        tris,
+        tri_norms,
+        target_count,
+        splat,
+        thin,
+        false,
+        |ti, _, _, _| sh_of(tri_rgb[ti]),
+    )
+}
+
 /// Load a diffuse texture beside the mesh (path is relative to the mesh file). PNG + JPEG only;
 /// anything else (or a missing file) → `None`, and the sampler falls back to material/vertex colour.
 fn load_texture(mesh_dir: &Path, rel: &Path) -> Option<image::RgbaImage> {
@@ -193,22 +321,6 @@ pub fn build_mesh_gaussians(
         return Vec::new();
     }
 
-    // Splat size proportional to the model: `splat` is a FRACTION of the largest dimension, so a
-    // tiny badge (±0.05) and a unit-scale object both get sensibly-sized splats. (normalize_to later
-    // scales gaussian sizes along with positions, so an *absolute* size blobs the small ones.)
-    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
-    for t in &tris {
-        for v in t {
-            for k in 0..3 {
-                lo[k] = lo[k].min(v[k]);
-                hi[k] = hi[k].max(v[k]);
-            }
-        }
-    }
-    let extent = (0..3).map(|k| hi[k] - lo[k]).fold(0.0_f32, f32::max);
-    let r_plane = (splat * extent).max(1e-6); // in-plane disk radius
-    let r_thin = (r_plane * thin).max(1e-7); // thickness along the normal
-
     // per-mesh fallbacks: the diffuse texture (if any + loadable) and a flat SH (material diffuse,
     // else the caller's `rgb`).
     let mesh_tex: Vec<Option<image::RgbaImage>> = (0..scene.meshes.len())
@@ -232,31 +344,16 @@ pub fn build_mesh_gaussians(
         })
         .collect();
 
-    let weights: Vec<f32> = tris.iter().map(double_area).collect();
-    let total: f32 = weights.iter().sum::<f32>().max(1e-9);
-
-    let mut out: Vec<Gaussian3d> = Vec::with_capacity(target_count + tris.len());
-    let mut idx: u32 = 0;
-    for (ti, tri) in tris.iter().enumerate() {
-        let mi = tri_mesh[ti];
-        // face normal in Y-down space (fallback when the mesh has no vertex normals): the cloud
-        // is stored Y-down, so build the basis from the Y-down vertices for consistency.
-        let yd = |v: [f32; 3]| [v[0], -v[1], v[2]];
-        let face_n = norm_or(
-            cross(sub(yd(tri[1]), yd(tri[0])), sub(yd(tri[2]), yd(tri[0]))),
-            [0.0, 0.0, 1.0],
-        );
-        // at least one gaussian per triangle so thin features survive; bigger faces get more.
-        let n = ((target_count as f32 * weights[ti] / total).round() as usize).max(1);
-        for _ in 0..n {
-            // uniform barycentric sample (reflect the far corner so it stays inside the triangle)
-            let (mut bu, mut bv) = (hash01(idx * 2), hash01(idx * 2 + 1));
-            idx = idx.wrapping_add(1);
-            if bu + bv > 1.0 {
-                bu = 1.0 - bu;
-                bv = 1.0 - bv;
-            }
-            let bw = 1.0 - bu - bv;
+    // Surface-sample (Y-down), colour per sample: vertex colours > diffuse texture@UV > material/flat.
+    sample_surface_disks(
+        &tris,
+        &tri_norms,
+        target_count,
+        splat,
+        thin,
+        true,
+        |ti, bw, bu, bv| {
+            let mi = tri_mesh[ti];
             let lerp3 = |f: [[f32; 3]; 3]| {
                 [
                     f[0][0] * bw + f[1][0] * bu + f[2][0] * bv,
@@ -264,10 +361,7 @@ pub fn build_mesh_gaussians(
                     f[0][2] * bw + f[1][2] * bu + f[2][2] * bv,
                 ]
             };
-            let p = lerp3(*tri);
-
-            // colour: vertex > texture@UV > material/flat
-            let sh = if let Some(c) = tri_cols[ti] {
+            if let Some(c) = tri_cols[ti] {
                 sh_of(lerp3(c))
             } else if let (Some(img), Some(uvs)) = (&mesh_tex[mi], tri_uvs[ti]) {
                 let u = uvs[0][0] * bw + uvs[1][0] * bu + uvs[2][0] * bv;
@@ -275,27 +369,9 @@ pub fn build_mesh_gaussians(
                 sh_of(sample_tex(img, u, v))
             } else {
                 mesh_sh[mi]
-            };
-
-            // orient the disk: interpolated vertex normal (Y-down), else the face normal.
-            let n_axis = match tri_norms[ti] {
-                Some(nn) => {
-                    let m = lerp3(nn);
-                    norm_or([m[0], -m[1], m[2]], face_n)
-                }
-                None => face_n,
-            };
-            let (t, b) = tangent_basis(n_axis);
-            out.push(Gaussian3d {
-                // Y-down to match text/splats; the shared cloud_base_rotation flips it upright.
-                position_visibility: [p[0], -p[1], p[2], 1.0].into(),
-                spherical_harmonic: sh,
-                rotation: quat_from_basis(t, b, n_axis).into(),
-                scale_opacity: [r_plane, r_plane, r_thin, 1.0].into(),
-            });
-        }
-    }
-    out
+            }
+        },
+    )
 }
 
 #[cfg(test)]
