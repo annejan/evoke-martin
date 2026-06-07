@@ -172,6 +172,94 @@ pub fn rain_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
         .collect()
 }
 
+// ---- DEPARTURE target clouds: the shape morphs TO one of these as a part LEAVES. All end faded
+// (opacity 0) + displaced, so the object dissolves away rather than cross-morphing to the next. ----
+
+/// Fade a gaussian's opacity to 0 (it's leaving).
+fn faded(mut g: Gaussian3d) -> Gaussian3d {
+    let sc = g.scale_opacity.scale;
+    g.scale_opacity = [sc[0], sc[1], sc[2], 0.0].into();
+    g
+}
+
+/// WASH-AWAY: flows off along +X (downstream spread + a little settle) and fades — washed away.
+pub fn wash_of(shape: &[Gaussian3d], dist: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let mut s = faded(*g);
+            s.position_visibility.position = [
+                p[0] + dist * (0.6 + 1.0 * hash01(k, 2_654_435_761)),
+                p[1] - dist * 0.15 * hash01(k, 40_503),
+                p[2] + (hash01(k, 2_246_822_519) - 0.5) * dist * 0.4,
+            ];
+            s
+        })
+        .collect()
+}
+
+/// DISPERSE: scatters outward in every direction and fades — blown to dust.
+pub fn disperse_of(shape: &[Gaussian3d], spread: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let m = spread * (0.4 + 1.6 * hash01(k, 2_654_435_761));
+            let len = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt().max(1e-3);
+            let mut s = faded(*g);
+            s.position_visibility.position = [
+                p[0] + p[0] / len * m + (hash01(k, 40_503) - 0.5) * spread,
+                p[1] + p[1] / len * m + (hash01(k, 2_246_822_519) - 0.5) * spread,
+                p[2] + p[2] / len * m + (hash01(k, 3_266_489_917) - 0.5) * spread,
+            ];
+            s
+        })
+        .collect()
+}
+
+/// EVAPORATE: drifts upward (staggered) with a little sideways waft, and fades — rises away.
+pub fn evaporate_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let mut s = faded(*g);
+            s.position_visibility.position = [
+                p[0] + (hash01(k, 40_503) - 0.5) * height * 0.3,
+                p[1] + height * (0.3 + 1.2 * hash01(k, 2_654_435_761)),
+                p[2] + (hash01(k, 2_246_822_519) - 0.5) * height * 0.3,
+            ];
+            s
+        })
+        .collect()
+}
+
+/// SINK: falls straight down (staggered) and fades — drops out the bottom.
+pub fn sink_of(shape: &[Gaussian3d], depth: f32) -> Vec<Gaussian3d> {
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let p = g.position_visibility.position;
+            let mut s = faded(*g);
+            s.position_visibility.position = [
+                p[0],
+                p[1] - depth * (0.4 + 1.2 * hash01(k, 2_654_435_761)),
+                p[2],
+            ];
+            s
+        })
+        .collect()
+}
+
 /// SWIRL source: shape rotated about the vertical (Y) axis and pushed out, so it sweeps in.
 /// (Linear position lerp → an approximate spiral; a true arc would need the shader.)
 pub fn swirl_of(shape: &[Gaussian3d], angle: f32, expand: f32) -> Vec<Gaussian3d> {

@@ -237,6 +237,21 @@ of them). It can sit anywhere on the line, but reads best last:
 `MARTIN_TRANSITION=<name>` sets a default for **every** part (handy for trying one out); an
 explicit per-part `~name` wins over it.
 
+**Departures** (`out:name`) — where `~name` says how a part *arrives*, `out:name` says how it
+**leaves**: it morphs to a faded "gone" cloud as a distinct step at the end of its hold (before the
+next part arrives), so the object dissolves away instead of cross-morphing straight to the next. The
+following part then assembles fresh (a Morph/Swarm arrival after a departure becomes a ball).
+
+| `out:name` | How it leaves |
+|---|---|
+| `out:wash` | flows off sideways and fades — washed away |
+| `out:disperse` (`out:dust`) | scatters outward in all directions and fades — blown to dust |
+| `out:evaporate` (`out:rise`) | drifts upward and fades — rises away |
+| `out:sink` (`out:fall`) | falls straight down and fades — drops out the bottom |
+
+Example: `splat:dog.ply out:wash ; text:HELLO ~rain out:disperse ; splat:dog.ply ~ball` → the dog
+washes away → text rains in then blows to dust → the dog re-forms from the void.
+
 ---
 
 ## Meshes + splats in one universe

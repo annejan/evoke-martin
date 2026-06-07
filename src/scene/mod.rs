@@ -101,6 +101,7 @@ fn load_splats(
         loads,
         shapes: Vec::new(),
         sources: Vec::new(),
+        out_clouds: Vec::new(),
         transitions: Vec::new(),
         deforms: Vec::new(),
         starts: Vec::new(),

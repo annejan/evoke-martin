@@ -15,7 +15,8 @@ use bevy_gaussian_splatting::{
 
 use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
 use crate::morph::{
-    ball_of, drop_of, explode_of, fade_of, implode_of, rain_of, resample_morton, swirl_of,
+    ball_of, disperse_of, drop_of, evaporate_of, explode_of, fade_of, implode_of, rain_of,
+    resample_morton, sink_of, swirl_of, wash_of,
 };
 use crate::scene::content::{parse_source, part_gaussians, side_by_side, PartContent};
 use crate::scene::{cloud_base_rotation, file_name_of, parent_dir, AssetRoot, NORMALIZE_EXTENT};
@@ -27,6 +28,7 @@ const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t * this
 const MODEL_FADE: f32 = 0.6; // splats→mesh materialize time (s), after the part's splat-assemble
 const DISSOLVE_LEN: f32 = 1.2; // mesh→splats dissolve time (s) — its OWN step at the end of the hold
+const DEPART_LEN: f32 = 1.5; // `out:` departure time (s) — carved from the end of a part's hold
 
 /// How a part *arrives*. `Morph` (the default after part 0) flows from the previous part's
 /// shape, Morton-paired, with the optional ball-pulse `bulge`. The next group build a source
@@ -129,6 +131,29 @@ impl Deform {
     }
 }
 
+/// How a part *leaves* (`out:name`). Where a `~transition` says how a part ARRIVES, this says how it
+/// DEPARTS: it morphs to a faded "gone" cloud as a distinct step at the end of its hold (before the
+/// next part arrives), so the object dissolves away instead of cross-morphing straight to the next.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Departure {
+    Wash,      // flows off sideways and fades — washed away
+    Disperse,  // scatters outward in all directions and fades — blown to dust
+    Evaporate, // drifts upward and fades — rises away
+    Sink,      // falls straight down and fades — drops out the bottom
+}
+
+impl Departure {
+    fn parse(s: &str) -> Option<Departure> {
+        Some(match s.trim().to_ascii_lowercase().as_str() {
+            "wash" | "washaway" | "wash-away" => Departure::Wash,
+            "disperse" | "dust" | "dissolve" => Departure::Disperse,
+            "evaporate" | "rise" => Departure::Evaporate,
+            "sink" | "fall" => Departure::Sink,
+            _ => return None,
+        })
+    }
+}
+
 /// One part morphs in from the previous (or, for part 0, from a ball), then holds.
 #[derive(Clone)]
 pub(crate) struct Part {
@@ -139,6 +164,7 @@ pub(crate) struct Part {
     pub transition: Option<Transition>, // None = default (Ball for part 0, else Morph)
     pub anchor: Option<f32>,            // absolute start (s) on the music clock; None = relative
     pub deform: Option<Deform>, // persistent deform while held (None = none / MARTIN_DEFORM)
+    pub out: Option<Departure>, // how the part LEAVES (`out:name`); None = cross-morph to the next
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -160,9 +186,10 @@ pub(crate) struct SeqState {
     pub loads: Vec<Handle<PlanarGaussian3d>>,
     pub shapes: Vec<Handle<PlanarGaussian3d>>,
     pub sources: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part lhs source (None = morph from prev)
-    pub transitions: Vec<Transition>,                   // resolved transition per part
-    pub deforms: Vec<Option<Deform>>,                   // resolved persistent deform per part
-    pub starts: Vec<f32>,                               // absolute start time (s) of each part
+    pub out_clouds: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part `out:` departure cloud (None = none)
+    pub transitions: Vec<Transition>,                      // resolved transition per part
+    pub deforms: Vec<Option<Deform>>,                      // resolved persistent deform per part
+    pub starts: Vec<f32>,                                  // absolute start time (s) of each part
     pub built: bool,
     pub entity: Option<Entity>,
 }
@@ -201,8 +228,9 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
     let raw = std::fs::read_to_string(spec).unwrap_or_else(|_| spec.to_string());
     let mut parts = Vec::new();
     for line in raw.split([';', '\n']) {
-        let s = line.trim();
-        if s.is_empty() || s.starts_with('#') {
+        // strip inline `# comments` (like parse_compose) so a trailing note can't eat the @timing.
+        let s = line.split('#').next().unwrap_or("").trim();
+        if s.is_empty() {
             continue;
         }
         // Pull the `~name` transition AND the `@@anchor` token (both single whitespace-delimited
@@ -210,6 +238,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
         let mut transition = None;
         let mut anchor = None;
         let mut deform = None;
+        let mut out = None;
         let s: String = s
             .split_whitespace()
             .filter(|tok| {
@@ -219,6 +248,10 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
                 }
                 if let Some(d) = tok.strip_prefix('^').and_then(Deform::parse) {
                     deform = Some(d);
+                    return false;
+                }
+                if let Some(d) = tok.strip_prefix("out:").and_then(Departure::parse) {
+                    out = Some(d);
                     return false;
                 }
                 if let Some(tr) = tok.strip_prefix('~').and_then(Transition::parse) {
@@ -257,6 +290,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
             transition,
             anchor,
             deform,
+            out,
         });
     }
     parts
@@ -296,6 +330,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             transition: None,
             anchor: None,
             deform: None,
+            out: None,
         };
         return (
             Sequence {
@@ -329,6 +364,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
         transition: None,
         anchor: None,
         deform: None,
+        out: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -339,6 +375,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             transition: None,
             anchor: None,
             deform: None,
+            out: None,
         });
     }
     (Sequence { parts, count }, root)
@@ -501,11 +538,18 @@ pub(crate) fn build_sequence(
     // (with the ball-pulse bulge); the others build a source from the part's own shape.
     let mut shapes = Vec::new();
     let mut sources: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
+    let mut out_clouds: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
     for (idx, raw) in raws.into_iter().enumerate() {
         let shaped = resample_morton(raw, n);
         let tr = transitions[idx];
         let r = content_radius;
+        // if the PREVIOUS part DEPARTS (washes/disperses away), there's no shape to flow from →
+        // a Morph/Swarm part must assemble fresh from a ball instead.
+        let prev_departs = idx > 0 && seq.parts[idx - 1].out.is_some();
         let src: Option<Vec<Gaussian3d>> = match tr {
+            Transition::Morph | Transition::Swarm if prev_departs => {
+                Some(ball_of(&shaped, r * BALL_SHELL))
+            }
             Transition::Morph | Transition::Swarm => None, // both flow from the previous shape
             Transition::Ball => Some(ball_of(&shaped, r * BALL_SHELL)),
             Transition::Fade => Some(fade_of(&shaped)),
@@ -519,7 +563,15 @@ pub(crate) fn build_sequence(
             _ if tr.shader_uniforms().is_some() => Some(shaped.clone()),
             _ => None,
         };
+        // `out:` departure target cloud (faded + displaced) — the part morphs to this as it leaves.
+        let out = seq.parts[idx].out.map(|d| match d {
+            Departure::Wash => wash_of(&shaped, r * 2.5),
+            Departure::Disperse => disperse_of(&shaped, r * 1.8),
+            Departure::Evaporate => evaporate_of(&shaped, r * 3.0),
+            Departure::Sink => sink_of(&shaped, r * 3.0),
+        });
         sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
+        out_clouds.push(out.map(|o| assets.add(PlanarGaussian3d::from(o))));
         shapes.push(assets.add(PlanarGaussian3d::from(shaped)));
     }
     let intro0 = sources[0]
@@ -627,6 +679,7 @@ pub(crate) fn build_sequence(
 
     state.shapes = shapes;
     state.sources = sources;
+    state.out_clouds = out_clouds;
     state.transitions = transitions;
     state.deforms = deforms;
     state.starts = starts;
@@ -700,41 +753,55 @@ pub(crate) fn part_director(
     let t = clock.t;
     let starts = &state.starts;
     let idx = active_part(starts, t);
-    let dt = t - starts[idx];
-    let morphing = dt < parts[idx].morph;
-    let factor = (dt / parts[idx].morph.max(1e-3)).clamp(0.0, 1.0);
-
-    // lhs: the part's transition source cloud (ball/fade/explode/…), or — for a plain Morph —
-    // the previous part's shape.
-    let want_lhs = match &state.sources[idx] {
-        Some(h) => h,
-        None => &state.shapes[idx - 1],
+    // Phase: ARRIVING (source → shape), holding (shape), or DEPARTING (shape → its faded out-cloud
+    // — a distinct step carved from the end of the hold, before the next part arrives; see `out:`).
+    let next = idx + 1;
+    let depart_at = if next < parts.len() && parts[idx].out.is_some() {
+        (starts[next] - DEPART_LEN).max(starts[idx] + parts[idx].morph)
+    } else {
+        f32::MAX
+    };
+    let departing = t >= depart_at;
+    let (want_lhs, want_rhs, factor, arriving) = if departing {
+        let f = ((t - depart_at) / DEPART_LEN).clamp(0.0, 1.0);
+        let out = state.out_clouds[idx].as_ref().unwrap_or(&state.shapes[idx]);
+        (&state.shapes[idx], out, f, false)
+    } else {
+        let dt = t - starts[idx];
+        let f = (dt / parts[idx].morph.max(1e-3)).clamp(0.0, 1.0);
+        // lhs: the part's source cloud (ball/fade/explode/…), or — for a plain Morph — the prev shape.
+        let lhs = match &state.sources[idx] {
+            Some(h) => h,
+            None => &state.shapes[idx - 1],
+        };
+        (lhs, &state.shapes[idx], f, dt < parts[idx].morph)
     };
     if interp.lhs.0.id() != want_lhs.id() {
         interp.lhs = PlanarGaussian3dHandle(want_lhs.clone());
     }
-    if interp.rhs.0.id() != state.shapes[idx].id() {
-        interp.rhs = PlanarGaussian3dHandle(state.shapes[idx].clone());
+    if interp.rhs.0.id() != want_rhs.id() {
+        interp.rhs = PlanarGaussian3dHandle(want_rhs.clone());
     }
+    let morphing = arriving || departing;
     let eased = factor * factor * (3.0 - 2.0 * factor);
     cs.time = eased;
     // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
     // ball); source-based transitions carry their own motion, so they don't pulse.
-    cs.bulge = if morphing && state.transitions[idx] == Transition::Morph {
+    cs.bulge = if arriving && state.transitions[idx] == Transition::Morph {
         parts[idx].bulge
     } else {
         0.0
     };
     // ~swarm: flock the particles along curled paths during the morph (the @_,_,N timing value is
     // the swarm strength); mutually exclusive with the ball-pulse above.
-    cs.swarm = if morphing && state.transitions[idx] == Transition::Swarm {
+    cs.swarm = if arriving && state.transitions[idx] == Transition::Swarm {
         parts[idx].bulge
     } else {
         0.0
     };
     // per-particle shader transitions (typewriter/sparkle/…): drive the vendored uniforms only
     // while morphing in; otherwise mode 0 = off (held shape renders plain, fully sort-safe).
-    let (mode, soft, axis) = morphing
+    let (mode, soft, axis) = arriving
         .then(|| state.transitions[idx].shader_uniforms())
         .flatten()
         .unwrap_or((0, 0.0, 0));
