@@ -23,7 +23,8 @@ use crate::text::{build_text_outline_gaussians, build_text_penwrite_gaussians, T
 const BALL_SHELL: f32 = 0.9; // intro ball-shell radius, in units of the framed radius
 const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t * this
-const MODEL_FADE: f32 = 0.6; // dissolve-model fade-in time (s) as its part finishes assembling
+const MODEL_FADE: f32 = 0.6; // splats→mesh materialize time (s), after the part's splat-assemble
+const DISSOLVE_LEN: f32 = 1.2; // mesh→splats dissolve time (s) — its OWN step at the end of the hold
 
 /// How a part *arrives*. `Morph` (the default after part 0) flows from the previous part's
 /// shape, Morton-paired, with the optional ball-pulse `bulge`. The next group build a source
@@ -795,13 +796,11 @@ pub(crate) fn part_director(
         }
     }
 
-    // glb: dissolve — hide the coincident splats while the solid mesh is crisp (so they don't poke
-    // through it), crossfading them out over MODEL_FADE as the mesh materializes. They're visible
-    // during the splat-assemble (morphing) and come back automatically on the morph-out (next part),
-    // when they flow away as the mesh dissolves. Complements animate_seq_model's mesh-alpha envelope.
-    if matches!(parts[idx].content, PartContent::GlMesh(_)) && !morphing {
-        let into_hold = t - (starts[idx] + parts[idx].morph);
-        cs.global_opacity *= (1.0 - into_hold / MODEL_FADE).clamp(0.0, 1.0);
+    // glb: dissolve — the splats are the exact complement of the mesh (1 − its alpha): present
+    // during the splat-assemble, hidden while the mesh is crisp (no poke-through), and back as it
+    // dissolves — so mesh↔splats crossfade, and the dissolve completes before the next part morphs.
+    if matches!(parts[idx].content, PartContent::GlMesh(_)) {
+        cs.global_opacity *= 1.0 - gl_mesh_alpha(starts, parts, idx, t);
     }
 }
 
@@ -1000,9 +999,38 @@ pub(crate) fn sample_gl_mesh(
     }
 }
 
-/// Drive the dissolve-mesh's opacity: crisp (opaque) from its part's start through the hold, then
-/// fading to transparent over the *next* part's morph — the moment its splats flow away. The only
-/// PBR materials in a sequence are the overlay's, so we fade every `StandardMaterial`.
+/// The `glb:` mesh's opacity over its part's life — the choreography backbone. The splat-opacity is
+/// the exact complement (`1 - this`, see part_director), so mesh and splats crossfade cleanly:
+/// 0 while the part assembles AS SPLATS → MATERIALIZE 0→1 over MODEL_FADE → 1 crisp hold → its OWN
+/// DISSOLVE 1→0 over the last DISSOLVE_LEN of the hold (finishing BEFORE the next part's morph, so
+/// the splats are fully back before they morph on — the dissolve is a distinct step, not overlapped).
+fn gl_mesh_alpha(starts: &[f32], parts: &[Part], p: usize, t: f32) -> f32 {
+    let assemble_end = starts[p] + parts[p].morph;
+    let materialize_end = assemble_end + MODEL_FADE;
+    // dissolve ends right as the next part starts morphing; carve DISSOLVE_LEN out of the hold for it.
+    let (dissolve_start, dissolve_end) = match p + 1 {
+        next if next < parts.len() => (
+            (starts[next] - DISSOLVE_LEN).max(materialize_end),
+            starts[next],
+        ),
+        _ => (f32::MAX, f32::MAX), // last part: never dissolves, just stays crisp
+    };
+    if t < assemble_end {
+        0.0
+    } else if t < materialize_end {
+        (t - assemble_end) / MODEL_FADE
+    } else if t < dissolve_start {
+        1.0
+    } else if t < dissolve_end {
+        1.0 - (t - dissolve_start) / (dissolve_end - dissolve_start).max(1e-3)
+    } else {
+        0.0
+    }
+    .clamp(0.0, 1.0)
+}
+
+/// Drive the dissolve-mesh's material opacity from `gl_mesh_alpha`. The only PBR materials in a
+/// sequence are the overlay's, so we fade every `StandardMaterial`.
 pub(crate) fn animate_seq_model(
     seq: Option<Res<Sequence>>,
     state: Option<Res<SeqState>>,
@@ -1017,30 +1045,7 @@ pub(crate) fn animate_seq_model(
     if !state.built {
         return;
     }
-    let (starts, parts) = (&state.starts, &seq.parts);
-    // The crossfade choreography (complemented by part_director suppressing the coincident splats):
-    // the part first assembles AS SPLATS (mesh hidden), then the mesh MATERIALIZES over MODEL_FADE
-    // (splats → mesh), holds crisp, then DISSOLVES over the next part's morph (mesh → splats), which
-    // then morph on. So: …→ splats → mesh → splats → … reads as one continuous arc.
-    let assemble_end = starts[m.part] + parts[m.part].morph;
-    let materialize_end = assemble_end + MODEL_FADE;
-    let (dissolve_start, dissolve_end) = match m.part + 1 {
-        next if next < parts.len() => (starts[next], starts[next] + parts[next].morph),
-        _ => (f32::MAX, f32::MAX), // last part: never dissolves, just stays
-    };
-    let t = clock.t;
-    let vis = if t < assemble_end {
-        0.0 // still assembling as splats — mesh hidden
-    } else if t < materialize_end {
-        (t - assemble_end) / MODEL_FADE // splats coalesce into the solid mesh
-    } else if t < dissolve_start {
-        1.0 // crisp hold
-    } else if t < dissolve_end {
-        1.0 - (t - dissolve_start) / (dissolve_end - dissolve_start).max(1e-3) // dissolve back
-    } else {
-        0.0
-    }
-    .clamp(0.0, 1.0);
+    let vis = gl_mesh_alpha(&state.starts, &seq.parts, m.part, clock.t);
     for h in &handles {
         if let Some(mat) = mats.get_mut(&h.0) {
             mat.base_color.set_alpha(vis);

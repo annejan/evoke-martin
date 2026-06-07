@@ -12,6 +12,6 @@
 
 # the arc: ball of random splats → the badge AS splats → the splats MATERIALIZE into the crisp mesh
 # → it holds → DISSOLVES back to splats → which swarm into the doggo → and flow on into a title.
-glb:aegg.glb       @3,3     ~ball     # random splats → badge splats → materialize → mesh → dissolve
+glb:aegg.glb       @4,3     ~ball     # random splats → badge splats → materialize → mesh → dissolve
 splat:doggo.ply    @2,3.5   ~swarm    # …the splats SWARM into the doggo
 text:deFEEST       @3,3     ~swarm    # …and flow on into a title
