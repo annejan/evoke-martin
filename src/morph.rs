@@ -263,6 +263,28 @@ pub fn funnel_of(shape: &[Gaussian3d], height: f32) -> Vec<Gaussian3d> {
         .collect()
 }
 
+/// CONDENSE source: particles fill a wide diffuse ball, faded to nothing — the shape condenses out
+/// of a haze (positions converge + opacity fades up), vs `ball`'s organized full-opacity shell.
+pub fn condense_of(shape: &[Gaussian3d], spread: f32) -> Vec<Gaussian3d> {
+    use std::f32::consts::TAU;
+    shape
+        .iter()
+        .enumerate()
+        .map(|(idx, g)| {
+            let k = idx as u32;
+            let z = hash01(k, 2_654_435_761) * 2.0 - 1.0;
+            let ang = hash01(k, 40_503) * TAU;
+            let rxy = (1.0 - z * z).max(0.0).sqrt();
+            let r = spread * hash01(k, 2_246_822_519).cbrt(); // uniform throughout the ball (filled)
+            let mut s = *g;
+            let sc = s.scale_opacity.scale;
+            s.position_visibility = [r * rxy * ang.cos(), r * rxy * ang.sin(), r * z, 1.0].into();
+            s.scale_opacity = [sc[0], sc[1], sc[2], 0.0].into(); // start as haze → fades up
+            s
+        })
+        .collect()
+}
+
 /// SHATTER source: the shape broken into ~8 chunks (contiguous Morton blocks ≈ spatial pieces),
 /// each flung out + tumbled; the morph flies them back together — it re-assembles from shards.
 pub fn shatter_of(shape: &[Gaussian3d], spread: f32) -> Vec<Gaussian3d> {

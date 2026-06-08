@@ -15,8 +15,8 @@ use bevy_gaussian_splatting::{
 
 use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
 use crate::morph::{
-    ball_of, disperse_of, drop_of, evaporate_of, explode_of, fade_of, funnel_of, implode_of,
-    rain_of, resample_morton, shatter_of, sink_of, swirl_of, wash_of,
+    ball_of, condense_of, disperse_of, drop_of, evaporate_of, explode_of, fade_of, funnel_of,
+    implode_of, rain_of, resample_morton, shatter_of, sink_of, swirl_of, wash_of,
 };
 use crate::scene::content::{parse_source, part_gaussians, side_by_side, PartContent};
 use crate::scene::{cloud_base_rotation, file_name_of, parent_dir, AssetRoot, NORMALIZE_EXTENT};
@@ -38,17 +38,18 @@ const DEPART_LEN: f32 = 1.5; // `out:` departure time (s) — carved from the en
 /// particle (see `SHADER-BLUEPRINT.md`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Transition {
-    Morph,   // prev shape → this shape (with bulge ball-pulse); the original behaviour
-    Swarm,   // like Morph but particles flock/swarm along curled paths between the two scenes
-    Ball,    // assemble out of a fuzzy ball shell (default for part 0)
-    Fade,    // fade up on the spot (opacity 0 → in)
-    Explode, // gather in from an outward burst
-    Implode, // expand out from a dense point
-    Drop,    // fall straight down into place
-    Rain,    // fall in from scattered high points (a shower), staggered
-    Funnel,  // pour in from a tall narrow column above, fanning out + down
-    Shatter, // re-assemble from ~8 tumbling shards
-    Swirl,   // sweep/spiral in around the vertical axis
+    Morph,    // prev shape → this shape (with bulge ball-pulse); the original behaviour
+    Swarm,    // like Morph but particles flock/swarm along curled paths between the two scenes
+    Ball,     // assemble out of a fuzzy ball shell (default for part 0)
+    Fade,     // fade up on the spot (opacity 0 → in)
+    Explode,  // gather in from an outward burst
+    Implode,  // expand out from a dense point
+    Drop,     // fall straight down into place
+    Rain,     // fall in from scattered high points (a shower), staggered
+    Funnel,   // pour in from a tall narrow column above, fanning out + down
+    Shatter,  // re-assemble from ~8 tumbling shards
+    Condense, // condense out of a wide faded haze
+    Swirl,    // sweep/spiral in around the vertical axis
     // --- per-particle (shader transition_mode) ---
     Typewriter, // reveal left→right as a moving edge (great for text)
     Wipe,       // hard slab reveal across the x axis
@@ -72,6 +73,7 @@ impl Transition {
             "rain" => Transition::Rain,
             "funnel" | "pour" => Transition::Funnel,
             "shatter" | "shards" => Transition::Shatter,
+            "condense" | "fog" | "haze" => Transition::Condense,
             "swirl" => Transition::Swirl,
             "typewriter" | "type" => Transition::Typewriter,
             "wipe" => Transition::Wipe,
@@ -648,6 +650,7 @@ pub(crate) fn build_sequence(
             Transition::Rain => Some(rain_of(&shaped, r * 3.0)),
             Transition::Funnel => Some(funnel_of(&shaped, r * 3.0)),
             Transition::Shatter => Some(shatter_of(&shaped, r * 1.4)),
+            Transition::Condense => Some(condense_of(&shaped, r * 2.2)),
             Transition::Swirl => Some(swirl_of(&shaped, 2.4, 1.5)),
             // Per-particle (shader) transitions: identity source — positions/opacity match the
             // target and the vendored shader staggers them per particle over the morph.
