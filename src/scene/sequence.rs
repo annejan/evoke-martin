@@ -133,11 +133,12 @@ impl Transition {
 /// uniforms (see SHADER-BLUEPRINT.md); default-off, so an unset part renders plain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Deform {
-    Wave,   // flag-like ripple travelling across x
-    Cloth,  // 2D billow (x and y out of phase)
-    Ripple, // concentric radial waves from the centre
-    Twist,  // banner curl/uncurl
-    Wind,   // gusting sideways sway + spatial turbulence — flutters/streams in the wind
+    Wave,       // flag-like ripple travelling across x
+    Cloth,      // 2D billow (x and y out of phase)
+    Ripple,     // concentric radial waves from the centre
+    Twist,      // banner curl/uncurl
+    Wind,       // gusting sideways sway + spatial turbulence — flutters/streams in the wind
+    Turbulence, // a churning 3D field — particles swirl/boil (a turbulent force field)
 }
 
 impl Deform {
@@ -148,6 +149,7 @@ impl Deform {
             "ripple" => Deform::Ripple,
             "twist" | "curl" => Deform::Twist,
             "wind" | "gust" => Deform::Wind,
+            "turbulence" | "turb" | "churn" => Deform::Turbulence,
             _ => return None,
         })
     }
@@ -160,6 +162,7 @@ impl Deform {
             Deform::Ripple => (3, 0.18, 6.0),
             Deform::Twist => (4, 0.5, 2.0), // amp is radians
             Deform::Wind => (5, 0.15, 2.5),
+            Deform::Turbulence => (6, 0.12, 3.0),
         }
     }
 }

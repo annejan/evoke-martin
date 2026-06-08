@@ -398,12 +398,15 @@ camera to catch the ripple in 3D):
 | `^ripple` | concentric waves from the centre outward — a drop in water |
 | `^twist` (`^curl`) | the wall slowly curls and uncurls — a 3D banner roll |
 | `^wind` (`^gust`) | a gusting sideways sway (particles lag by position) + flutter — blown in the wind |
+| `^turbulence` (`^turb`, `^churn`) | a churning 3D force field — the shape swirls/boils in place |
 
 ```
 wall:GREETINGS|TO ALL|DEMOSCENERS   @8,1   ~fade   ^wave
 ```
 
-`MARTIN_DEFORM=<name>` sets a default deform for **every** part; an explicit per-part `^name` wins.
+`MARTIN_DEFORM=<name>` is a **scene-wide field**: it sets a default deform for every seq part *and*
+every placed compose object — `MARTIN_DEFORM=wind` blows the whole stage at once. An explicit
+per-part / per-object `^name` always wins over the field.
 The deform is independent of the arrival transition, so a part can `~fade` in *and* `^wave`. (Off
 by default → no movement; it's a default-off branch in the vendored shader, see `CHANGES.md §5`.)
 **`MARTIN_DEFORM_AMP`** scales the wobble (`0.2`–`0.3` ≈ gentle on a whole scene) and

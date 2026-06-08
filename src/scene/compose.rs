@@ -47,8 +47,9 @@ impl Composed {
 
     /// The motion state carried on the spawned entity (shared by splat clouds + mesh props).
     /// `interpolate` = this object is a `GaussianInterpolate` (a `~transition`), so its `cs.time`
-    /// is driven (the assemble) instead of an opacity fade-in.
-    fn anim(&self, base_rot: Quat, interpolate: bool) -> ComposeAnim {
+    /// is driven (the assemble) instead of an opacity fade-in. `field` is the scene-wide default
+    /// deform (`MARTIN_DEFORM`) — a per-object `^deform` wins over it.
+    fn anim(&self, base_rot: Quat, interpolate: bool, field: Option<Deform>) -> ComposeAnim {
         ComposeAnim {
             base_pos: self.pos,
             base_rot,
@@ -61,7 +62,7 @@ impl Composed {
             out: self.out,
             fade: self.fade,
             interpolate,
-            deform: self.deform.map(|d| d.uniforms()),
+            deform: self.deform.or(field).map(|d| d.uniforms()),
         }
     }
 }
@@ -227,6 +228,11 @@ pub(crate) fn build_composition(
         return; // wait for every referenced splat
     }
     let base = cloud_base_rotation();
+    // MARTIN_DEFORM = a scene-wide FIELD: it wobbles every object on the stage (a per-object
+    // `^deform` overrides it), the same default the morph timeline uses — wind over the whole scene.
+    let field = std::env::var("MARTIN_DEFORM")
+        .ok()
+        .and_then(|s| Deform::parse(&s));
     // cap each object's splats so a stage of big splats stays performant on the iGPU.
     let count = std::env::var("MARTIN_MORPH_COUNT")
         .ok()
@@ -252,7 +258,7 @@ pub(crate) fn build_composition(
                     rotation: rot,
                     scale: Vec3::splat(obj.scale),
                 },
-                obj.anim(rot, false),
+                obj.anim(rot, false, field),
             ));
             placed.push((obj.pos, 1.0)); // rough radius (the mesh size is async); tune with MARTIN_ZOOM
             any_model = true;
@@ -299,7 +305,7 @@ pub(crate) fn build_composition(
                 Visibility::Visible,
                 cs,
                 tf,
-                obj.anim(rot, true),
+                obj.anim(rot, true, field),
             ));
         } else {
             commands.spawn((
@@ -307,7 +313,7 @@ pub(crate) fn build_composition(
                 Visibility::Visible,
                 cs,
                 tf,
-                obj.anim(rot, false),
+                obj.anim(rot, false, field),
             ));
         }
         placed.push((obj.pos, NORMALIZE_EXTENT * 0.5 * obj.scale));

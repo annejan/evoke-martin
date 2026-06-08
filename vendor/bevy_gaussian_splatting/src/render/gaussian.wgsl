@@ -389,6 +389,13 @@ fn vs_points(
             let fly = damp * 0.4 * sin(dp.x * dfreq + dtt * 1.7);
             let flz = damp * 0.5 * cos(dp.y * dfreq * 1.1 - dtt * 1.4);
             position = vec4<f32>(position.x + swayx, position.y + fly, position.z + flz, 1.0);
+        } else if (dmode == 6u) {
+            // turbulence: a churning 3D field — each axis pushed by sines of the OTHER axes + time,
+            // so particles swirl/boil in place (a turbulent force field; sways around 0, no drift).
+            let tx = sin(dp.y * dfreq + dtt) + 0.5 * sin(dp.z * dfreq * 1.7 - dtt * 1.3);
+            let ty = sin(dp.z * dfreq * 1.1 + dtt * 1.2) + 0.5 * sin(dp.x * dfreq * 1.5 - dtt);
+            let tz = sin(dp.x * dfreq * 0.9 - dtt) + 0.5 * sin(dp.y * dfreq * 1.3 + dtt * 0.8);
+            position = vec4<f32>(position.x + damp * tx, position.y + damp * ty, position.z + damp * tz, 1.0);
         }
     }
 
