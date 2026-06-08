@@ -128,11 +128,13 @@ fn controls(
                 dist: cam.dist,
                 yaw: cam.yaw,
                 pitch: cam.pitch,
+                t: Some(clock.t), // stamp the show-time → an authored path is a music-timed track
             });
             match waypoints::save(&marks.list, &marks.path) {
                 Ok(()) => info!(
-                    "waypoint #{} → {} (yaw {:.3}, pitch {:.3}, dist {:.2}, target [{:.2}, {:.2}, {:.2}])",
+                    "waypoint #{} @ t={:.1}s → {} (yaw {:.3}, pitch {:.3}, dist {:.2}, target [{:.2}, {:.2}, {:.2}])",
                     marks.list.len(),
+                    clock.t,
                     marks.path,
                     cam.yaw,
                     cam.pitch,
@@ -177,6 +179,19 @@ fn flypath(
     let Some(secs) = marks.fly else { return };
     let n = marks.list.len();
     if n < 2 {
+        return;
+    }
+    // a fully-timed path is a CAMERA TRACK: play it straight off the show clock — same curve live
+    // and in the recording, no part-window heuristic. (Authored with M, which stamps the clock.)
+    if waypoints::is_track(&marks.list) {
+        if let Some(w) = waypoints::pose_at_time(&marks.list, clock.t) {
+            for mut cam in &mut q {
+                cam.target = w.target;
+                cam.dist = w.dist;
+                cam.yaw = w.yaw;
+                cam.pitch = w.pitch;
+            }
+        }
         return;
     }
     let legs = (n - 1) as f32;

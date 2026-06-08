@@ -8,12 +8,16 @@ use bevy::prelude::*;
 
 /// One logged camera pose — enough to fully reconstruct the `OrbitCam` (its transform is derived
 /// from exactly these four). Interpolation-friendly: tween target/dist/yaw/pitch between markers.
+/// `t` is an optional **show-time anchor** (seconds): when *every* waypoint carries one the path is
+/// a music-timed **camera track** — played straight off the show clock (`pose_at_time`) instead of
+/// the part-window heuristic. `M` stamps the live clock, so an authored path is a track by default.
 #[derive(Clone, Copy)]
 pub struct Waypoint {
     pub target: Vec3,
     pub dist: f32,
     pub yaw: f32,
     pub pitch: f32,
+    pub t: Option<f32>,
 }
 
 /// The markers logged this session + the file they're written to. Each `M` press appends one and
@@ -47,12 +51,16 @@ pub fn save(list: &[Waypoint], path: &str) -> std::io::Result<()> {
     let arr: Vec<serde_json::Value> = list
         .iter()
         .map(|w| {
-            serde_json::json!({
+            let mut o = serde_json::json!({
                 "target": [w.target.x, w.target.y, w.target.z],
                 "dist": w.dist,
                 "yaw": w.yaw,
                 "pitch": w.pitch,
-            })
+            });
+            if let Some(t) = w.t {
+                o["t"] = serde_json::json!(t); // only timed waypoints carry the anchor
+            }
+            o
         })
         .collect();
     let text = serde_json::to_string_pretty(&serde_json::Value::Array(arr))
@@ -82,6 +90,7 @@ pub fn load(path: &str) -> Vec<Waypoint> {
                         dist: w.get("dist")?.as_f64()? as f32,
                         yaw: w.get("yaw")?.as_f64()? as f32,
                         pitch: w.get("pitch")?.as_f64()? as f32,
+                        t: w.get("t").and_then(|t| t.as_f64()).map(|t| t as f32),
                     })
                 })
                 .collect()
@@ -109,6 +118,42 @@ pub fn pose_at(list: &[Waypoint], p: f32) -> Option<Waypoint> {
         dist: a.dist + (b.dist - a.dist) * e,
         yaw: a.yaw + shortest_angle(b.yaw - a.yaw) * e,
         pitch: a.pitch + (b.pitch - a.pitch) * e,
+        t: None,
+    })
+}
+
+/// A path is a **camera track** when every waypoint carries a time anchor (and there are ≥2): the
+/// flypath then plays it straight off the show clock via `pose_at_time` instead of the part-window
+/// heuristic. A path freshly authored with `M` (which stamps the clock) is therefore a track.
+pub fn is_track(list: &[Waypoint]) -> bool {
+    list.len() >= 2 && list.iter().all(|w| w.t.is_some())
+}
+
+/// Sample a *timed* track at absolute show-time `t` (seconds): find the bracketing pair by their
+/// anchors, smoothstep between them, clamp at the ends (hold the first pose before the track starts,
+/// the last after it ends). Assumes `is_track(list)` — anchors are taken as monotonically authored.
+pub fn pose_at_time(list: &[Waypoint], t: f32) -> Option<Waypoint> {
+    if list.len() < 2 {
+        return list.first().copied();
+    }
+    let ta = |w: &Waypoint| w.t.unwrap_or(0.0);
+    if t <= ta(&list[0]) {
+        return list.first().copied();
+    }
+    if t >= ta(&list[list.len() - 1]) {
+        return list.last().copied();
+    }
+    let i = list.windows(2).position(|p| t < ta(&p[1])).unwrap_or(0);
+    let (a, b) = (list[i], list[i + 1]);
+    let span = (ta(&b) - ta(&a)).max(1e-4);
+    let u = ((t - ta(&a)) / span).clamp(0.0, 1.0);
+    let e = u * u * (3.0 - 2.0 * u); // smoothstep — settle through each marker
+    Some(Waypoint {
+        target: a.target.lerp(b.target, e),
+        dist: a.dist + (b.dist - a.dist) * e,
+        yaw: a.yaw + shortest_angle(b.yaw - a.yaw) * e,
+        pitch: a.pitch + (b.pitch - a.pitch) * e,
+        t: Some(t),
     })
 }
 

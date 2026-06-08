@@ -93,7 +93,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_YAW` | `1.4` (front) | Seed the orbit **yaw** in **radians** (e.g. `1.57` ≈ head-on). When set, a recording **holds** this yaw instead of swaying — bake a found scene viewpoint. |
 | `MARTIN_PITCH` | `0.12` | Seed the orbit **pitch** in **radians** (0 = eye level, `+` looks down). |
 | `MARTIN_WAYPOINTS` | `waypoints.json` | File the **M-key camera waypoints** are written to (and read from on startup). Each marker appends the live orbit pose (target/dist/yaw/pitch) so you can author a camera path while flying — see [live controls](#live-keyboard-controls). |
-| `MARTIN_FLY` | — | `=<secs>` **flies the camera through the loaded waypoints** instead of free-orbiting. **Recording:** the path fills each part's on-screen time (so a longer part `hold` = a slower flyby), alternating direction so it flows through the morph. **Live:** `<secs>` = time per waypoint leg (default `2`) for a ping-pong preview loop. Needs ≥2 waypoints in `MARTIN_WAYPOINTS`. |
+| `MARTIN_FLY` | — | `=<secs>` **flies the camera through the loaded waypoints** instead of free-orbiting. **If every waypoint has a `t`** the path is a *camera track* — played off the show clock (same move live and recorded, `secs` ignored). Otherwise — **Recording:** the path fills each part's on-screen time (longer `hold` = slower flyby), alternating direction; **Live:** `<secs>` = time per leg (default `2`) for a ping-pong preview. Needs ≥2 waypoints in `MARTIN_WAYPOINTS`. |
 | `MARTIN_FPS` | off | `=1` logs smoothed FPS / frame-time + timeline clock every ~0.5 s (the **`I`** key toggles it live + logs a snapshot). |
 | `MARTIN_RECORD` | — | Directory to dump one PNG per frame into (the whole timeline; used by `record.sh`). **Recording runs fully headless** — no window, camera → an offscreen image (so it works over SSH / on any compositor, and never captures a black background). Works for `MARTIN_COMPOSE` stages too. |
 | `MARTIN_BENCH` | — | `=<frames>` renders that many frames **headless with no PNG output** and logs the render-only fps, then exits — a clean perf probe (disk-I/O-free). |
@@ -134,10 +134,16 @@ from there — handy for finding and baking a viewpoint. (Single-image splats fr
 **hollow back**, so don't orbit all the way around them; full multi-angle captures orbit freely.)
 
 **Marking a camera path.** Fly to a pose you like and tap **M** — martin appends the live orbit
-pose (`target` / `dist` / `yaw` / `pitch`) to the waypoints file (`MARTIN_WAYPOINTS`, default
-`waypoints.json`) and logs the marker index to the console. Keep flying and dropping markers to
-capture a whole path. The file is plain JSON — an array of poses — and is **read back on startup**,
-so M *continues* an existing path across runs.
+pose (`target` / `dist` / `yaw` / `pitch`) **plus the current show-time** (`t`, seconds) to the
+waypoints file (`MARTIN_WAYPOINTS`, default `waypoints.json`) and logs the marker. Keep flying and
+dropping markers to capture a whole path. The file is plain JSON — an array of poses — and is **read
+back on startup**, so M *continues* an existing path across runs.
+
+**Camera as a track.** Because **M** stamps the show-time, a path you author this way is a
+**music-timed camera track**: every marker has a `t`, so the camera is played *straight off the show
+clock* — the move hits each pose at the same musical moment live and in the recording, with no
+part-window heuristic. Hand-edit the `t` values to retime a move to the beat. (Drop the `t` keys
+from every marker and it falls back to the part-filling flyby below — a hand-written legacy path.)
 
 **Flying the path back.** With ≥2 markers, set **`MARTIN_FLY=<secs>`** and the camera flies the
 path instead of free-orbiting (smoothstep easing through each marker, shortest-way yaw):
