@@ -1,0 +1,50 @@
+# martin — the DEFAULT demo, in the unified .show format. A demoscene flashback ride through the
+# years, built only from licence-cleared shipped assets (no .ply files needed). Shows every
+# transition, deform and arrival effect, and is driven by a directed camera track.
+#
+# This is what plays with NO env vars set:
+#     cargo +nightly run --release
+#     ./record.sh out.mp4
+# Override any one knob from the command line (it wins over the settings below), e.g.
+#     MARTIN_DEFORM=turbulence cargo +nightly run --release
+
+# --- settings (each → MARTIN_<KEY>) ---
+morph_count = 200000
+
+# --- the show: a morph timeline (verbatim .seq syntax) ---
+[seq]
+glb:defeest.glb                 @5,3.5  ~pen-write              # logo dissolves in — handwriting-style
+text:DEMOSCENE FLASHBACK        @3,2.5  ~typewriter ^wave       # title appears, wavy
+text:1980s                      @2,2    ~fade                   # fade in: the early years
+text:C64 SWAPTIONS & CRACKTROS  @3,2    ~swarm                  # the birth of the scene
+text:1990s                      @2,2    ~fade                   # the golden era
+text:THE PC DEMO TAKES OFF      @3,2.5  ~swirl                  # Future Crew, Farbrausch, etc.
+text:320x200 VGA · MOD MUSIC    @3,2    ~typewriter             # the classic formula
+text:2020s                      @2,2    ~fade                   # fast-forward
+mesh:aegg.dae                   @5,3.5  ~rain ^wind             # modern hardware badge rains in, gusting
+mesh:bitterbal.obj cluster:9    @5,3    ~drop ^wind  out:evaporate # bitterballen — deFEEST catering
+text:THE SCENE LIVES            @3,2.5  ~outline ^wave          # proclamation
+wall:CODE · MUSIC · GFX · TEXT  @4,3    ~fade ^wave             # the four pillars
+wall:DEMOSCENE · DEMOPARTY · DEMO @4,3  ~swarm ^wind            # what we do
+image:defeest-logo.png          @4,3    ~sparkle                 # logo sparkles in
+text:a deFEEST production       @4,3.5  ~pen-write ^wave         # outro
+text:THANK YOU                  @5,4    ~vortex                  # spins away
+
+# --- the camera: a directed track (key=value; t = show-time seconds). Tuned to the ~102s timeline
+#     above; retime the t's if you edit the parts' @hold,morph. A slow continuous drift around the
+#     origin (yaw stays near FRONT_YAW ≈ 1.4 so it never reaches the hollow back), with push-ins on
+#     the highlights — the badge rain (~50s), the bitterbal cluster (~58s) and THANK YOU (~92s). ---
+# (dist ≈ 2.5 is the seq's own framing distance — normalize makes every part that size, so one
+#  distance frames them all; we drift gently around it.)
+[camera]
+t=0.0    pos=0,0,0   dist=2.7   yaw=1.40   pitch=0.12   # open on the logo, head-on
+t=8.5    pos=0,0,0   dist=2.5   yaw=1.20   pitch=0.16   # title — drift left
+t=18.0   pos=0,0,0   dist=2.6   yaw=1.60   pitch=0.10   # swing back through the 80s
+t=33.0   pos=0,0,0   dist=2.5   yaw=1.22   pitch=0.18   # the 90s
+t=42.0   pos=0,0,0   dist=2.7   yaw=1.45   pitch=0.12   # 2020s — settle centre
+t=50.5   pos=0,0,0   dist=2.2   yaw=1.15   pitch=0.22   # push in + up on the badge rain
+t=58.5   pos=0,0,0   dist=2.1   yaw=1.62   pitch=0.18   # orbit the bitterbal cluster
+t=71.0   pos=0,0,0   dist=2.7   yaw=1.28   pitch=0.12   # pull back for the walls
+t=85.0   pos=0,0,0   dist=2.5   yaw=1.52   pitch=0.14   # a deFEEST production
+t=92.5   pos=0,0,0   dist=2.9   yaw=1.40   pitch=0.10   # pull back for the THANK YOU spin
+t=101.0  pos=0,0,0   dist=3.2   yaw=1.55   pitch=0.10   # drift out

@@ -25,16 +25,13 @@ pub struct Show {
 /// `MARTIN_SHOW` is unset or unreadable. Call this **first** in `main`, before anything reads the
 /// env (the score, the sequence, the composition).
 pub fn apply() -> Show {
-    let Ok(path) = std::env::var("MARTIN_SHOW") else {
+    let Ok(spec) = std::env::var("MARTIN_SHOW") else {
         return Show::default();
     };
-    match std::fs::read_to_string(&path) {
-        Ok(text) => parse_and_apply(&text),
-        Err(e) => {
-            eprintln!("show: cannot read {path}: {e}");
-            Show::default()
-        }
-    }
+    // A path OR inline show text (same convention as MARTIN_SEQ/_COMPOSE) — so the bundled build can
+    // pre-seed the baked-in show text directly, with no temp file.
+    let text = std::fs::read_to_string(&spec).unwrap_or(spec);
+    parse_and_apply(&text)
 }
 
 /// Which section a body line belongs to. Lines before the first `[header]` are top-level settings.

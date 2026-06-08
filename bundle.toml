@@ -4,11 +4,11 @@
 # executable, and at startup src/bundle.rs self-extracts to a temp dir and plays the show with no
 # external files and no env vars (the loader screen runs while it decompresses). Env still overrides.
 #
-# `seq`/`compose` is a path to a show file or an inline spec. Fonts + the default score are compiled
-# into martin; only the meshes/PNG ship. The default demo references ONLY the published, licence-
-# cleared mesh + logo assets (no .ply), so this builds straight from a clean checkout — and in CI.
+# `show`/`seq`/`compose` is a path to a show file or an inline spec. Fonts + the default score are
+# compiled into martin; only the meshes/PNG ship. The default demo references ONLY the published,
+# licence-cleared mesh + logo assets (no .ply), so this builds from a clean checkout — and in CI.
 
-seq = "assets/demo.seq"           # the default self-contained demo (published meshes + logo, no .ply)
+show = "assets/demo.show"         # the default self-contained demo (unified .show: seq + camera track)
 score = "assets/score.txt"        # the (placeholder) track + the @@anchor timing
 logo = "defeest-logo.png"         # shown on the loader screen
-morph_count = "200000"            # gaussian budget per part (smaller = smaller frames + faster)
+# morph_count is a setting inside demo.show; a bundle.toml `morph_count = …` would still override it.

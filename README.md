@@ -46,8 +46,10 @@ shortcut). View / clean / compress any `.ply` at <https://superspl.at/editor>.
 
 ## Running the demo
 
-By default the splat loads from `assets/aegg.ply`; point it at any file with
-`MARTIN_PLY=assets/your.ply cargo run --release`. Add `MARTIN_PLY2=second.ply` (same folder)
+With nothing set, `cargo +nightly run --release` plays the **flagship demo** — the unified scene
+file [`assets/demo.show`](assets/demo.show): a demoscene-flashback morph timeline driven by a
+directed camera track, built only from licence-cleared shipped assets (no `.ply` needed). Point it
+at your own splat with `MARTIN_PLY=assets/your.ply cargo run --release`. Add `MARTIN_PLY2=second.ply` (same folder)
 for a **second splat beside it**, and `MARTIN_REFORM=dog.ply` so the source splat(s) **morph
 into that one** — a per-Gaussian `GaussianInterpolate` blend where each source is paired to the
 target by **Morton (Z-order) spatial sort**, so particles *flow* into their nearest part of the

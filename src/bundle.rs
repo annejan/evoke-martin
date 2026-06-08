@@ -29,6 +29,7 @@ pub fn apply() {
         }
     };
     match SHOW_KIND {
+        "show" => set("MARTIN_SHOW", SHOW_SRC), // unified .show — show::apply accepts inline text
         "compose" => set("MARTIN_COMPOSE", SHOW_SRC),
         _ => set("MARTIN_SEQ", SHOW_SRC),
     }

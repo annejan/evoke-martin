@@ -26,10 +26,11 @@ fn main() {
             .map(|(_, v)| v.as_str())
     };
     let asset_dir = PathBuf::from(get("asset_dir").unwrap_or("assets"));
-    let (kind, show_spec) = match (get("seq"), get("compose")) {
-        (Some(s), _) => ("seq", s),
-        (_, Some(c)) => ("compose", c),
-        _ => panic!("bundle: bundle.toml needs a `seq = …` or `compose = …`"),
+    let (kind, show_spec) = match (get("show"), get("seq"), get("compose")) {
+        (Some(s), _, _) => ("show", s),
+        (_, Some(s), _) => ("seq", s),
+        (_, _, Some(c)) => ("compose", c),
+        _ => panic!("bundle: bundle.toml needs a `show = …`, `seq = …` or `compose = …`"),
     };
     // The show spec is a file path (read its content) or an inline string — same rule martin uses.
     let show_src = read_or_inline(show_spec);

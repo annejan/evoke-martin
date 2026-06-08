@@ -19,6 +19,22 @@ use crate::capture::RecordState;
 
 const NORMALIZE_EXTENT: f32 = 2.0; // each part is centered + scaled so its largest dim = this
 
+/// The env vars that request specific content. With none of them set (and no `MARTIN_SHOW`), martin
+/// plays the bundled default demo (`assets/demo.show`).
+pub(crate) const CONTENT_VARS: [&str; 6] = [
+    "MARTIN_SEQ",
+    "MARTIN_COMPOSE",
+    "MARTIN_TEXT",
+    "MARTIN_PLY",
+    "MARTIN_PLY2",
+    "MARTIN_REFORM",
+];
+
+/// True when the user requested no specific content — the cue to play the default demo.
+pub(crate) fn no_content_requested() -> bool {
+    CONTENT_VARS.iter().all(|k| std::env::var(k).is_err())
+}
+
 /// `.ply` splats are Y-down → rotate the cloud 180° about X for Y-up. Text is built Y-down
 /// too (see `build_text_gaussians`), so one transform makes text *and* splats upright.
 pub(crate) fn cloud_base_rotation() -> Quat {

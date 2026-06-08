@@ -72,7 +72,7 @@ jobs:
           if-no-files-found: ignore
 
   # The packaged deal: ONE self-contained binary. build.rs (--features bundle) bakes the published-
-  # asset demo (assets/demo.seq → licence-cleared meshes + logo, no .ply) into the executable; it
+  # asset demo (assets/demo.show → licence-cleared meshes + logo, no .ply) into the executable; it
   # self-extracts to a temp dir at startup and plays with no external files and no env vars. Because
   # the demo uses only in-repo published assets, this builds straight from a clean checkout in CI.
   bundle:

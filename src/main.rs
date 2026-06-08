@@ -50,6 +50,12 @@ fn main() {
     #[cfg(feature = "bundle")]
     bundle::apply();
 
+    // With nothing requested, play the bundled flagship show (assets/demo.show) — a fresh `cargo run`
+    // is a working demo. Set it as MARTIN_SHOW so it flows through the one unified-show path below.
+    if std::env::var("MARTIN_SHOW").is_err() && scene::no_content_requested() {
+        std::env::set_var("MARTIN_SHOW", "assets/demo.show");
+    }
+
     // MARTIN_SHOW=<file>.show: a unified scene file — expand it INTO the env (settings → MARTIN_*,
     // [seq]/[compose] bodies → MARTIN_SEQ/_COMPOSE) so everything below reads it unchanged. Must run
     // before anything reads the env. Returns the inline [camera] track (empty without a show).
