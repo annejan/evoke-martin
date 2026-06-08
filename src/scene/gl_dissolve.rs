@@ -35,6 +35,7 @@ pub(crate) struct SeqModel {
 /// Spawn a `glb:` dissolve overlay: the rendered glTF mesh (hidden + identity until sampled, so
 /// `sample_gl_mesh` can read its node-local geometry, then place it to coincide with the splats) +
 /// a key/fill light (splats are unlit, the PBR mesh needs light).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_gl_dissolve(
     commands: &mut Commands,
     assets: &AssetServer,

@@ -62,12 +62,11 @@ pub(crate) fn parse_source(head: &str) -> Option<PartContent> {
     } else if let Some(name) = head.strip_prefix("shader:") {
         // a fullscreen-effect interlude; `name` is an effect (warp/plasma/tunnel/stars), `.wgsl` optional.
         PartContent::Shader(name.trim().trim_end_matches(".wgsl").to_string())
-    } else if let Some(p) = head.strip_prefix("splat:") {
+    } else {
+        let p = head.strip_prefix("splat:")?;
         PartContent::Splats(side_by_side(
             p.split('+').map(str::trim).filter(|x| !x.is_empty()),
         ))
-    } else {
-        return None;
     })
 }
 

@@ -84,7 +84,6 @@ pub(crate) struct RecordState {
 /// `start + morph + hold`) + tail; set the clock per frame, sway the camera, screenshot, then
 /// exit. Frame-indexed → smooth regardless of render speed.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 fn record_driver(
     mut rec: ResMut<RecordState>,
     time: Res<Time>,

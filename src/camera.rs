@@ -214,7 +214,7 @@ fn flypath(
             .copied()
             .unwrap_or_else(|| show_end(&seq.parts, starts));
         let local = ((clock.t - starts[idx]) / (part_end - starts[idx]).max(0.1)).clamp(0.0, 1.0);
-        if idx % 2 == 0 {
+        if idx.is_multiple_of(2) {
             local
         } else {
             1.0 - local

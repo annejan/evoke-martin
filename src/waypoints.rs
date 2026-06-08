@@ -75,7 +75,7 @@ pub fn save(list: &[Waypoint], path: &str) -> std::io::Result<()> {
         })
         .collect();
     let text = serde_json::to_string_pretty(&serde_json::Value::Array(arr))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     std::fs::write(path, text)
 }
 

@@ -95,8 +95,11 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
 /// bright square-wave tracker lead.
 fn lead(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((saw_hz(freq) + saw_hz(freq * 1.006) + saw_hz(freq * 0.994) + sine_hz(freq * 0.5) * 0.7)
-            * 0.26
+        (((saw_hz(freq)
+            + saw_hz(freq * 1.006)
+            + saw_hz(freq * 0.994)
+            + sine_hz(freq * 0.5) * 0.7)
+            * 0.26)
             >> lowpass_hz(2100.0, 1.0))
             * envelope(|t: f32| {
                 let a = 0.025;
@@ -131,7 +134,7 @@ fn arp(freq: f32) -> Box<dyn AudioUnit> {
 /// "epic" chord wall for the drop/climax. Held a full bar per chord note (panned wide by chord_spread).
 fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((saw_hz(freq)
+        (((saw_hz(freq)
             + saw_hz(freq * 1.005)
             + saw_hz(freq * 0.995)
             + saw_hz(freq * 1.011)
@@ -139,8 +142,7 @@ fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
             + saw_hz(freq * 1.018)
             + saw_hz(freq * 0.982)
             + saw_hz(freq * 0.5) * 1.2)
-            * 0.12
-            >> lowpass_hz(2800.0, 0.9))
+            * 0.12) >> lowpass_hz(2800.0, 0.9))
             * envelope(|t: f32| (t * 1.4).min(1.0)) // swell in, then sustain
             * 0.5,
     )
