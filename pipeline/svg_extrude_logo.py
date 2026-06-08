@@ -91,6 +91,10 @@ def read_stl(path):
     pos, nrm = [], []
     for i in range(0, len(fv), 3):
         tri = fv[i:i+3]
+        # The SVG → openscad → glTF chain + the cloud's base flip leaves the logo flipped. Negate Y
+        # (the openscad import has SVG y-down) — a reflection (det −1), so ALSO reverse the winding
+        # so the recomputed face normal still points outward — to bring it upright + readable.
+        tri = [(v[0], -v[1], v[2]) for v in (tri[0], tri[2], tri[1])]
         ux, uy, uz = (tri[1][j] - tri[0][j] for j in range(3))
         vx, vy, vz = (tri[2][j] - tri[0][j] for j in range(3))
         cx, cy, cz = uy*vz - uz*vy, uz*vx - ux*vz, ux*vy - uy*vx
