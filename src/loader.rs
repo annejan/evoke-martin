@@ -14,6 +14,14 @@ struct LoaderRoot;
 #[derive(Component)]
 struct LoaderFill;
 
+/// Tags every loader node (cover, logo, bar) so the lift-off fades them all together — the flat
+/// loader logo dissolves into the show's opening 3D logo behind it (a seamless 1-to-1 handoff).
+#[derive(Component)]
+struct LoaderFade;
+
+const FADE_OUT: f32 = 0.6; // loader cross-fade time (s) once the show is built
+const MIN_SHOW: f32 = 0.8; // hold the loader at least this long so the logo registers before lift-off
+
 fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn((
@@ -30,6 +38,7 @@ fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
             BackgroundColor(Color::BLACK),
             GlobalZIndex(1000),
             LoaderRoot,
+            LoaderFade,
         ))
         .with_children(|p| {
             if let Ok(logo) = std::env::var("MARTIN_LOGO") {
@@ -40,6 +49,7 @@ fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
                         ..default()
                     },
                     ImageNode::new(asset_server.load(logo)),
+                    LoaderFade,
                 ));
             }
             // progress track + fill — a thin dim sliver; the logo is the star, and the show flows
@@ -51,6 +61,7 @@ fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.10, 0.10, 0.13)),
+                LoaderFade,
             ))
             .with_children(|track| {
                 track.spawn((
@@ -61,24 +72,29 @@ fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                     BackgroundColor(Color::srgb(0.85, 0.88, 1.0)),
                     LoaderFill,
+                    LoaderFade,
                 ));
             });
         });
 }
 
-/// Drive the bar from splat-load progress; lift the cover once the show is built.
+/// Drive the bar from splat-load progress; once the show is built, cross-fade the whole cover out
+/// (revealing the show's opening logo behind it) and despawn it.
+#[allow(clippy::too_many_arguments)]
 fn update_loader(
     mut commands: Commands,
+    time: Res<Time>,
     assets: Res<Assets<PlanarGaussian3d>>,
     state: Option<Res<SeqState>>,
     comp: Option<Res<Composition>>,
     mut fill: Query<&mut Node, With<LoaderFill>>,
+    mut bg: Query<&mut BackgroundColor, With<LoaderFade>>,
+    mut img: Query<&mut ImageNode, With<LoaderFade>>,
     root: Query<Entity, With<LoaderRoot>>,
-    mut done: Local<bool>,
+    mut shown: Local<f32>, // total loader uptime (so the logo is seen even on an instant build)
+    mut fade: Local<f32>,  // elapsed cross-fade time, accumulates once we start lifting off
 ) {
-    if *done {
-        return;
-    }
+    *shown += time.delta_secs();
     let (loaded, total) = state
         .as_ref()
         .map(|s| {
@@ -92,13 +108,24 @@ fn update_loader(
     for mut node in &mut fill {
         node.width = Val::Percent(pct);
     }
-    // built = the show is on screen → drop the cover.
+    // Lift off once the show is built AND the logo has been up long enough to register (so the
+    // cross-fade is visible even when the build is instant) — then fade the cover out.
     let built = state.map(|s| s.built).unwrap_or(false) || comp.map(|c| c.built).unwrap_or(false);
-    if built {
+    if !built || *shown < MIN_SHOW {
+        return;
+    }
+    *fade += time.delta_secs();
+    let alpha = (1.0 - *fade / FADE_OUT).clamp(0.0, 1.0); // 1 → 0 over FADE_OUT
+    for mut c in &mut bg {
+        c.0.set_alpha(alpha);
+    }
+    for mut i in &mut img {
+        i.color.set_alpha(alpha);
+    }
+    if alpha <= 0.0 {
         for e in &root {
             commands.entity(e).despawn();
         }
-        *done = true;
     }
 }
 
