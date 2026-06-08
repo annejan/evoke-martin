@@ -1,0 +1,55 @@
+# deFEEST greetings — friends to greet (work in progress)
+# Built with Anne Jan (ANUS) + Kloot. Mix of groups, sceners & scene services.
+# Cross-party data from demozoo: X 2026 (C64), Evoke 2024/2025, Outline 2026.
+# "(Nx)" = released a production at N of those 4 parties.
+
+## Groups — recurring across the parties (the data-backed core)
+Desire            (4x — C64 + PC + Atari + Amiga; the all-rounder)
+Fairlight         (3x)   # FLT
+TempesT           (3x)
+Nuance            (3x)
+Haujobb           (3x)
+Rebels            (3x)
+The Solaris Agency(3x)
+Tristar and Red Sector Inc.  (3x)   # TRSI
+Hokuto Force      (3x)
+Abyss-Connection  (2x)
+Extend            (2x)
+Atlantis          (2x)
+Radwar            (2x)   # Radwar Enterprises
+Fake              (2x)
+Slackers          (2x)
+Resistance        (2x)
+Poo-Brain         (2x)
+Rabenauge         (2x)
+Limp Ninja        (1x, Evoke 2024)
+Wildfurs          (1x, Outline 2026)
+Trepaan           (1x, Outline 2026)
+
+## Groups — personal friends / C64 crew
+Success & The Ruling Company   # SCS*TRC — the X party organizers
+Turboanalisis                  # Poo-Brain sibling crew
+5711                           # German group (Frankfurt)
+Loonies                        # sizecoders
+Triad                          # Swedish C64 legend — c64-wiki.com/wiki/Triad
+RBBS                           # Belgian C64 group (w/ Resource)
+
+## Still to confirm — not found on demozoo/csdb, need a pointer
+WGI2015      # ??? group? party edition?
+AMID         # ??? scener or group?
+
+## Sceners (people)
+Glu
+Harekiet
+
+## Scene services / communities
+Slay Radio        # C64 remix radio
+DemoVibes         # scene-music player / community
+
+# --- LOGO PLAN (stay flexible — no lossy PNG->mesh conversions) ---
+#  default : raster logo -> runtime `image:logo.png` (flat splats, no bake — drop it in the demo)
+#  upgrade : a clean SVG exists -> `pipeline/svg_import.py` (native vector, scalable, crisp 3D)
+#  hero    : deFEEST-style bespoke coin (svg_extrude_logo.py) or a real 3D model
+#  people  : `text:HANDLE` (Glu, Harekiet)
+#  Logos get added *correctly in the demo*, per greet — not pre-baked into rigid meshes.
+# --- pending: pointers for WGI2015 / AMID ---
