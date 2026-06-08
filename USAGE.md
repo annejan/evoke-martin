@@ -81,6 +81,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_DEFORM_AMP` | `1.0` | Scales the deform amplitude — **`0.2`–`0.3` ≈ a gentle wobble on a big scene**, `1` = default, higher = wild. |
 | `MARTIN_DEFORM_SPEED` | `2.0` | Deform animation rate — `0.6`–`1` = slow/dreamy, higher = faster. |
 | `MARTIN_BEAT` | `1.0` | **Beat-reactive visuals** strength (`0` = off). The score's drums drive the look: kick → a scale "thump" + camera pump, snare → a bloom flare, hat → a shimmer, and any active `^deform` swells on the beat. See [Beat-reactive visuals](#beat-reactive-visuals). |
+| `MARTIN_BG` | — | **Fullscreen background shader** behind the splats (the demoscene classic): `plasma` / `tunnel` / `stars` / `warp` (or a number). A custom-material quad parented to the camera, opaque at the far plane so the splats blend over it; fed time + beat (kick brightens). The WGSL is `assets/bg.wgsl` — a `mode` uniform switches effects; edit it / add your own (Shadertoy-ish: work in `p` + `bg.time`). |
 | `MARTIN_FLASH` | `0` | Over-bright **bloom flash on each part cut** (0 = off; `~0.6` = punchy). Synced to the music when parts are `@@`-anchored to beats/bars. |
 | `MARTIN_SYNTH_WAV` | — | Render the bundled deFEEST synth (Cinder) to a WAV at this path, then exit — for muxing audio onto a recording. See [Music](#music-the-synth). |
 | `MARTIN_MUTE` | — | `=1` silences the **live** synth playback (it plays in the window by default; starts with the show, restarts on Space). Doesn't affect recordings — those mux the WAV. |

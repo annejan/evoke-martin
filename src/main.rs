@@ -20,6 +20,7 @@ use bevy::window::{MonitorSelection, WindowMode};
 use bevy_gaussian_splatting::GaussianSplattingPlugin;
 
 mod audio;
+mod background;
 #[cfg(feature = "bundle")]
 mod bundle;
 mod camera;
@@ -176,6 +177,7 @@ fn main() {
             CapturePlugin,
             MusicPlugin,
             LoaderPlugin,
+            crate::background::BackgroundPlugin,
         ))
         .run();
 }
