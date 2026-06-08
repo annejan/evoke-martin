@@ -1,16 +1,17 @@
 # martin — usage & env vars
 
 `martin` loads Gaussian splats and flies a camera around them as they **morph into one
-another** — driven entirely by environment variables. There's no config file: you compose
-the show by combining env vars on the command line.
+another**. Compose a show by combining env vars on the command line, or gather a whole show
+into a single [`.show` file](#the-unified-scene-file-martin_show) (`MARTIN_SHOW=x.show`) — the
+file just expands into the same env vars, so everything below applies either way.
 
 ```bash
 cargo +nightly run --release        # nightly toolchain is pinned (rust-toolchain.toml)
 ```
 
-It's **one sequence engine**: every run is a list of *parts* (splats or text) that each
-assemble out of a ball cloud and morph into the next. With no env vars it assembles
-`assets/aegg.ply` from a ball and holds it.
+It's **one sequence engine**: every run is a list of *parts* (splats, text, meshes, shader
+interludes) that each assemble out of a source cloud and morph into the next. With no env vars
+it plays the bundled flagship demo ([`assets/demo.show`](assets/demo.show)).
 
 ---
 
@@ -24,7 +25,7 @@ Everything is one timeline. `MARTIN_SEQ` writes it explicitly; the other env var
 | `MARTIN_SEQ` | exactly the parts you write (the full timeline) |
 | `MARTIN_TEXT` | one part: that title, assembled from a ball |
 | `MARTIN_PLY` (+ `_PLY2`) (+ `_REFORM`) | the splat(s) as part 1; the reform target (if any) as part 2 |
-| *(nothing)* | one part: `assets/aegg.ply` |
+| *(nothing)* | the bundled flagship demo (`assets/demo.show`) |
 
 Examples:
 
@@ -98,7 +99,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_FPS` | off | `=1` logs smoothed FPS / frame-time + timeline clock every ~0.5 s (the **`I`** key toggles it live + logs a snapshot). |
 | `MARTIN_RECORD` | — | Directory to dump one PNG per frame into (the whole timeline; used by `record.sh`). **Recording runs fully headless** — no window, camera → an offscreen image (so it works over SSH / on any compositor, and never captures a black background). Works for `MARTIN_COMPOSE` stages too. |
 | `MARTIN_BENCH` | — | `=<frames>` renders that many frames **headless with no PNG output** and logs the render-only fps, then exits — a clean perf probe (disk-I/O-free). |
-| `MARTIN_LOADER` / `MARTIN_LOGO` | off | `=1` shows a **loading screen** (black + progress bar; `MARTIN_LOGO=<png in the asset root>` adds the logo) until the show is built. Set automatically in a bundled build. |
+| `MARTIN_LOADER` / `MARTIN_LOGO` | off | `=1` shows a **loading screen** (black + progress bar; `MARTIN_LOGO=<png in the asset root>` adds the logo) until the show is built, then **cross-fades** into the opening logo behind it. Set automatically in a bundled build. (Window-only — not captured in recordings.) |
 | `MARTIN_SHOT` | — | Capture a single headless screenshot to this path, then exit ~2 s later. |
 | `MARTIN_SHOT_AT` | `6.0` | When (seconds) to take the `MARTIN_SHOT`. |
 | `MARTIN_FULLSCREEN` | off | `=1` starts borderless-fullscreen; toggle live with **F11 / F**. (Ignored while recording — that needs the fixed window.) |

@@ -74,6 +74,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 
 | Env var | Effect |
 |---|---|
+| `MARTIN_SHOW=show.show` | **Unified scene file** — one file with settings + a `[seq]` + a `[compose]` stage + a music-timed `[camera]` track. Expands into the env vars below (which still override it). The recommended way to author a whole show; see `assets/example.show`. |
 | `MARTIN_PLY=/abs/x.ply` | Load a splat (sets the asset folder for the others). |
 | `MARTIN_PLY2=y.ply` | A second splat beside the first (the two morph together). |
 | `MARTIN_REFORM=dog.ply` | The source(s) **morph** into this one (Morton-paired particle flow). |
@@ -83,7 +84,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_FPS=1` / **`I`** key | Log FPS + splat count (the `I` key toggles it live + logs a snapshot). |
 | `MARTIN_BULGE=0.9` | Ball-cloud explosiveness at a morph's midpoint (`0` = clean reorder). |
 | `MARTIN_TRANSITION=fade` | How each part **arrives**: `morph`/`swarm`/`ball`/`fade`/`explode`/`implode`/`drop`/`swirl`, or the shader ones `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-part `~name` wins). `swarm` = like `morph` but the splats flock along curled paths *between* the two scenes (the `@_,_,N` value tunes the swarm strength). |
-| `MARTIN_DEFORM=wave` | **Persistent** deform held the whole part (`wave`/`cloth`/`ripple`/`twist`) — great on a `wall:` of text, or to **gently wobble a whole splat scene** while you fly around it. Per-part `^name` wins. |
+| `MARTIN_DEFORM=wave` | A **scene-wide persistent deform** field held the whole part (`wave`/`cloth`/`ripple`/`twist`/`wind`/`turbulence`) — great on a `wall:` of text, or to **gently wobble a whole splat scene** while you fly around it; applies to compose objects too. Per-part `^name` wins. |
 | `MARTIN_DEFORM_AMP=0.3` `MARTIN_DEFORM_SPEED=1` | Tune the deform: amplitude scale (`0.3` ≈ a gentle wobble on a big scene; `1` = default) and animation rate. |
 | `MARTIN_MESH_COUNT=60000` | A `mesh:model.dae` part (`.dae`/`.obj`/`.stl`/`.ply`) is surface-sampled into this many **flat, normal-aligned** gaussians, coloured from the diffuse texture (sampled at the UV), else vertex/material colour, else `MARTIN_MESH_RGB`. `MARTIN_MESH_SPLAT` = in-plane disk size; `MARTIN_MESH_THIN` = thickness (default 0.2× the radius). |
 | `MARTIN_MORPH_COUNT=250000` | Gaussian budget (`0`=max ~1.15M ≈ 20 fps; 250k ≈ 60 fps on the iGPU). |
@@ -109,9 +110,12 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 ```
 text:STRING               # splat-text (glowing)
 image:logo.png            # a PNG (in the MARTIN_PLY folder), rasterized to gaussians
+mesh:model.dae            # a 3D mesh (.dae/.obj/.stl/.ply), surface-sampled into gaussians
+glb:badge.glb             # a real glTF mesh: rendered crisp, then DISSOLVES into its own splats
+shader:warp               # a fullscreen-effect INTERLUDE (warp/plasma/tunnel/stars); splats clear
 splat:a.ply               # a splat (filename in the MARTIN_PLY folder)
 splat:a.ply+b.ply         # several splats, auto-arranged side by side
-…any part… @hold,morph,bulge ~transition @@anchor   # timing · arrival transition · music cue
+…any part… @hold,morph,bulge ~transition ^deform out:departure @@anchor   # timing · arrival · deform · departure · cue
 ```
 
 The trailing `~transition` picks how a part arrives — data-only `ball` (default), `fade`,
