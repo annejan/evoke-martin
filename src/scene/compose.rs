@@ -15,7 +15,8 @@ use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
 use crate::capture::RecordState;
 use crate::morph::resample_morton;
 use crate::scene::content::{parse_source, part_gaussians, PartContent};
-use crate::scene::sequence::{source_cloud, Deform, SeqState, Sequence, Transition};
+use crate::scene::effects::{source_cloud, Deform, Transition};
+use crate::scene::sequence::{SeqState, Sequence};
 use crate::scene::{cloud_base_rotation, AssetRoot, SeqClock, NORMALIZE_EXTENT};
 use crate::score;
 

@@ -9,6 +9,8 @@ use bevy_gaussian_splatting::PlanarGaussian3d;
 pub mod beat;
 pub mod compose;
 pub mod content;
+pub mod effects;
+pub mod gl_dissolve;
 pub mod sequence;
 
 use compose::Composition;
@@ -146,8 +148,8 @@ impl Plugin for ScenePlugin {
                     sequence::build_sequence,
                     sequence::part_director,
                     sequence::seq_no_cull,
-                    sequence::sample_gl_mesh,
-                    sequence::animate_seq_model,
+                    gl_dissolve::sample_gl_mesh,
+                    gl_dissolve::animate_seq_model,
                     advance_seq_clock,
                     compose::build_composition,
                     compose::animate_composition,
