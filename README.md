@@ -74,7 +74,8 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 
 | Env var | Effect |
 |---|---|
-| `MARTIN_SHOW=show.show` | **Unified scene file** — one file with settings + a `[seq]` + a `[compose]` stage + a music-timed `[camera]` track. Expands into the env vars below (which still override it). The recommended way to author a whole show; see `assets/example.show`. |
+| `MARTIN_SHOW=show.show` | **Unified scene file** — one file with settings + a `[seq]` + a `[compose]` stage + a music-timed `[camera]` track (keyframes can anchor to a music section, `t=@@drop`). Expands into the env vars below (which still override it). The recommended way to author a whole show; see `assets/example.show`. |
+| `MARTIN_VALIDATE=1` | **Dry-run** — parse the show, print the resolved timeline (part cue times, effects, compose, camera) and exit, no render. A fast authoring check. |
 | `MARTIN_PLY=/abs/x.ply` | Load a splat (sets the asset folder for the others). |
 | `MARTIN_PLY2=y.ply` | A second splat beside the first (the two morph together). |
 | `MARTIN_REFORM=dog.ply` | The source(s) **morph** into this one (Morton-paired particle flow). |

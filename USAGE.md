@@ -78,6 +78,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ` | — | A timeline of parts (see [Sequences](#sequences)). Highest precedence. |
 | `MARTIN_SHOW` | — | A **unified scene file** (`.show`) — settings + `[seq]` + `[compose]` + a `[camera]` track in one file. Expands into the other `MARTIN_*` vars (which still override it). See [The unified scene file](#the-unified-scene-file-martin_show). |
+| `MARTIN_VALIDATE` | — | `=1` **dry-run**: parse the show, print the resolved timeline (part cue times, effects, compose, camera track) and exit — no render. See [Validate a show](#validate-a-show-without-rendering-martin_validate). |
 | `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`swarm`/`ball`/`fade`/`explode`/`implode`/`drop`/`rain`/`funnel`/`shatter`/`condense`/`swirl` (data-only) or `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-particle shader; `outline`/`pen-write` are text-only). A per-part `~name` overrides it. See [Sequences](#sequences). |
 | `MARTIN_DEFORM` | — | Scene-wide **persistent deform** field over every part *and* compose object: `wave`/`cloth`/`ripple`/`twist`/`wind`/`turbulence` — runs the whole time a part is held (great on a `wall:`, or to gently wobble a whole splat scene while you fly around it). A per-part `^name` overrides it. See [Persistent deforms](#persistent-deforms-name-keep-a-part-moving-while-its-held). |
 | `MARTIN_DEFORM_AMP` | `1.0` | Scales the deform amplitude — **`0.2`–`0.3` ≈ a gentle wobble on a big scene**, `1` = default, higher = wild. |
@@ -576,7 +577,7 @@ A `.show` has four kinds of section — see [`assets/example.show`](assets/examp
 | *(top, before any header)* `key = value` | **settings** — each becomes `MARTIN_<KEY>` (`morph_count = 180000` → `MARTIN_MORPH_COUNT`, `deform = wind`, `bg = plasma`, …) |
 | `[seq]` | the **hero** morph timeline — verbatim [`.seq`](#sequences) syntax |
 | `[compose]` | the **stage** of placed objects — verbatim [`.compose`](#composition--the-stage-martin_compose) syntax |
-| `[camera]` | a music-timed **[camera track](#live-keyboard-controls)** — order-free `t=<s> pos=x,y,z dist= yaw= pitch=` lines |
+| `[camera]` | a music-timed **[camera track](#live-keyboard-controls)** — order-free `t=<s> pos=x,y,z dist= yaw= pitch=` lines. `t` is seconds **or `@@anchor`** (`t=@@drop` locks the keyframe to a music section, like a seq part) |
 
 It's deliberately pure sugar: the file **expands into the env** (the settings become `MARTIN_*`, the
 `[seq]`/`[compose]` bodies become `MARTIN_SEQ`/`MARTIN_COMPOSE`), so everything above works exactly
@@ -584,7 +585,20 @@ the same — and **an explicit env var on the command line still wins** over a s
 (`MARTIN_DEFORM=turbulence MARTIN_SHOW=x.show …` overrides just that one knob). The only part that
 isn't an env var, the inline `[camera]` track, is handed straight to the camera (and auto-enables
 `MARTIN_FLY`). Author the camera live — fly around and tap **M** at musical moments — then paste the
-logged poses into the `[camera]` section, or hand-edit the `t`'s to lock moves to the beat.
+logged poses into the `[camera]` section, or hand-edit the `t`'s to lock moves to the beat. A
+keyframe time can also be a **`@@anchor`** (`t=@@drop`) so the move snaps to a music section even if
+you retune the tempo.
+
+### Validate a show without rendering (`MARTIN_VALIDATE`)
+
+**`MARTIN_VALIDATE=1`** parses the whole show and prints the resolved timeline — then exits, no
+window, no render. Each seq part with its cue start time + transition/deform/departure, the compose
+stage, and the camera track. A fast "is my show right, and what does it look like on paper?" check
+(typos in the show also print `unknown …` lines on stderr):
+
+```bash
+MARTIN_VALIDATE=1 MARTIN_SHOW=my.show cargo +nightly run --release
+```
 
 ## Music (the synth)
 

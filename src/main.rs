@@ -118,11 +118,12 @@ fn main() {
             std::env::var("MARTIN_PLY").ok().and_then(parent_dir),
         )
     };
-    // The camera waypoints: a `.show` inline `[camera]` track, else the MARTIN_WAYPOINTS file.
+    // The camera waypoints: a `.show` inline `[camera]` track (parsed now the score exists, so its
+    // keyframes can anchor to music sections), else the MARTIN_WAYPOINTS file.
     let waypoints = if show.camera.is_empty() {
         waypoints::Waypoints::from_env()
     } else {
-        waypoints::Waypoints::from_inline(show.camera)
+        waypoints::Waypoints::from_inline(waypoints::parse_camera(&show.camera, &score))
     };
 
     // MARTIN_VALIDATE=1: a dry run — print the parsed timeline (with the parse diagnostics already

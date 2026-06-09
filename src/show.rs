@@ -10,15 +10,12 @@
 //! overrides one knob. The only thing that isn't an env var — the inline `[camera]` track — is
 //! returned for `main` to hand to the camera.
 
-use bevy::math::Vec3;
-
-use crate::waypoints::Waypoint;
-
-/// What a show file contributes that *isn't* an env var: the inline camera track. Everything else
-/// has already been expanded into the env by `apply` by the time this is returned.
+/// What a show file contributes that *isn't* an env var: the raw `[camera]` track lines. They're
+/// parsed later (in `main`, by `waypoints::parse_camera`) once the score exists, so a keyframe can
+/// anchor its time to a music section (`t=@@drop`). Everything else is expanded into the env here.
 #[derive(Default)]
 pub struct Show {
-    pub camera: Vec<Waypoint>,
+    pub camera: Vec<String>,
 }
 
 /// Expand `MARTIN_SHOW` into the env and return its `[camera]` track. A no-op (empty `Show`) when
@@ -81,9 +78,11 @@ fn parse_and_apply(text: &str) -> Show {
                 compose.push_str(raw);
                 compose.push('\n');
             }
+            // keep the raw camera lines (comment-stripped); parsed after the score is built.
             Section::Camera => {
-                if let Some(w) = parse_waypoint(line) {
-                    camera.push(w);
+                let s = line.split('#').next().unwrap_or("").trim();
+                if !s.is_empty() {
+                    camera.push(s.to_string());
                 }
             }
         }
@@ -112,44 +111,4 @@ fn set_if_absent(key: &str, value: &str) {
     if std::env::var(&var).is_err() {
         std::env::set_var(var, value);
     }
-}
-
-/// One `[camera]` line: order-free `key=value` tokens — `t` (show-time s; omit → untimed marker),
-/// `pos` (look-at `x,y,z`), `dist`, `yaw`, `pitch` (radians). Defaults match the front-on framing.
-fn parse_waypoint(line: &str) -> Option<Waypoint> {
-    let s = line.split('#').next().unwrap_or("").trim();
-    if s.is_empty() {
-        return None;
-    }
-    let mut w = Waypoint {
-        target: Vec3::ZERO,
-        dist: 5.0,
-        yaw: crate::camera::FRONT_YAW,
-        pitch: crate::camera::DEFAULT_PITCH,
-        t: None,
-    };
-    for tok in s.split_whitespace() {
-        let Some((k, v)) = tok.split_once('=') else {
-            continue;
-        };
-        match k {
-            "t" | "time" => w.t = v.parse().ok(),
-            "dist" | "d" => w.dist = v.parse().unwrap_or(w.dist),
-            "yaw" => w.yaw = v.parse().unwrap_or(w.yaw),
-            "pitch" => w.pitch = v.parse().unwrap_or(w.pitch),
-            "pos" | "target" => w.target = parse_vec3(v).unwrap_or(w.target),
-            _ => {}
-        }
-    }
-    Some(w)
-}
-
-/// `x,y,z` → `Vec3` (all three required).
-fn parse_vec3(s: &str) -> Option<Vec3> {
-    let mut it = s.split(',').map(|c| c.trim().parse::<f32>());
-    Some(Vec3::new(
-        it.next()?.ok()?,
-        it.next()?.ok()?,
-        it.next()?.ok()?,
-    ))
 }

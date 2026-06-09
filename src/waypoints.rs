@@ -79,6 +79,58 @@ pub fn save(list: &[Waypoint], path: &str) -> std::io::Result<()> {
     std::fs::write(path, text)
 }
 
+/// Parse a `.show` `[camera]` section (raw lines) into a track, resolving each keyframe's time. A
+/// line is order-free `key=value` tokens: `t` (show-time — a number of seconds, OR `@@anchor` to
+/// lock it to a music section/bar/beat, just like a seq part; omit → an untimed marker), `pos` (the
+/// look-at `x,y,z`), `dist`, `yaw`, `pitch` (radians). Needs the score for the `@@` anchors.
+pub fn parse_camera(lines: &[String], score: &crate::score::Score) -> Vec<Waypoint> {
+    lines
+        .iter()
+        .filter_map(|line| {
+            let s = line.split('#').next().unwrap_or("").trim();
+            if s.is_empty() {
+                return None;
+            }
+            let mut w = Waypoint {
+                target: Vec3::ZERO,
+                dist: 5.0,
+                yaw: crate::camera::FRONT_YAW,
+                pitch: crate::camera::DEFAULT_PITCH,
+                t: None,
+            };
+            for (k, v) in s.split_whitespace().filter_map(|t| t.split_once('=')) {
+                match k {
+                    "t" | "time" => {
+                        w.t = match v.strip_prefix("@@") {
+                            Some(a) => score.anchor_seconds(a).or_else(|| {
+                                eprintln!("camera: unknown anchor '@@{a}' — keyframe untimed");
+                                None
+                            }),
+                            None => v.parse().ok(),
+                        }
+                    }
+                    "dist" | "d" => w.dist = v.parse().unwrap_or(w.dist),
+                    "yaw" => w.yaw = v.parse().unwrap_or(w.yaw),
+                    "pitch" => w.pitch = v.parse().unwrap_or(w.pitch),
+                    "pos" | "target" => w.target = parse_vec3(v).unwrap_or(w.target),
+                    _ => {}
+                }
+            }
+            Some(w)
+        })
+        .collect()
+}
+
+/// `x,y,z` → `Vec3` (all three required).
+fn parse_vec3(s: &str) -> Option<Vec3> {
+    let mut it = s.split(',').map(|c| c.trim().parse::<f32>());
+    Some(Vec3::new(
+        it.next()?.ok()?,
+        it.next()?.ok()?,
+        it.next()?.ok()?,
+    ))
+}
+
 /// Read a waypoints file written by `save` (same JSON shape). Missing / unparseable → empty.
 pub fn load(path: &str) -> Vec<Waypoint> {
     let Ok(text) = std::fs::read_to_string(path) else {
