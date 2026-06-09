@@ -7,7 +7,7 @@ struct BgData {
     time: f32,
     mode: u32,
     aspect: f32,
-    _pad: f32,
+    dim: f32,
     beat: vec4<f32>,
 };
 @group(3) @binding(0) var<uniform> bg: BgData;
@@ -53,5 +53,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // beat: the kick brightens the whole field (scaled by MARTIN_BEAT intensity).
     col *= 1.0 + bg.beat.x * 0.6 * bg.beat.w;
+    col *= bg.dim; // MARTIN_BG_DIM — dial the backdrop down so foreground content reads
     return vec4<f32>(col, 1.0);
 }

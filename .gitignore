@@ -66,3 +66,7 @@ assets/hd-test.png
 assets/badge-front.png
 assets/badge-back.png
 assets/greetings-logos
+
+# Local preview renders (not committed)
+/*.mp4
+/intro-preview.show

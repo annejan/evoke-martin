@@ -18,7 +18,7 @@ struct BgData {
     time: f32,
     mode: u32,
     aspect: f32,
-    _pad: f32,
+    dim: f32, // MARTIN_BG_DIM — scales brightness so foreground content reads (default 1.0)
     beat: Vec4, // x=kick y=snare z=hat w=intensity
 }
 
@@ -74,10 +74,15 @@ fn spawn_bg(
     let d = 90.0_f32;
     let h = 2.0 * d * (std::f32::consts::FRAC_PI_8).tan() * 1.06;
     let w = h * aspect;
+    let dim = std::env::var("MARTIN_BG_DIM")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1.0);
     let mat = mats.add(BgMaterial {
         data: BgData {
             mode,
             aspect,
+            dim,
             ..default()
         },
     });
