@@ -141,6 +141,8 @@ fn referenced_assets(spec: &str) -> Vec<String> {
                 p.split('+').for_each(&mut push);
             } else if let Some(p) = tok.strip_prefix("image:") {
                 push(p);
+            } else if let Some(p) = tok.strip_prefix("svg:") {
+                push(p);
             } else if let Some(p) = tok.strip_prefix("mesh:") {
                 push(p);
             } else if let Some(p) = tok.strip_prefix("glb:") {

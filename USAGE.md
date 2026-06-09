@@ -201,6 +201,7 @@ path to a file** with one part per line (`#` starts a comment, blank lines are s
 text:STRING                      # splat-text (glowing)
 wall:LINE1|LINE2|LINE3           # a multi-line WALL of text (| = newline), or wall:greets.txt
 image:logo.png                   # a PNG in the asset folder, rasterized to gaussians (a logo)
+svg:logo.svg                     # an SVG, rasterized (vector→pixels, MARTIN_SVG_PX wide) → gaussians
 mesh:logo.dae                    # a 3D mesh (.dae/.obj/.stl/.ply), surface-sampled into gaussians
 glb:badge.glb                    # a real glTF mesh: rendered crisp, THEN dissolves into its own
                                  #   sampled splats (coincident by construction) which morph on
@@ -211,6 +212,10 @@ splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
 …any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   cluster:N   @@anchor
 ```
+
+`image:`/`svg:` parts share the crispness knobs **`MARTIN_IMG_STRIDE`** (pixel subsample, default
+`2`) and **`MARTIN_IMG_SPLAT`** (gaussian size, `0.012`); an `svg:` also takes **`MARTIN_SVG_PX`**
+(the width it rasterizes the vector to before sampling, default `512` — raise it for a crisper logo).
 
 The optional trailing `@hold,morph,bulge` sets, in **seconds** (and ball amount):
 - **hold** — how long to rest on this part once it arrives (default `1.5`)

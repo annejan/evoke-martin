@@ -403,6 +403,7 @@ pub(crate) fn build_sequence(
         let label = match &part.content {
             PartContent::Text(s) => format!("text \"{s}\""),
             PartContent::Image(name) => format!("image {name}"),
+            PartContent::Svg(name) => format!("svg {name}"),
             PartContent::Mesh(name) => format!("mesh {name}"),
             PartContent::Model(name) => format!("model {name}"),
             PartContent::GlMesh(name) => format!("gl-mesh {name}"),

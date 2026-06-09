@@ -110,6 +110,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 ```
 text:STRING               # splat-text (glowing)
 image:logo.png            # a PNG (in the MARTIN_PLY folder), rasterized to gaussians
+svg:logo.svg              # an SVG, rasterized (vector → pixels) into gaussians — any vector art
 mesh:model.dae            # a 3D mesh (.dae/.obj/.stl/.ply), surface-sampled into gaussians
 glb:badge.glb             # a real glTF mesh: rendered crisp, then DISSOLVES into its own splats
 shader:warp               # a fullscreen-effect INTERLUDE (warp/plasma/tunnel/stars); splats clear

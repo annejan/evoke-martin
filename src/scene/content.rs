@@ -10,7 +10,7 @@ use bevy_gaussian_splatting::{Gaussian3d, PlanarGaussian3d};
 use crate::mesh;
 use crate::scene::file_name_of;
 use crate::scene::sequence::SeqState;
-use crate::splat_image::build_image_gaussians;
+use crate::splat_image::{build_image_gaussians, build_svg_gaussians};
 use crate::text::{build_text_gaussians, TEXT_RGB};
 
 const SIDE_SEP: f32 = 1.2; // half-spacing when a part places several splats side by side
@@ -20,6 +20,9 @@ pub(crate) enum PartContent {
     Text(String),
     /// a PNG in the asset dir, rasterized to flat gaussians (a logo, etc.)
     Image(String),
+    /// an SVG in the asset dir, rasterized (vector → pixels) then sampled to flat gaussians — any
+    /// vector logo/art as a morph source, crisp at any size you raster it to (`MARTIN_SVG_PX`).
+    Svg(String),
     /// a mesh in the asset dir (`.dae`/`.obj`/`.stl`/`.ply`), surface-sampled into gaussians
     Mesh(String),
     /// one or more splats (filename in the asset dir, world offset) combined into one shape
@@ -50,6 +53,8 @@ pub(crate) fn parse_source(head: &str) -> Option<PartContent> {
         PartContent::Text(std::fs::read_to_string(w).unwrap_or_else(|_| w.replace('|', "\n")))
     } else if let Some(name) = head.strip_prefix("image:") {
         PartContent::Image(name.trim().to_string())
+    } else if let Some(name) = head.strip_prefix("svg:") {
+        PartContent::Svg(name.trim().to_string())
     } else if let Some(name) = head.strip_prefix("mesh:") {
         PartContent::Mesh(name.trim().to_string())
     } else if let Some(name) = head.strip_prefix("model:") {
@@ -113,6 +118,28 @@ pub(crate) fn part_gaussians(
             }
             Err(e) => {
                 warn!("image {name}: {e}");
+                Vec::new()
+            }
+        },
+        PartContent::Svg(name) => match std::fs::read(root.join(name)) {
+            Ok(bytes) => {
+                // shares the image knobs (MARTIN_IMG_STRIDE/_SPLAT); MARTIN_SVG_PX = raster width.
+                let stride = std::env::var("MARTIN_IMG_STRIDE")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(2);
+                let splat = std::env::var("MARTIN_IMG_SPLAT")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0.012);
+                let px = std::env::var("MARTIN_SVG_PX")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(512);
+                build_svg_gaussians(&bytes, px, 3.0, stride, splat, 0.5, 0.85)
+            }
+            Err(e) => {
+                warn!("svg {name}: {e}");
                 Vec::new()
             }
         },

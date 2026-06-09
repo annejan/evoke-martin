@@ -1,7 +1,7 @@
-//! Splat-image: sample a PNG's opaque pixels into flat (z=0) coloured gaussians, so a logo (or
-//! any image) is just another morph source — it can ball-assemble, sparkle in, hold, and morph
-//! into the next part exactly like splat-text. Built **Y-DOWN** so the entity's
-//! `cloud_base_rotation` flips it upright, matching text and the Y-down `.ply` splats.
+//! Splat-image: sample an image's (PNG, or a rasterized SVG) opaque pixels into flat (z=0) coloured
+//! gaussians, so a logo or any vector/raster art is just another morph source — it can ball-assemble,
+//! sparkle in, hold, and morph into the next part exactly like splat-text. Built **Y-DOWN** so the
+//! entity's `cloud_base_rotation` flips it upright, matching text and the Y-down `.ply` splats.
 
 use bevy_gaussian_splatting::{Gaussian3d, SphericalHarmonicCoefficients};
 
@@ -10,10 +10,8 @@ fn dc(c: f32) -> f32 {
     (c - 0.5) / 0.282_094_79
 }
 
-/// Sample the opaque pixels of `png` (every `stride`-th pixel) into colored gaussians spanning
-/// `world_width`, centred at the origin, flat on z=0. `alpha_thresh` drops near-transparent
-/// pixels (clean edges); `gain` (<1) keeps bright logos from blooming into a blob. Deterministic
-/// jitter (no rng) keeps record mode reproducible.
+/// Sample the opaque pixels of a PNG/JPEG (every `stride`-th pixel) into colored gaussians. See
+/// `sample_rgba` for the parameters.
 pub fn build_image_gaussians(
     png: &[u8],
     world_width: f32,
@@ -26,6 +24,63 @@ pub fn build_image_gaussians(
         Ok(i) => i.to_rgba8(),
         Err(_) => return Vec::new(),
     };
+    sample_rgba(&img, world_width, stride, splat, alpha_thresh, gain)
+}
+
+/// Rasterize an SVG to `px` wide (height by aspect) and sample it into gaussians, exactly like a
+/// PNG logo — so any vector art is a morph source. Pure-Rust raster (usvg + tiny-skia). Text in the
+/// SVG needs fonts; plain path/shape logos (the common case) render with no extra setup.
+pub fn build_svg_gaussians(
+    svg: &[u8],
+    px: u32,
+    world_width: f32,
+    stride: usize,
+    splat: f32,
+    alpha_thresh: f32,
+    gain: f32,
+) -> Vec<Gaussian3d> {
+    let Some(img) = rasterize_svg(svg, px) else {
+        return Vec::new();
+    };
+    sample_rgba(&img, world_width, stride, splat, alpha_thresh, gain)
+}
+
+/// SVG bytes → an `RgbaImage` `px` wide (height preserves the aspect), straight (un-premultiplied)
+/// alpha. `None` on a parse/alloc failure.
+fn rasterize_svg(svg: &[u8], px: u32) -> Option<image::RgbaImage> {
+    use resvg::{tiny_skia, usvg};
+    let tree = usvg::Tree::from_data(svg, &usvg::Options::default()).ok()?;
+    let size = tree.size();
+    let px = px.clamp(16, 4096);
+    let scale = px as f32 / size.width().max(1.0);
+    let (w, h) = (px, (size.height() * scale).round().max(1.0) as u32);
+    let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    // tiny-skia stores premultiplied RGBA; demultiply to straight colour for the sampler.
+    let mut img = image::RgbaImage::new(w, h);
+    for (dst, src) in img.pixels_mut().zip(pixmap.pixels()) {
+        let c = src.demultiply();
+        *dst = image::Rgba([c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    Some(img)
+}
+
+/// Sample the opaque pixels of an RGBA image (every `stride`-th pixel) into colored gaussians
+/// spanning `world_width`, centred at the origin, flat on z=0. `alpha_thresh` drops near-transparent
+/// pixels (clean edges); `gain` (<1) keeps bright logos from blooming into a blob. Deterministic
+/// jitter (no rng) keeps record mode reproducible.
+fn sample_rgba(
+    img: &image::RgbaImage,
+    world_width: f32,
+    stride: usize,
+    splat: f32,
+    alpha_thresh: f32,
+    gain: f32,
+) -> Vec<Gaussian3d> {
     let (w, h) = (img.width(), img.height());
     if w == 0 || h == 0 {
         return Vec::new();
