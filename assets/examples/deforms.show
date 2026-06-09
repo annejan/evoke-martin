@@ -9,3 +9,6 @@ wall:RIPPLE     @3,1  ~fade  ^ripple
 wall:TWIST      @3,1  ~fade  ^twist
 wall:WIND       @3,1  ~fade  ^wind
 wall:TURBULENCE @3,1  ~fade  ^turbulence
+wall:PULSE      @3,1  ~fade  ^pulse
+wall:JITTER     @3,1  ~fade  ^jitter
+wall:SPIRAL     @3,1  ~fade  ^spiral

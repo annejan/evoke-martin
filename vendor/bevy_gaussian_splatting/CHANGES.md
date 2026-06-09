@@ -91,8 +91,10 @@ byte-identical to upstream.** Append-only + default-off ⇒ also a clean candida
 - `src/render/gaussian.wgsl` — a gated branch in `vs_points` **after** the transition block and
   **before** `transformed_position` (so the deform is in object space, pre-transform). Displaces
   `position` by a per-mode function of its centred coords + `deform_time`. if/else-if, not switch.
-  Modes 1-4 (wave/cloth/ripple/twist); **mode 5** wind (gusting sway), **mode 6** turbulence (churning 3D field). Mode 5 detail: gusting sideways sway with a per-position
-  phase lag + y/z turbulence — flutters/streams, sways around 0 so no net drift).
+  Modes 1-4 (wave/cloth/ripple/twist); **5** wind (gusting sway), **6** turbulence (churning 3D
+  field), **7** pulse (breathe in/out about the centre), **8** jitter (fast per-particle shake), **9**
+  spiral (radial pinwheel about the vertical axis). All append-only `else if` branches gated by
+  `deform_mode != 0u`, so mode 0 stays byte-identical to upstream.
 - New uniform group (4 spots, like §2/§4): `deform_mode: u32`, `deform_amp: f32`,
   `deform_freq: f32`, `deform_time: f32` — a **second 16-byte block appended after the transition
   group** (`_transition_pad`) in `bindings.wgsl` `GaussianUniforms`, `mod.rs` `CloudUniform`

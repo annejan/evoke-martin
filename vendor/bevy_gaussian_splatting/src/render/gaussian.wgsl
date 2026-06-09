@@ -396,6 +396,27 @@ fn vs_points(
             let ty = sin(dp.z * dfreq * 1.1 + dtt * 1.2) + 0.5 * sin(dp.x * dfreq * 1.5 - dtt);
             let tz = sin(dp.x * dfreq * 0.9 - dtt) + 0.5 * sin(dp.y * dfreq * 1.3 + dtt * 0.8);
             position = vec4<f32>(position.x + damp * tx, position.y + damp * ty, position.z + damp * tz, 1.0);
+        } else if (dmode == 7u) {
+            // pulse: the whole shape breathes — scaled in/out about its centre by a sine (damp = the
+            // fraction, e.g. 0.1 = ±10%). dfreq unused; the rate is deform_time's own speed.
+            let s = 1.0 + damp * sin(dtt * 1.5);
+            position = vec4<f32>(dcenter + dp * s, 1.0);
+        } else if (dmode == 8u) {
+            // jitter: a fast per-particle shake — each axis offset by a sine at a per-position phase,
+            // so every splat trembles independently (a nervous, glitchy energy). damp small (~0.04).
+            let ph = dp.x * 7.0 + dp.y * 13.0 + dp.z * 17.0;
+            let jx = sin(dtt * 18.0 + ph);
+            let jy = sin(dtt * 19.0 + ph * 1.3);
+            let jz = sin(dtt * 17.0 + ph * 0.7);
+            position = vec4<f32>(position.x + damp * jx, position.y + damp * jy, position.z + damp * jz, 1.0);
+        } else if (dmode == 9u) {
+            // spiral: a radial pinwheel — rotate each point about the vertical axis by an angle that
+            // grows with its radius and time, so the shape swirls/curls outward (damp = radians scale).
+            let r = length(dp.xz);
+            let ang = damp * sin(r * dfreq - dtt);
+            let ca = cos(ang);
+            let sa = sin(ang);
+            position = vec4<f32>(dcenter.x + dp.x * ca - dp.z * sa, position.y, dcenter.z + dp.x * sa + dp.z * ca, 1.0);
         }
     }
 

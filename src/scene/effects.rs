@@ -132,6 +132,9 @@ pub(crate) enum Deform {
     Twist,      // banner curl/uncurl
     Wind,       // gusting sideways sway + spatial turbulence — flutters/streams in the wind
     Turbulence, // a churning 3D field — particles swirl/boil (a turbulent force field)
+    Pulse,      // the whole shape breathes in/out about its centre
+    Jitter,     // a fast per-particle shake — nervous, glitchy energy
+    Spiral,     // a radial pinwheel — swirls/curls about the vertical axis
 }
 
 impl Deform {
@@ -143,6 +146,9 @@ impl Deform {
             "twist" | "curl" => Deform::Twist,
             "wind" | "gust" => Deform::Wind,
             "turbulence" | "turb" | "churn" => Deform::Turbulence,
+            "pulse" | "breathe" => Deform::Pulse,
+            "jitter" | "shake" => Deform::Jitter,
+            "spiral" | "pinwheel" => Deform::Spiral,
             _ => return None,
         })
     }
@@ -156,6 +162,9 @@ impl Deform {
             Deform::Twist => (4, 0.5, 2.0), // amp is radians
             Deform::Wind => (5, 0.15, 2.5),
             Deform::Turbulence => (6, 0.12, 3.0),
+            Deform::Pulse => (7, 0.10, 1.0), // amp = breathe fraction (±10%)
+            Deform::Jitter => (8, 0.04, 1.0), // small per-particle shake
+            Deform::Spiral => (9, 0.8, 3.0), // amp ≈ radians, freq = radial
         }
     }
 }
@@ -206,6 +215,8 @@ mod tests {
     fn deform_and_departure_parse() {
         assert_eq!(Deform::parse("flag"), Some(Deform::Wave)); // alias
         assert_eq!(Deform::parse("churn"), Some(Deform::Turbulence));
+        assert_eq!(Deform::parse("breathe"), Some(Deform::Pulse)); // alias
+        assert_eq!(Deform::parse("pinwheel"), Some(Deform::Spiral)); // alias
         assert_eq!(Deform::parse("xxx"), None);
         assert_eq!(Departure::parse("dust"), Some(Departure::Disperse));
         assert_eq!(Departure::parse("fall"), Some(Departure::Sink));
@@ -229,6 +240,9 @@ mod tests {
             Deform::Twist,
             Deform::Wind,
             Deform::Turbulence,
+            Deform::Pulse,
+            Deform::Jitter,
+            Deform::Spiral,
         ]
         .iter()
         .map(|d| d.uniforms().0)

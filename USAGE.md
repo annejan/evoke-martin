@@ -80,7 +80,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_SHOW` | — | A **unified scene file** (`.show`) — settings + `[seq]` + `[compose]` + a `[camera]` track in one file. Expands into the other `MARTIN_*` vars (which still override it). See [The unified scene file](#the-unified-scene-file-martin_show). |
 | `MARTIN_VALIDATE` | — | `=1` **dry-run**: parse the show, print the resolved timeline (part cue times, effects, compose, camera track) and exit — no render. See [Validate a show](#validate-a-show-without-rendering-martin_validate). |
 | `MARTIN_TRANSITION` | — | Default arrival transition for every part: `morph`/`swarm`/`ball`/`fade`/`explode`/`implode`/`drop`/`rain`/`funnel`/`shatter`/`condense`/`swirl` (data-only) or `typewriter`/`wipe`/`sparkle`/`slither`/`vortex`/`outline`/`pen-write` (per-particle shader; `outline`/`pen-write` are text-only). A per-part `~name` overrides it. See [Sequences](#sequences). |
-| `MARTIN_DEFORM` | — | Scene-wide **persistent deform** field over every part *and* compose object: `wave`/`cloth`/`ripple`/`twist`/`wind`/`turbulence` — runs the whole time a part is held (great on a `wall:`, or to gently wobble a whole splat scene while you fly around it). A per-part `^name` overrides it. See [Persistent deforms](#persistent-deforms-name-keep-a-part-moving-while-its-held). |
+| `MARTIN_DEFORM` | — | Scene-wide **persistent deform** field over every part *and* compose object: `wave`/`cloth`/`ripple`/`twist`/`wind`/`turbulence`/`pulse`/`jitter`/`spiral` — runs the whole time a part is held (great on a `wall:`, or to gently wobble a whole splat scene while you fly around it). A per-part `^name` overrides it. See [Persistent deforms](#persistent-deforms-name-keep-a-part-moving-while-its-held). |
 | `MARTIN_DEFORM_AMP` | `1.0` | Scales the deform amplitude — **`0.2`–`0.3` ≈ a gentle wobble on a big scene**, `1` = default, higher = wild. |
 | `MARTIN_DEFORM_SPEED` | `2.0` | Deform animation rate — `0.6`–`1` = slow/dreamy, higher = faster. |
 | `MARTIN_BEAT` | `1.0` | **Beat-reactive visuals** strength (`0` = off). The score's drums drive the look: kick → a scale "thump" + camera pump, snare → a bloom flare, hat → a shimmer, and any active `^deform` swells on the beat. See [Beat-reactive visuals](#beat-reactive-visuals). |
@@ -421,6 +421,9 @@ camera to catch the ripple in 3D):
 | `^twist` (`^curl`) | the wall slowly curls and uncurls — a 3D banner roll |
 | `^wind` (`^gust`) | a gusting sideways sway (particles lag by position) + flutter — blown in the wind |
 | `^turbulence` (`^turb`, `^churn`) | a churning 3D force field — the shape swirls/boils in place |
+| `^pulse` (`^breathe`) | the whole shape breathes in and out about its centre |
+| `^jitter` (`^shake`) | a fast per-particle shake — nervous, glitchy energy |
+| `^spiral` (`^pinwheel`) | a radial pinwheel — the shape swirls/curls about the vertical axis |
 
 ```
 wall:GREETINGS|TO ALL|DEMOSCENERS   @8,1   ~fade   ^wave
