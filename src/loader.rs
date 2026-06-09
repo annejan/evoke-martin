@@ -1,12 +1,18 @@
 //! A minimal loading screen (`MARTIN_LOADER=1`, set automatically in a bundled build): a black
-//! cover with the logo (`MARTIN_LOGO=<png in the asset root>`) and a slim progress bar that tracks
-//! how many splats have loaded, lifted away once the show is built. Off by default — dev runs skip it.
+//! cover with the logo (`MARTIN_LOGO=<png OR svg in the asset root>`) and a slim progress bar that
+//! tracks how many splats have loaded, then cross-fades into the show's opening logo. A `.svg` logo
+//! is rasterized so it can be the *same* artwork the opening mesh was extruded from — a 1-to-1
+//! loader→intro handoff. Off by default — dev runs skip it.
 
+use bevy::asset::RenderAssetUsages;
+use bevy::image::Image;
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_gaussian_splatting::PlanarGaussian3d;
 
 use crate::scene::compose::Composition;
 use crate::scene::sequence::SeqState;
+use crate::scene::AssetRoot;
 
 #[derive(Component)]
 struct LoaderRoot;
@@ -22,7 +28,42 @@ struct LoaderFade;
 const FADE_OUT: f32 = 0.6; // loader cross-fade time (s) once the show is built
 const MIN_SHOW: f32 = 0.8; // hold the loader at least this long so the logo registers before lift-off
 
-fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
+/// Resolve `MARTIN_LOGO` to a texture handle: a `.svg` is rasterized (so it matches the mesh it was
+/// extruded from), anything else is loaded as an image asset (PNG/JPEG). `None` if unset/unreadable.
+fn logo_handle(
+    asset_server: &AssetServer,
+    images: &mut Assets<Image>,
+    root: &std::path::Path,
+) -> Option<Handle<Image>> {
+    let logo = std::env::var("MARTIN_LOGO").ok()?;
+    if logo.to_ascii_lowercase().ends_with(".svg") {
+        let bytes = std::fs::read(root.join(&logo)).ok()?;
+        let rgba = crate::splat_image::rasterize_svg(&bytes, 1024)?;
+        let (w, h) = rgba.dimensions();
+        let image = Image::new(
+            Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            rgba.into_raw(),
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
+        );
+        Some(images.add(image))
+    } else {
+        Some(asset_server.load(logo))
+    }
+}
+
+fn spawn_loader(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    root: Res<AssetRoot>,
+) {
+    let logo = logo_handle(&asset_server, &mut images, &root.0);
     commands
         .spawn((
             Node {
@@ -41,14 +82,14 @@ fn spawn_loader(mut commands: Commands, asset_server: Res<AssetServer>) {
             LoaderFade,
         ))
         .with_children(|p| {
-            if let Ok(logo) = std::env::var("MARTIN_LOGO") {
+            if let Some(logo) = logo {
                 p.spawn((
                     Node {
                         width: Val::Px(480.0),
                         height: Val::Auto,
                         ..default()
                     },
-                    ImageNode::new(asset_server.load(logo)),
+                    ImageNode::new(logo),
                     LoaderFade,
                 ));
             }

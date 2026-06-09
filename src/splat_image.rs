@@ -46,8 +46,8 @@ pub fn build_svg_gaussians(
 }
 
 /// SVG bytes → an `RgbaImage` `px` wide (height preserves the aspect), straight (un-premultiplied)
-/// alpha. `None` on a parse/alloc failure.
-fn rasterize_svg(svg: &[u8], px: u32) -> Option<image::RgbaImage> {
+/// alpha. `None` on a parse/alloc failure. Also used by the loader to show the logo SVG.
+pub fn rasterize_svg(svg: &[u8], px: u32) -> Option<image::RgbaImage> {
     use resvg::{tiny_skia, usvg};
     let tree = usvg::Tree::from_data(svg, &usvg::Options::default()).ok()?;
     let size = tree.size();
