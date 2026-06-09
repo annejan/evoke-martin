@@ -7,11 +7,15 @@
 > open question so a reader can jump straight to the fork. This is a **worksheet,
 > not a verdict.**
 >
-> Where it cites the engine it means the engine **as it actually is today** — the
-> file/line references below were checked against the current `src/` and the
-> vendored crate, and the doc was *re-based onto that live code* (the previous
-> draft was written against a stale brief; see the reconciliation note in §0).
-> The WGSL/Rust sketches fit *that* engine.
+> Where it cites the engine it means the engine as it stood when this draft was
+> written. **⚠️ The specific `main.rs:NNN` line references below are now stale:** the
+> engine has since been refactored out of one big `main.rs` into modules — the show
+> timeline is `src/scene/sequence.rs`, the effect vocabulary (transitions/deforms/
+> departures) is `src/scene/effects.rs`, the morph builders are `src/morph.rs`, the
+> glb dissolve is `src/scene/gl_dissolve.rs`, and `MARTIN_SHOW`/validate live in
+> `src/show.rs` / `src/validate.rs`. Read the references as *conceptual* pointers; the
+> ideas still hold. (Much of the "open" roadmap below has since shipped — see
+> `USAGE.md` for what exists.)
 >
 > Layers below this doc: `README.md` (what it is), `USAGE.md` (how to drive it),
 > `ART-DIRECTION.md` (the look). This doc is the layer above: where the show
