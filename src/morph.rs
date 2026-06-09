@@ -701,4 +701,21 @@ mod tests {
         let src: Vec<Gaussian3d> = (0..30).map(|i| g(i as f32 * 0.1, 0.0, 0.0)).collect();
         assert_eq!(cluster_of(&src, 9).len(), 30 * 9);
     }
+
+    #[test]
+    fn departures_fade_to_zero_and_keep_count() {
+        let src: Vec<Gaussian3d> = (0..40).map(|i| g(i as f32 - 20.0, 1.0, 0.5)).collect();
+        for cloud in [
+            wash_of(&src, 3.0),
+            disperse_of(&src, 3.0),
+            evaporate_of(&src, 3.0),
+            sink_of(&src, 3.0),
+        ] {
+            assert_eq!(cloud.len(), src.len());
+            assert!(cloud.iter().all(|g| g.scale_opacity.opacity == 0.0)); // all leaving
+            assert!(cloud
+                .iter()
+                .all(|g| { g.position_visibility.position.iter().all(|c| c.is_finite()) }));
+        }
+    }
 }

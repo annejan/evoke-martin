@@ -117,3 +117,27 @@ fn sample_rgba(
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_rgba_keeps_opaque_pixels_and_carries_alpha() {
+        // a 2×2: three opaque pixels + one transparent → three gaussians (stride 1, thresh 0.5).
+        let mut img = image::RgbaImage::new(2, 2);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        img.put_pixel(1, 0, image::Rgba([0, 255, 0, 255]));
+        img.put_pixel(0, 1, image::Rgba([0, 0, 255, 255]));
+        img.put_pixel(1, 1, image::Rgba([255, 255, 255, 0])); // transparent → dropped
+        let g = sample_rgba(&img, 2.0, 1, 0.01, 0.5, 1.0);
+        assert_eq!(g.len(), 3);
+        assert!(g.iter().all(|x| x.scale_opacity.opacity == 1.0)); // alpha 255 → 1.0
+        assert!(g
+            .iter()
+            .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) }));
+        // an all-transparent image yields nothing.
+        let blank = image::RgbaImage::new(4, 4);
+        assert!(sample_rgba(&blank, 2.0, 1, 0.5, 0.5, 1.0).is_empty());
+    }
+}

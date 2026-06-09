@@ -413,3 +413,29 @@ pub fn build_text_penwrite_gaussians(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_rasterizes_to_finite_coloured_gaussians() {
+        let g = build_text_gaussians("AB", TEXT_RGB, 3.0, 2, 0.012);
+        assert!(!g.is_empty(), "text should produce gaussians");
+        assert!(g
+            .iter()
+            .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) }));
+        // spans roughly the requested world width, centred near the origin.
+        let xs: Vec<f32> = g
+            .iter()
+            .map(|x| x.position_visibility.position[0])
+            .collect();
+        let (lo, hi) = (
+            xs.iter().cloned().fold(f32::MAX, f32::min),
+            xs.iter().cloned().fold(f32::MIN, f32::max),
+        );
+        assert!(hi - lo > 0.5 && hi - lo <= 3.5);
+        // empty string → no gaussians (no panic).
+        assert!(build_text_gaussians("", TEXT_RGB, 3.0, 2, 0.012).is_empty());
+    }
+}
