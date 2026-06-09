@@ -499,3 +499,57 @@ pub(crate) fn compose_camera(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn objs(spec: &str) -> Vec<Composed> {
+        parse_compose(spec, &score::Score::builtin())
+    }
+
+    #[test]
+    fn parse_compose_reads_placement_and_transition() {
+        let o = objs("mesh:bitterbal.obj @1.5,-0.3,0 *0.5 spin 0,40,0 ~drop");
+        assert_eq!(o.len(), 1);
+        let s = o[0].summary();
+        assert!(s.contains("mesh bitterbal.obj"), "{s}");
+        assert!(s.contains("@(1.5,-0.3,0.0)"), "{s}");
+        assert!(s.contains("*0.50"), "{s}");
+        assert!(s.contains("~Drop"), "{s}");
+    }
+
+    #[test]
+    fn multi_word_head_before_placement_token() {
+        // `text:HELLO WORLD` must keep both words as the head (split at the first @/*/keyword).
+        let o = objs("text:HELLO WORLD @0,0,0 *1");
+        assert_eq!(o.len(), 1);
+        assert!(
+            o[0].summary().contains("text \"HELLO WORLD\""),
+            "{}",
+            o[0].summary()
+        );
+    }
+
+    #[test]
+    fn unknown_object_is_skipped_and_bad_modifiers_dont_leak() {
+        let o = objs("text:OK @0,0,0 ~fade; bogus:x @1,0,0; text:B @0,0,0 ~explod");
+        assert_eq!(o.len(), 2); // bogus:x dropped
+        assert!(o[0].summary().contains("~Fade"));
+        assert!(!o[1].summary().contains('~')); // ~explod didn't parse, not leaked
+    }
+
+    #[test]
+    fn comment_with_semicolon_does_not_resurrect_an_object() {
+        // same regression guard as the seq parser.
+        let o = objs("text:A @0,0,0  # note; with a ; and ~fade\ntext:B @1,0,0");
+        assert_eq!(o.len(), 2);
+        assert!(!o[0].summary().contains('~'));
+    }
+
+    #[test]
+    fn deform_token_parses_on_a_compose_object() {
+        let o = objs("text:WOBBLE @0,0,0 ^wave");
+        assert!(o[0].summary().contains("^Wave"), "{}", o[0].summary());
+    }
+}
