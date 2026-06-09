@@ -115,8 +115,15 @@ pub(crate) fn parse_compose(spec: &str, score: &score::Score) -> Vec<Composed> {
     let raw = std::fs::read_to_string(spec).unwrap_or_else(|_| spec.to_string());
     let kw = |t: &str| matches!(t, "rot" | "spin" | "sway" | "bob" | "drift" | "in" | "out");
     let mut out = Vec::new();
-    for line in raw.split([';', '\n']) {
-        let s = line.split('#').next().unwrap_or("").trim();
+    // strip each line's `#` comment to end-of-line FIRST (so a `;` inside a comment can't split it
+    // and leak the tail as a bogus object), then split into objects on `;`/newline.
+    let cleaned: String = raw
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for line in cleaned.split([';', '\n']) {
+        let s = line.trim();
         if s.is_empty() {
             continue;
         }
@@ -126,12 +133,19 @@ pub(crate) fn parse_compose(spec: &str, score: &score::Score) -> Vec<Composed> {
         let toks: Vec<&str> = s
             .split_whitespace()
             .filter(|t| {
-                if let Some(tr) = t.strip_prefix('~').and_then(Transition::parse) {
-                    transition = Some(tr);
+                // a `~`/`^` token is always consumed; warn (don't leak) if it doesn't parse.
+                if let Some(tr) = t.strip_prefix('~') {
+                    match Transition::parse(tr) {
+                        Some(x) => transition = Some(x),
+                        None => eprintln!("compose: unknown transition '~{tr}' — ignored"),
+                    }
                     return false;
                 }
-                if let Some(d) = t.strip_prefix('^').and_then(Deform::parse) {
-                    deform = Some(d);
+                if let Some(d) = t.strip_prefix('^') {
+                    match Deform::parse(d) {
+                        Some(x) => deform = Some(x),
+                        None => eprintln!("compose: unknown deform '^{d}' — ignored"),
+                    }
                     return false;
                 }
                 true
@@ -143,6 +157,10 @@ pub(crate) fn parse_compose(spec: &str, score: &score::Score) -> Vec<Composed> {
             .position(|t| t.starts_with('@') || t.starts_with('*') || kw(t))
             .unwrap_or(toks.len());
         let Some(content) = parse_source(&toks[..split].join(" ")) else {
+            eprintln!(
+                "compose: unrecognized object '{}' — expected text:/svg:/image:/mesh:/glb:/model:/splat: — skipped",
+                toks[..split].join(" ")
+            );
             continue;
         };
         let rest = &toks[split..];

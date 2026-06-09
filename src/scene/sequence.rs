@@ -99,9 +99,15 @@ fn load_camera_positions(path: &str) -> Vec<Vec3> {
 fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
     let raw = std::fs::read_to_string(spec).unwrap_or_else(|_| spec.to_string());
     let mut parts = Vec::new();
-    for line in raw.split([';', '\n']) {
-        // strip inline `# comments` (like parse_compose) so a trailing note can't eat the @timing.
-        let s = line.split('#').next().unwrap_or("").trim();
+    // strip each line's `#` comment to end-of-line FIRST (so a `;` inside a comment can't split it
+    // and leak the tail as a bogus part), then split into parts on `;`/newline.
+    let cleaned: String = raw
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for line in cleaned.split([';', '\n']) {
+        let s = line.trim();
         if s.is_empty() {
             continue;
         }
@@ -113,34 +119,48 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
         let mut out = None;
         let mut rot = None;
         let mut cluster = None;
+        // Pull each modifier token out of the line by its sigil/prefix. A token carrying a known
+        // prefix is ALWAYS consumed (never leaks into the head/text) — if it fails to parse we warn,
+        // so a typo (`~explod`, `^wave2`) is a visible error, not a silently-dropped effect.
         let s: String = s
             .split_whitespace()
             .filter(|tok| {
-                if let Some(a) = tok.strip_prefix("@@").and_then(|a| score.anchor_seconds(a)) {
-                    anchor = Some(a);
-                    return false;
+                if let Some(a) = tok.strip_prefix("@@") {
+                    match score.anchor_seconds(a) {
+                        Some(sec) => anchor = Some(sec),
+                        None => {
+                            eprintln!("seq: unknown anchor '@@{a}' (no such section/cue) — ignored")
+                        }
+                    }
+                } else if let Some(d) = tok.strip_prefix("out:") {
+                    match Departure::parse(d) {
+                        Some(dep) => out = Some(dep),
+                        None => eprintln!("seq: unknown departure 'out:{d}' — ignored"),
+                    }
+                } else if let Some(r) = tok.strip_prefix("rot:") {
+                    match parse_euler_deg(r) {
+                        Some(q) => rot = Some(q),
+                        None => eprintln!("seq: bad 'rot:{r}' (need rx,ry,rz degrees) — ignored"),
+                    }
+                } else if let Some(c) = tok.strip_prefix("cluster:") {
+                    match c.parse() {
+                        Ok(n) => cluster = Some(n),
+                        Err(_) => eprintln!("seq: bad 'cluster:{c}' (need an integer) — ignored"),
+                    }
+                } else if let Some(d) = tok.strip_prefix('^') {
+                    match Deform::parse(d) {
+                        Some(de) => deform = Some(de),
+                        None => eprintln!("seq: unknown deform '^{d}' — ignored"),
+                    }
+                } else if let Some(t) = tok.strip_prefix('~') {
+                    match Transition::parse(t) {
+                        Some(tr) => transition = Some(tr),
+                        None => eprintln!("seq: unknown transition '~{t}' — ignored"),
+                    }
+                } else {
+                    return true; // not a modifier → keep it for the head + @timing
                 }
-                if let Some(d) = tok.strip_prefix('^').and_then(Deform::parse) {
-                    deform = Some(d);
-                    return false;
-                }
-                if let Some(d) = tok.strip_prefix("out:").and_then(Departure::parse) {
-                    out = Some(d);
-                    return false;
-                }
-                if let Some(q) = tok.strip_prefix("rot:").and_then(parse_euler_deg) {
-                    rot = Some(q);
-                    return false;
-                }
-                if let Some(n) = tok.strip_prefix("cluster:").and_then(|s| s.parse().ok()) {
-                    cluster = Some(n);
-                    return false;
-                }
-                if let Some(tr) = tok.strip_prefix('~').and_then(Transition::parse) {
-                    transition = Some(tr);
-                    return false;
-                }
-                true
+                false // a modifier token → consume it
             })
             .collect::<Vec<_>>()
             .join(" ");
@@ -162,6 +182,10 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
             }
         }
         let Some(content) = parse_source(head) else {
+            eprintln!(
+                "seq: unrecognized part '{head}' — expected one of \
+                 text:/svg:/image:/mesh:/glb:/shader:/splat:/wall: — skipped"
+            );
             continue;
         };
         parts.push(Part {

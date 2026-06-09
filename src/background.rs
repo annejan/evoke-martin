@@ -45,7 +45,10 @@ pub(crate) fn mode_index(name: &str) -> u32 {
         "tunnel" => 1,
         "stars" | "starfield" => 2,
         "warp" => 3,
-        other => other.parse().unwrap_or(0),
+        other => other.parse().unwrap_or_else(|_| {
+            warn!("shader effect '{other}' unknown — using plasma (try plasma/tunnel/stars/warp)");
+            0
+        }),
     }
 }
 
