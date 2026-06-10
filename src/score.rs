@@ -80,23 +80,34 @@ impl Lane {
 /// as `Lane`, but pitched. This is the `lead` (melody) the synth plays.
 #[derive(Clone, Default)]
 pub struct NoteLane {
-    pub phases: Vec<[Option<f32>; 16]>,
-    pub fill: [Option<f32>; 16],
+    /// Each phase is a melodic **phrase**: a sequence of 1+ bars that plays out and loops every N
+    /// bars (a 1-bar phrase = the old per-bar repeat). So a section can carry a real multi-bar
+    /// melody — a through-composed line — not just one looping bar.
+    pub phases: Vec<Vec<[Option<f32>; 16]>>,
+    pub fill: Vec<[Option<f32>; 16]>,
 }
 
 impl NoteLane {
-    fn at(&self, phase: u8) -> [Option<f32>; 16] {
-        if phase == 255 {
-            self.fill
+    /// The 16-slot grid for `phase`, `bar` bars into that phase (the phrase loops every N bars).
+    /// Falls back to phase 0 when `phase` carries no phrase, so a melody written only on `p0` keeps
+    /// playing under later (drum) phases.
+    fn at(&self, phase: u8, bar: u32) -> [Option<f32>; 16] {
+        let phrase: &[[Option<f32>; 16]] = if phase == 255 {
+            &self.fill
         } else {
-            self.phases
-                .get(phase as usize)
-                .copied()
-                .unwrap_or([None; 16])
+            match self.phases.get(phase as usize) {
+                Some(v) if !v.is_empty() => v,
+                _ => self.phases.first().map(Vec::as_slice).unwrap_or(&[]),
+            }
+        };
+        if phrase.is_empty() {
+            [None; 16]
+        } else {
+            phrase[bar as usize % phrase.len()]
         }
     }
-    fn any(g: &[Option<f32>; 16]) -> bool {
-        g.iter().any(|n| n.is_some())
+    fn any(phrase: &[[Option<f32>; 16]]) -> bool {
+        phrase.iter().flatten().any(|n| n.is_some())
     }
 }
 
@@ -183,20 +194,29 @@ impl Section {
     /// Which phase a bar `into` this section is in: the trailing bar is the fill (255) when the
     /// section has one; otherwise the phase whose cumulative bar-span contains `into`.
     fn phase_at(&self, into: u32) -> u8 {
+        self.phase_and_offset(into).0
+    }
+
+    /// The phase index AND how many bars into that phase `into` is — so a multi-bar melodic phrase
+    /// knows which of its bars to play. The trailing fill bar is `(255, 0)`.
+    fn phase_and_offset(&self, into: u32) -> (u8, u32) {
         if self.fill {
             let total: u32 = self.phases.iter().sum::<u32>() + 1;
             if into >= total.saturating_sub(1) {
-                return 255;
+                return (255, 0);
             }
         }
         let mut acc = 0;
         for (i, &p) in self.phases.iter().enumerate() {
-            acc += p;
-            if into < acc {
-                return i as u8;
+            if into < acc + p {
+                return (i as u8, into - acc);
             }
+            acc += p;
         }
-        self.phases.len().saturating_sub(1) as u8
+        // past the defined phases → the last phase, offset from its start.
+        let last = self.phases.len().saturating_sub(1);
+        let before: u32 = self.phases.iter().take(last).sum();
+        (last as u8, into.saturating_sub(before))
     }
 }
 
@@ -313,7 +333,8 @@ impl Score {
         let i = self.section_index_at(t);
         let s = &self.sections[i];
         let into = (self.bar_idx_at(t) as i64 - s.start_bar as i64).max(0) as u32;
-        pick(s).at(s.phase_at(into))
+        let (ph, off) = s.phase_and_offset(into);
+        pick(s).at(ph, off)
     }
 
     /// Every note of a note-lane as (time, freq) across the whole track — the synth builds a voice
@@ -487,9 +508,10 @@ impl Score {
                     )
                 };
                 if inst == "lead" || inst == "arp" {
-                    // pitched note lane: 16 whitespace-separated note tokens (`A4`, `C#5`, `.`)
-                    let grid = parse_notes(pat)
-                        .ok_or_else(|| format!("line {ln}: {inst} needs 16 notes/rests"))?;
+                    // pitched note lane: a phrase of 1+ bars (16 note tokens each, `A4`/`C#5`/`.`).
+                    let grid = parse_notes(pat).ok_or_else(|| {
+                        format!("line {ln}: {inst} needs 16 notes/rests (or a multiple of 16)")
+                    })?;
                     let lane = if inst == "arp" {
                         &mut sections[si].arp
                     } else {
@@ -499,7 +521,7 @@ impl Score {
                         None => lane.fill = grid,
                         Some(p) => {
                             if lane.phases.len() <= p {
-                                lane.phases.resize(p + 1, [None; 16]);
+                                lane.phases.resize(p + 1, Vec::new());
                             }
                             lane.phases[p] = grid;
                         }
@@ -649,14 +671,14 @@ impl Score {
         for s in &self.sections {
             for (p, grid) in s.lead.phases.iter().enumerate() {
                 if NoteLane::any(grid) {
-                    o.push_str(&format!("{}.lead p{p}: {}\n", s.name, notes_str(grid)));
+                    o.push_str(&format!("{}.lead p{p}: {}\n", s.name, notes_phrase(grid)));
                 }
             }
             if NoteLane::any(&s.lead.fill) {
                 o.push_str(&format!(
                     "{}.lead fill: {}\n",
                     s.name,
-                    notes_str(&s.lead.fill)
+                    notes_phrase(&s.lead.fill)
                 ));
             }
         }
@@ -664,14 +686,14 @@ impl Score {
         for s in &self.sections {
             for (p, grid) in s.arp.phases.iter().enumerate() {
                 if NoteLane::any(grid) {
-                    o.push_str(&format!("{}.arp p{p}: {}\n", s.name, notes_str(grid)));
+                    o.push_str(&format!("{}.arp p{p}: {}\n", s.name, notes_phrase(grid)));
                 }
             }
             if NoteLane::any(&s.arp.fill) {
                 o.push_str(&format!(
                     "{}.arp fill: {}\n",
                     s.name,
-                    notes_str(&s.arp.fill)
+                    notes_phrase(&s.arp.fill)
                 ));
             }
         }
@@ -761,20 +783,26 @@ fn parse_chord(s: &str) -> Option<Chord> {
     })
 }
 
-/// Parse 16 whitespace-separated note tokens (`A4`/`C#5`/… or `.`/`-`/`_` = rest) → a lead grid.
-fn parse_notes(s: &str) -> Option<[Option<f32>; 16]> {
+/// Parse whitespace-separated note tokens (`A4`/`C#5`/… or `.`/`-`/`_` = rest) into a melodic
+/// phrase: one or more bars of 16 slots each (so a 32/48/… token line is a 2/3/…-bar phrase). The
+/// token count must be a positive multiple of 16.
+fn parse_notes(s: &str) -> Option<Vec<[Option<f32>; 16]>> {
     let toks: Vec<&str> = s.split_whitespace().collect();
-    if toks.len() != 16 {
+    if toks.is_empty() || !toks.len().is_multiple_of(16) {
         return None;
     }
-    let mut out = [None; 16];
-    for (i, t) in toks.iter().enumerate() {
-        out[i] = match *t {
-            "." | "-" | "_" => None,
-            n => Some(note_freq(n)?),
-        };
+    let mut bars = Vec::with_capacity(toks.len() / 16);
+    for chunk in toks.chunks(16) {
+        let mut bar = [None; 16];
+        for (i, t) in chunk.iter().enumerate() {
+            bar[i] = match *t {
+                "." | "-" | "_" => None,
+                n => Some(note_freq(n)?),
+            };
+        }
+        bars.push(bar);
     }
-    Some(out)
+    Some(bars)
 }
 
 const NOTE_NAMES: [&str; 12] = [
@@ -804,6 +832,11 @@ fn notes_str(g: &[Option<f32>; 16]) -> String {
         .map(|c| c.join(" "))
         .collect::<Vec<_>>()
         .join("  ")
+}
+
+/// A whole melodic phrase (1+ bars) on one line — each bar's `notes_str`, joined by 3 spaces.
+fn notes_phrase(phrase: &[[Option<f32>; 16]]) -> String {
+    phrase.iter().map(notes_str).collect::<Vec<_>>().join("   ")
 }
 
 fn chord_str(c: &Chord) -> String {
@@ -915,6 +948,40 @@ mod tests {
             "bpm 120\nchords G\nsection a 4 4\na.lead p0: Z9 . . . . . . . . . . . . . . .\n"
         )
         .is_err());
+    }
+
+    #[test]
+    fn multi_bar_lead_phrase_advances_and_loops() {
+        // a 2-bar phrase (32 tokens): bar0 has C5 at slot 0, bar1 has E5 at slot 0. Over a 4-bar
+        // section the lead should play C5, E5, C5, E5 at each bar's downbeat (the phrase loops).
+        let dsl = "bpm 120\nchords C\nsection a 4 4\n\
+                   a.lead p0: C5 . . . . . . . . . . . . . . .  E5 . . . . . . . . . . . . . . .\n";
+        let s = Score::from_str(dsl).unwrap();
+        let notes = s.lead_notes();
+        assert_eq!(notes.len(), 4, "4 downbeat notes over 4 bars");
+        let c5 = note_freq("C5").unwrap();
+        let e5 = note_freq("E5").unwrap();
+        let pitch = |f: f32| {
+            if (f - c5).abs() < 1.0 {
+                'C'
+            } else if (f - e5).abs() < 1.0 {
+                'E'
+            } else {
+                '?'
+            }
+        };
+        let seq: String = notes.iter().map(|&(_, f)| pitch(f)).collect();
+        assert_eq!(seq, "CECE", "the phrase advances per bar and loops");
+        // and the bar times line up with the grid.
+        assert!((notes[1].0 - s.bar()).abs() < 1e-3);
+    }
+
+    #[test]
+    fn single_bar_lead_still_repeats_every_bar() {
+        // backward-compat: a 1-bar phrase plays the same bar every bar (the old behaviour).
+        let dsl = "bpm 120\nchords C\nsection a 3 3\na.lead p0: G5 . . . . . . . . . . . . . . .\n";
+        let s = Score::from_str(dsl).unwrap();
+        assert_eq!(s.lead_notes().len(), 3); // G5 on every one of the 3 bars
     }
 
     #[test]
