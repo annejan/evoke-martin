@@ -1,13 +1,14 @@
 # martin score — tracker DSL. Edit + load with MARTIN_SCORE=<this file>.
 #
-# THEME: camping. A moody drum-&-bass / techno-glitch reinterpretation of the chorus hook of
-# Ome Henk's "Op de camping" (1995) — itself a parody of Village People's "In the Navy" (1979).
-# The recognizable falling chant ("Op-de-cam-ping" → E E C A) is recast in A minor as the lead;
-# the harmony is moodied-down to minor and the groove is half-time/two-step DnB with glitchy hats.
-# (Melody is a transformative minor reinterpretation, not the original major tune — tweak the note
-# slots below to taste; the hook contour is the recognizable bit.)
+# THEME: camping. A moody drum-&-bass / techno-glitch reinterpretation of Ome Henk's "Op de camping"
+# (1995) — a 1:1 cover of Village People's "In the Navy" (1979), which is itself in **G minor**.
+# Real harmony (sourced): verse Gm–Cm–Bb–Eb–D7, chorus G–Am–G–D7, "they want you" bridge Gm.
+# We keep the moody minor (verse/bridge) backbone and the falling chorus-hook contour ("Op-de-cam-
+# ping" → D D Bb G, descending the Gm triad to the tonic). Half-time/two-step DnB groove, glitchy
+# hats, sub-heavy drop. (Melody is reconstructed over the verified chords/key — flip the hook's Bb→B
+# for the bright major chorus if you want it more faithful; tweak any note slot to taste.)
 bpm 172
-chords Am F C G  Am F C G  Am F C G  Dm F E E
+chords Gm Cm Bb Eb  Gm Cm D D  Gm Cm Bb Eb  Gm Cm D D
 
 # section <name> <bars> <phase-bars,csv> [fill]
 section intro 8 8
@@ -75,38 +76,37 @@ outro.hat p0: x... ..x. x... ..x.
 outro.stab p0: .... ..x. .... ....
 outro.stab fill: .... ..x. .... ....
 
-# melody: <section>.lead p<N>|fill: 16 note slots. The chorus hook = E E C A ("Op-de-cam-ping"),
-# a falling chant resolving to the A-minor tonic; the answer rises A C D E.
-intro.lead p0: . . . .  . . . .  A4 . . .  . . . .
-build.lead p0: . . . .  E5 . . .  . . C5 .  . . A4 .
-build.lead p1: E5 . . .  C5 . A4 .  . . E5 .  C5 . . .
-build.lead fill: E5 . C5 .  A4 . . .  . . . .  . . . .
-drop.lead p0: E5 . E5 .  C5 . A4 .  E5 . E5 .  C5 . D5 .
-drop.lead p1: E5 . E5 C5  . A4 . .  A4 . C5 D5  E5 . . .
-drop.lead fill: E5 . D5 .  C5 . A4 .  C5 . D5 .  E5 . . .
-breakdown.lead p0: A4 . . .  . . C5 .  . . . .  E5 . . .
-breakdown.lead p1: E5 . . .  . . D5 .  . . C5 .  . . A4 .
-breakdown.lead fill: A4 . C5 .  E5 . . .  D5 . C5 .  A4 . . .
-climax.lead p0: E6 . E6 .  C6 . A5 .  E6 . E6 .  C6 . D6 .
-climax.lead p1: E6 . C6 .  A5 . C6 .  D6 . E6 .  C6 . A5 .
-climax.lead p2: E6 E6 C6 A5  E6 E6 C6 A5  A5 C6 D6 E6  D6 . C6 .
-climax.lead fill: E6 . D6 .  C6 . A5 .  C6 . D6 .  E6 . G6 .
-outro.lead p0: E5 . E5 .  C5 . A4 .  . . C5 .  A4 . . .
+# melody: <section>.lead p<N>|fill: 16 note slots. In G minor. The chorus hook = D D Bb G ("Op-de-
+# cam-ping"), a falling chant down the Gm triad to the tonic; the answer rises G Bb C D.
+intro.lead p0: . . . .  . . . .  G4 . . .  . . . .
+build.lead p0: . . . .  D5 . . .  . . Bb4 .  . . G4 .
+build.lead p1: D5 . . .  Bb4 . G4 .  . . D5 .  Bb4 . . .
+build.lead fill: D5 . Bb4 .  G4 . . .  . . . .  . . . .
+drop.lead p0: D5 . D5 .  Bb4 . G4 .  D5 . D5 .  Bb4 . C5 .
+drop.lead p1: D5 . D5 Bb4  . G4 . .  G4 . Bb4 C5  D5 . . .
+drop.lead fill: D5 . C5 .  Bb4 . G4 .  Bb4 . C5 .  D5 . . .
+breakdown.lead p0: G4 . . .  . . Bb4 .  . . . .  D5 . . .
+breakdown.lead p1: D5 . . .  . . C5 .  . . Bb4 .  . . G4 .
+breakdown.lead fill: G4 . Bb4 .  D5 . . .  C5 . Bb4 .  G4 . . .
+climax.lead p0: D6 . D6 .  Bb5 . G5 .  D6 . D6 .  Bb5 . C6 .
+climax.lead p1: D6 . Bb5 .  G5 . Bb5 .  C6 . D6 .  Bb5 . G5 .
+climax.lead p2: D6 D6 Bb5 G5  D6 D6 Bb5 G5  G5 Bb5 C6 D6  C6 . Bb5 .
+climax.lead fill: D6 . C6 .  Bb5 . G5 .  Bb5 . C6 .  D6 . F6 .
+outro.lead p0: D5 . D5 .  Bb4 . G4 .  . . Bb4 .  G4 . . .
 
 # arp: the second melodic line — a glitchy counter-melody an octave above the lead, panned opposite.
-build.arp p0: . . E6 .  . . C6 .  . . A5 .  . . E6 .
-build.arp p1: E6 . C6 .  A5 . E6 .  C6 . A5 .  E6 . C6 .
-build.arp fill: E6 D6 C6 A5  E6 . . .  . . . .  . . . .
-drop.arp p0: A5 . E6 .  C6 . E6 .  A5 . E6 .  D6 . E6 .
-drop.arp p1: E6 . . C6  . . A5 .  E6 . . D6  . . E6 .
-drop.arp fill: E6 D6 C6 A5  E6 D6 C6 A5  D6 E6 . .  . . . .
-breakdown.arp p0: . . . .  A5 . . .  . . C6 .  . . E6 .
-breakdown.arp p1: . . E6 .  . . C6 .  . . A5 .  . . . .
-breakdown.arp fill: A5 . C6 .  E6 . . .  D6 . C6 .  A5 . . .
-climax.arp p0: A6 . E6 .  C6 . E6 .  A6 . E6 .  D6 . E6 .
-climax.arp p1: E6 . C6 .  A5 . C6 .  D6 . E6 .  G6 . E6 .
-climax.arp p2: A6 E6 C6 E6  A6 E6 C6 E6  D6 E6 G6 E6  A6 . E6 .
-outro.arp p0: . . E6 .  . . C6 .  . . A5 .  . . . .
+build.arp p0: . . D6 .  . . Bb5 .  . . G5 .  . . D6 .
+build.arp p1: D6 . Bb5 .  G5 . D6 .  Bb5 . G5 .  D6 . Bb5 .
+build.arp fill: D6 C6 Bb5 G5  D6 . . .  . . . .  . . . .
+drop.arp p0: G5 . D6 .  Bb5 . D6 .  G5 . D6 .  C6 . D6 .
+drop.arp p1: D6 . . Bb5  . . G5 .  D6 . . C6  . . D6 .
+drop.arp fill: D6 C6 Bb5 G5  D6 C6 Bb5 G5  C6 D6 . .  . . . .
+breakdown.arp p0: . . . .  G5 . . .  . . Bb5 .  . . D6 .
+breakdown.arp p1: . . D6 .  . . Bb5 .  . . G5 .  . . . .
+climax.arp p0: G6 . D6 .  Bb5 . D6 .  G6 . D6 .  C6 . D6 .
+climax.arp p1: D6 . Bb5 .  G5 . Bb5 .  C6 . D6 .  F6 . D6 .
+climax.arp p2: G6 D6 Bb5 D6  G6 D6 Bb5 D6  C6 D6 F6 D6  G6 . D6 .
+outro.arp p0: . . D6 .  . . Bb5 .  . . G5 .  . . . .
 
 # dynamics 0..1 per section (`v` constant or `a>b` ramp across the section). DnB = sub-heavy drop,
 # moody (quiet, hollow) breakdown, peak climax.
