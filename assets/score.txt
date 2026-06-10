@@ -1,6 +1,12 @@
 # martin score — tracker DSL. Edit + load with MARTIN_SCORE=<this file>.
-bpm 140
-chords Am F C G Dm Am E E F G Am C Dm F E E
+#
+# THEME: camping. The lead is the REAL "In the Navy" / "Op de camping" melody, transcribed straight
+# from a MIDI (In_The_Navy.mid, the trumpet line ch0) and played as a multi-bar phrase by the engine
+# (not a 1-bar loop). The recognizable CHORUS ("In the Na-vy, yes you can sail the seven seas" — the
+# rising G A B C D E + the high G5 E5 belt) is the drop & climax; G-major harmony (G Am G D / Em C).
+# Cinder's old looping lead + the arp are dropped. 125 BPM (the song's tempo).
+bpm 125
+chords G Am G D  G Am G D  Em C G D  Em C D D
 
 # section <name> <bars> <phase-bars,csv> [fill]
 section intro 8 8
@@ -65,40 +71,15 @@ outro.hat p0: x.x. x.x. x.x. x.x.
 outro.stab p0: .... ..x. .... ....
 outro.stab fill: .... ..x. .... ....
 
-# melody: <section>.lead p<N>|fill: 16 note slots (A4 C#5 . E5 …; . = rest)
-build.lead p0: A4 . . .  . . C5 .  . . E5 .  . . . .
-build.lead p1: A4 . . C5  . . E5 .  . G5 . E5  . D5 . .
-build.lead fill: A4 . C5 .  E5 . G5 .  A5 . . .  . . . .
-# drop lead = the iconic In the Navy intro HORN RIFF (a loop, so it fits this sequencer): the real
-# MIDI riff Bb D C D A D G D, transposed to this track's A-minor → C E D E B E A E ("bah bah-bah-bah").
-drop.lead p0: C5 . E5 . D5 . E5 . B4 . E5 . A4 . E5 .
-drop.lead p1: C5 . E5 . D5 . E5 . C5 . E5 . B4 . E5 .
-drop.lead fill: C5 . E5 . D5 . E5 . B4 . A4 . . . . .
-breakdown.lead p0: E5 . . C5  . . A4 .  . . C5 .  . . . .
-breakdown.lead p1: D5 . . E5  . . C5 .  . . A4 .  . . . .
-breakdown.lead fill: A4 . C5 .  E5 . G5 .  A5 . G5 .  E5 . . .
-climax.lead p0: A5 . C6 .  E6 . G6 .  A6 . G6 .  E6 . D6 .
-climax.lead p1: C6 . E6 .  G6 . A6 .  G6 . E6 .  D6 . C6 .
-climax.lead p2: A5 . C6 E6  G6 . E6 C6  D6 . E6 G6  A6 . G6 E6
-outro.lead p0: A4 . . C5  . . E5 .  C5 . . .  A4 . . .
-
-# arp: the second melodic line — a sparkly counter-melody an octave above the lead, panned to
-# dance opposite it. Same note grammar. <section>.arp p<N>: 16 slots.
-build.arp p0: . . . .  A5 . . E6  . . C6 .  . . E6 .
-build.arp p1: . A5 . C6  . E6 . G6  . E6 . D6  . C6 . E6
-build.arp fill: A5 C6 E6 G6  A6 . . .  . . . .  . . . .
-drop.arp p0: A5 . E6 . C6 . E6 .  G6 . E6 . D6 . E6 .
-drop.arp p1: A5 . G5 . E6 . C6 .  D6 . E6 . A5 . E6 .
-drop.arp fill: E6 . D6 . C6 . A5 .  G5 . E5 . D5 . E5 .
-breakdown.arp p0: . . . .  E6 . . .  . . C6 .  . . A5 .
-breakdown.arp p1: . . D6 .  . . E6 .  . . C6 .  . A5 . .
-breakdown.arp fill: A5 . C6 .  E6 . G6 .  A6 . G6 .  E6 . . .
-climax.arp p0: A6 . C7 .  E7 . C7 .  G6 . E6 .  D6 . E6 .
-climax.arp p1: C7 . E7 .  G7 . E7 .  A6 . G6 .  E6 . D6 .
-climax.arp p2: A6 C7 E7 .  G7 E7 C7 .  D7 E7 G7 .  A7 G7 E7 .
-outro.arp p0: A5 . . E6  . . C6 .  . . A5 .  . . . .
+# melody: the REAL In the Navy line (trumpet ch0 of In_The_Navy.mid), as multi-bar phrases.
+# build = a 4-bar lead-in to the chorus; drop = the full 8-bar chorus; climax = the high-belt chorus.
+build.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  C5 . . B4
+drop.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  B4 . . A4   B4 . . .  G4 . . .  . . . .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  D5 . . C5
+breakdown.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4
+climax.lead p0: B4 . . .  G4 . . .  . . . .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  D5 . . C5   B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 . D5 E5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . E5 .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  B4 . . A4
+outro.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4
 
 # dynamics 0..1 per section (`v` constant or `a>b` ramp across the section)
 gain intro 0.32>0.55 build 0.55>0.95 drop 0.96 breakdown 0.42 climax 0.82>1 outro 0.58
 sub intro 0.18>0.42 build 0.22>0.88 drop 0.98 breakdown 0.08 climax 0.65>1 outro 0.24
-mids intro 0>0.28 build 0.34>0.86 drop 0.88 breakdown 0.45 climax 0.72>1 outro 0.38
+mids intro 0>0.28 build 0.34>0.86 drop 0.92 breakdown 0.45 climax 0.78>1 outro 0.42
