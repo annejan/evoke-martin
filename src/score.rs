@@ -150,6 +150,7 @@ pub struct Section {
     pub lead: NoteLane, // melody (one note per slot); empty = no lead
     pub arp: NoteLane,  // a second melodic line (the plucky counter-melody); empty = no arp
     pub bass: NoteLane, // an articulated bassline (one note per slot); empty = chord-root sub only
+    pub chords: Vec<Chord>, // per-section chord override (cycles within the section); empty = global
     pub start_bar: u32, // computed by Score::new
 }
 
@@ -170,6 +171,7 @@ impl Section {
             lead: NoteLane::default(),
             arp: NoteLane::default(),
             bass: NoteLane::default(),
+            chords: Vec::new(),
             start_bar: 0,
         }
     }
@@ -326,9 +328,16 @@ impl Score {
     }
 
     // --- harmony + melody ---------------------------------------------------------------------
-    /// The chord active at `t` (per-bar, cycling through the progression).
+    /// The chord active at `t` (per-bar, cycling). A section with its own `chords:` line cycles
+    /// through *that* progression (counted from the section start) — e.g. a G-minor verse under a
+    /// G-major chorus; otherwise the global progression applies.
     pub fn chord_at(&self, t: f32) -> Chord {
-        self.chords[self.bar_idx_at(t) as usize % self.chords.len()]
+        let bar = self.bar_idx_at(t) as usize;
+        let s = &self.sections[self.section_index_at(t)];
+        if !s.chords.is_empty() {
+            return s.chords[(bar - s.start_bar as usize) % s.chords.len()];
+        }
+        self.chords[bar % self.chords.len()]
     }
 
     fn note_grid(&self, t: f32, pick: fn(&Section) -> &NoteLane) -> [Option<f32>; 16] {
@@ -514,7 +523,17 @@ impl Score {
                             .map_err(|_| format!("line {ln}: bad phase `{phase_tok}`"))?,
                     )
                 };
-                if inst == "lead" || inst == "arp" || inst == "bass" {
+                if inst == "chords" {
+                    // per-section chord override: `<section>.chords: G Am Bb D` (cycles in-section).
+                    let mut cs = Vec::new();
+                    for tok in pat.split_whitespace() {
+                        cs.push(
+                            parse_chord(tok)
+                                .ok_or_else(|| format!("line {ln}: bad chord `{tok}`"))?,
+                        );
+                    }
+                    sections[si].chords = cs;
+                } else if inst == "lead" || inst == "arp" || inst == "bass" {
                     // pitched note lane: a phrase of 1+ bars (16 note tokens each, `A4`/`C#5`/`.`).
                     let grid = parse_notes(pat).ok_or_else(|| {
                         format!("line {ln}: {inst} needs 16 notes/rests (or a multiple of 16)")
@@ -646,6 +665,15 @@ impl Score {
                 ph,
                 if s.fill { " fill" } else { "" }
             ));
+        }
+        for s in &self.sections {
+            if !s.chords.is_empty() {
+                o.push_str(&format!(
+                    "{}.chords: {}\n",
+                    s.name,
+                    s.chords.iter().map(chord_str).collect::<Vec<_>>().join(" ")
+                ));
+            }
         }
         o.push_str(
             "\n# patterns: <section>.<kick|snare|hat|stab> p<N>|fill: 16 steps (x=hit .=rest)\n",
@@ -972,6 +1000,24 @@ mod tests {
             "bpm 120\nchords G\nsection a 4 4\na.lead p0: Z9 . . . . . . . . . . . . . . .\n"
         )
         .is_err());
+    }
+
+    #[test]
+    fn per_section_chords_override_the_global_progression() {
+        // global = G major everywhere; the `verse` section flips to a G-minor `chords:` line. The
+        // global chord at the verse's time must be the section's (minor), not the global (major).
+        let dsl = "bpm 120\nchords G\n\
+                   section intro 2 2\nsection verse 2 2\n\
+                   verse.chords: Am\n";
+        let s = Score::from_str(dsl).unwrap();
+        let intro = s.chord_at(0.1); // intro → global G major
+        let verse = s.chord_at(s.section_start_secs(1) + 0.1); // verse → section A minor
+        assert!(!intro.minor, "intro uses the global G major");
+        assert!(verse.minor, "verse uses its own A-minor override");
+        assert!(
+            (verse.root - note_freq("A3").unwrap()).abs() < 1.0,
+            "verse root is A, not the global G"
+        );
     }
 
     #[test]

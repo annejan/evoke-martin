@@ -15,6 +15,11 @@ section breakdown 16 7,8 fill
 section climax 36 11,12,12 fill
 section outro 14 13 fill
 
+# The chorus (drop/climax) is G-MAJOR — the recognizable hook. The COUPLET (build/breakdown) is the
+# minor verse: per-section `chords:` lines flip those sections to G-minor (Gm Cm Bb D) for contrast.
+build.chords: Gm Cm A# D
+breakdown.chords: Gm Cm A# D
+
 # patterns: <section>.<kick|snare|hat|stab> p<N>|fill: 16 steps. DnB two-step = kick 1 + "and of 3"
 # (step 11), snare on 2 & 4 (steps 5 & 13); funk from ghost kicks/snares; rolls in the fills.
 build.kick p0: x... .... .... ....
@@ -73,19 +78,20 @@ outro.stab fill: x.x. x.x. xxxx ....
 
 # melody: the real "Op de Camping" line (lead horn), multi-bar phrases. build = a 4-bar lead-in,
 # drop = the full 8-bar chorus, climax = the high-belt chorus, outro = a fading statement.
-build.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  C5 . . B4
+build.lead p0: A#4 . A4 .  A#4 . A4 .  A#4 . . .  A4 . A#4 .   . . A4 .  A#4 . A4 .  A#4 . . .  A4 . . .   A#4 . A4 .  A#4 . A4 .  A#4 . . .  C5 . D5 .   . . . .  . . . .  . . . .  . . . .   D#5 . D5 .  D#5 . D5 .  D#5 . . .  C5 . D5 .   . . C5 .  D5 . C5 .  D5 . . .  A#4 . . .   A#4 . G4 .  A#4 . G4 .  A#4 . . .  C5 . A4 .   . . . .  . . . .  . . . .  . . . .
 drop.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 D5 . E5  . . . .  B4 . . A4   B4 . . .  G4 . . .  . . . .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  D5 . . C5
-breakdown.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4
+breakdown.lead p0: A#4 . A4 .  A#4 . A4 .  A#4 . . .  A4 . A#4 .   . . A4 .  A#4 . A4 .  A#4 . . .  A4 . . .   A#4 . A4 .  A#4 . A4 .  A#4 . . .  C5 . D5 .   . . . .  . . . .  . . . .  . . . .
+breakdown.arp p0: A#3 . A3 .  A#3 . A3 .  A#3 . . .  A3 . A#3 .   . . A3 .  A#3 . A3 .  A#3 . . .  A3 . . .   A#3 . A3 .  A#3 . A3 .  A#3 . . .  C4 . D4 .   . . . .  . . . .  . . . .  . . . .
 climax.lead p0: B4 . . .  G4 . . .  . . . .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  D5 . . C5   B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . D4 .  D4 . D4 .   A4 . B4 .  C5 . D5 E5  . . . .  C5 . . B4   C5 . . .  A4 . . .  . . E5 .  G5 . E5 .   G5 . E5 .  G5 G5 . E5  . . D5 .  B4 . . A4
 outro.lead p0: B4 . . .  G4 . . .  . . D4 .  D4 . D4 .   G4 . A4 .  B4 C5 . D5  . . . .  C5 . . B4
 
 # arp: the SAX (ch1) — the same melody an octave below the trumpet = a two-brass section.
-build.arp p0: B3 . . .  G3 . . .  . . D3 .  D3 . D3 .   G3 . A3 .  B3 C4 . D4  . . . .  C4 . . B3   C4 . . .  A3 . . .  . . D3 .  D3 . D3 .   A3 . B3 .  C4 D4 . E4  . . . .  C4 . . B3
+build.arp p0: A#3 . A3 .  A#3 . A3 .  A#3 . . .  A3 . A#3 .   . . A3 .  A#3 . A3 .  A#3 . . .  A3 . . .   A#3 . A3 .  A#3 . A3 .  A#3 . . .  C4 . D4 .   . . . .  . . . .  . . . .  . . . .   D#4 . D4 .  D#4 . D4 .  D#4 . . .  C4 . D4 .   . . C4 .  D4 . C4 .  D4 . . .  A#3 . . .   A#3 . G3 .  A#3 . G3 .  A#3 . . .  C4 . A3 .   . . . .  . . . .  . . . .  . . . .
 drop.arp p0: B3 . . .  G3 . . .  . . D3 .  D3 . D3 .   G3 . A3 .  B3 C4 . D4  . . . .  C4 . . B3   C4 . . .  A3 . . .  . . D3 .  D3 . D3 .   A3 . B3 .  C4 D4 . E4  . . . .  C4 . . B3   C4 . . .  A3 . . .  . . D3 .  D3 . D3 .   A3 . B3 .  C4 D4 . E4  . . . .  B3 . . A3   B3 . . .  G3 . . .  . . . .  G4 . E4 .   G4 . E4 .  G4 G4 . E4  . . D4 .  D4 . . C4
 climax.arp p0: B3 . . .  G3 . . .  . . . .  G4 . E4 .   G4 . E4 .  G4 G4 . E4  . . D4 .  D4 . . C4   B3 . . .  G3 . . .  . . D3 .  D3 . D3 .   G3 . A3 .  B3 C4 . D4  . . . .  C4 . . B3   C4 . . .  A3 . . .  . . D3 .  D3 . D3 .   A3 . B3 .  C4 . D4 E4  . . . .  C4 . . B3   C4 . . .  A3 . . .  . . E4 .  G4 . E4 .   G4 . E4 .  G4 G4 . E4  . . D4 .  B3 . . A3
 
 # bass: the real "Op de Camping" bassline — a disco octave-bounce on the roots (G→G#→A→D walk).
-build.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G#2 . G#3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .
+build.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   C2 . C3 .  C2 . C3 .  C2 . C3 .  C2 . C3 .   A#1 . A#2 .  A#1 . A#2 .  A#1 . A#2 .  A#1 . A#2 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   C2 . C3 .  C2 . C3 .  C2 . C3 .  C2 . C3 .   A#1 . A#2 .  A#1 . A#2 .  A#1 . A#2 .  A#1 . A#2 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .
 drop.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G#2 . G#3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .
 climax.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G#2 . G#3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .
 
