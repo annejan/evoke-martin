@@ -538,8 +538,16 @@ pub fn synth_track(score: &Score) -> Track {
         render_riser(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
         render_impact(&mut bed, t, 2.0, 0.72);
     }
-    if let Some(t) = section_time(score, "outro") {
-        render_impact(&mut bed, t, 1.8, 0.28);
+    // EXPLOSIVE finale (demoscene big ending): an accelerating snare-roll + riser crescendo through
+    // the whole outro into a MASSIVE final impact that rings out through the master fade — not a
+    // gentle fade-down. A couple of building hits lead the eye to the blast.
+    if let Some(t0) = section_time(score, "outro") {
+        let end = score.demo_len();
+        render_snare_roll(&mut bed, t0, (end - t0 - 0.2).max(0.5), score.beat());
+        render_riser(&mut bed, t0, (end - t0).min(7.0), 0.36, 0.0);
+        render_impact(&mut bed, t0, 1.6, 0.45); // the outro lands
+        render_impact(&mut bed, (t0 + end) * 0.5, 1.6, 0.55); // a mid-outro hit
+        render_impact(&mut bed, end - 2.4, 3.2, 1.0); // THE blast — decays through the fade
     }
 
     // Continuous sub-bass (centre) into the bed so it pumps with the sidechain. It follows the

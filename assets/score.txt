@@ -63,13 +63,13 @@ climax.stab p0: .... ..x. .... ..x.
 climax.stab p1: ..x. ...x ..x. ...x
 climax.stab p2: x.x. ..x. x.x. ..x.
 climax.stab fill: .... .... .... ...x
-outro.kick p0: x... .... x... ....
-outro.kick fill: x... .... .... ....
+outro.kick p0: x... ..x. x... ..x.
+outro.kick fill: x..x ..x. x..x x.xx
 outro.snare p0: .... x... .... x...
-outro.snare fill: .... x... .... ....
-outro.hat p0: x..x x..x x..x x..x
-outro.stab p0: .... ..x. .... ....
-outro.stab fill: .... ..x. .... ....
+outro.snare fill: .... x.xx .... xxxx
+outro.hat p0: x.xx x.x. xx.x x.xx
+outro.stab p0: .... ..x. .... ..x.
+outro.stab fill: x.x. x.x. xxxx ....
 
 # melody: the real "Op de Camping" line (lead horn), multi-bar phrases. build = a 4-bar lead-in,
 # drop = the full 8-bar chorus, climax = the high-belt chorus, outro = a fading statement.
@@ -90,6 +90,7 @@ drop.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   G2 . G3 .  G2 . G3 . 
 climax.bass p0: G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G2 . G3 .   G2 . G3 .  G2 . G3 .  G2 . G3 .  G#2 . G#3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .   A2 . A3 .  A2 . A3 .  A2 . A3 .  A2 . A3 .   D2 . D3 .  D2 . D3 .  D2 . D3 .  D2 . D3 .
 
 # dynamics 0..1 per section (`v` constant or `a>b` ramp across the section). Big drop/climax = epic.
-gain intro 0.3>0.55 build 0.55>0.96 drop 1 breakdown 0.42 climax 0.9>1 outro 0.58
-sub intro 0.18>0.45 build 0.25>0.92 drop 1 breakdown 0.1 climax 0.8>1 outro 0.26
-mids intro 0>0.3 build 0.34>0.9 drop 0.95 breakdown 0.42 climax 0.85>1 outro 0.42
+# outro is NOT a fade — it CRESCENDOS to the explosive blast (audio.rs renders the roll/riser/impact).
+gain intro 0.3>0.55 build 0.55>0.96 drop 1 breakdown 0.42 climax 0.9>1 outro 0.7>1.05
+sub intro 0.18>0.45 build 0.25>0.92 drop 1 breakdown 0.1 climax 0.8>1 outro 0.45>1
+mids intro 0>0.3 build 0.34>0.9 drop 0.95 breakdown 0.42 climax 0.85>1 outro 0.5>1
