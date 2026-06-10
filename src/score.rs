@@ -88,22 +88,16 @@ pub struct NoteLane {
 }
 
 impl NoteLane {
-    /// The 16-slot grid for `phase`, `bar` bars into that phase (the phrase loops every N bars).
-    /// Falls back to phase 0 when `phase` carries no phrase, so a melody written only on `p0` keeps
-    /// playing under later (drum) phases.
-    fn at(&self, phase: u8, bar: u32) -> [Option<f32>; 16] {
-        let phrase: &[[Option<f32>; 16]] = if phase == 255 {
-            &self.fill
-        } else {
-            match self.phases.get(phase as usize) {
-                Some(v) if !v.is_empty() => v,
-                _ => self.phases.first().map(Vec::as_slice).unwrap_or(&[]),
-            }
-        };
+    /// The 16-slot grid `into` bars into the section. The melodic phrase (the primary `p0` line)
+    /// loops CONTINUOUSLY across the whole section — independent of the drum phases and the fill
+    /// bar — so a through-composed line plays as one uninterrupted statement (and breathes over a
+    /// drum fill) instead of being chopped/restarted at every phase boundary.
+    fn bar(&self, into: u32) -> [Option<f32>; 16] {
+        let phrase = self.phases.first().map(Vec::as_slice).unwrap_or(&[]);
         if phrase.is_empty() {
             [None; 16]
         } else {
-            phrase[bar as usize % phrase.len()]
+            phrase[into as usize % phrase.len()]
         }
     }
     fn any(phrase: &[[Option<f32>; 16]]) -> bool {
@@ -344,8 +338,7 @@ impl Score {
         let i = self.section_index_at(t);
         let s = &self.sections[i];
         let into = (self.bar_idx_at(t) as i64 - s.start_bar as i64).max(0) as u32;
-        let (ph, off) = s.phase_and_offset(into);
-        pick(s).at(ph, off)
+        pick(s).bar(into)
     }
 
     /// Every note of a note-lane as (time, freq) across the whole track — the synth builds a voice
