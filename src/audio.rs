@@ -27,11 +27,14 @@ impl Track {
 
 // ---- voices (FunDSP graphs; each is a 0-input → 1-output unit) ------------------------------
 
-/// Kick: a sine swept from ~125 Hz down to 45 Hz with a fast amplitude decay.
+/// Kick: a sine swept from ~125 Hz down to 45 Hz with a fast amplitude decay, plus a short
+/// high-passed noise CLICK on the transient so it cuts through a busy mix (modern DnB punch) instead
+/// of reading as a soft 90s drum-machine thud.
 fn kick() -> Box<dyn AudioUnit> {
     Box::new(
         (envelope(|t: f32| 45.0 + 80.0 * (-t * 38.0).exp()) >> sine())
-            * envelope(|t: f32| (-t * 9.0).exp()),
+            * envelope(|t: f32| (-t * 9.0).exp())
+            + (noise() >> highpass_hz(2200.0, 0.7)) * envelope(|t: f32| (-t * 130.0).exp()) * 0.4,
     )
 }
 
@@ -75,10 +78,12 @@ fn pad(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Bass: sine + a touch of saw through a low-pass, short decay.
+/// Bass: a sub sine + two slightly-detuned saws (a Reese hint) through a brighter low-pass — gritty
+/// and present like a produced DnB bass, not a clean sine "organ bass". Master saturation adds the
+/// rest of the bite.
 fn bass(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        ((sine_hz(freq) + saw_hz(freq) * 0.35) >> lowpass_hz(500.0, 0.7))
+        ((sine_hz(freq) + saw_hz(freq) * 0.6 + saw_hz(freq * 1.004) * 0.4) >> lowpass_hz(720.0, 0.8))
             * envelope(|t: f32| {
                 let a = 0.005;
                 if t < a {
@@ -87,7 +92,7 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
                     (-(t - a) * 4.0).exp()
                 }
             })
-            * 0.5,
+            * 0.46,
     )
 }
 
@@ -96,20 +101,22 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
 fn lead(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
         (((saw_hz(freq)
-            + saw_hz(freq * 1.006)
-            + saw_hz(freq * 0.994)
-            + sine_hz(freq * 0.5) * 0.7)
-            * 0.26)
-            >> lowpass_hz(2100.0, 1.0))
+            + saw_hz(freq * 1.007)
+            + saw_hz(freq * 0.993)
+            + saw_hz(freq * 1.014)
+            + saw_hz(freq * 0.986)
+            + sine_hz(freq * 0.5) * 0.8)
+            * 0.17)
+            >> lowpass_hz(2600.0, 1.0))
             * envelope(|t: f32| {
-                let a = 0.025;
+                let a = 0.02;
                 if t < a {
                     t / a
                 } else {
-                    0.18 + 0.82 * (-(t - a) * 1.2).exp()
+                    0.20 + 0.80 * (-(t - a) * 1.3).exp()
                 }
             })
-            * 0.62,
+            * 0.6,
     )
 }
 
@@ -641,7 +648,10 @@ pub fn synth_track(score: &Score) -> Track {
         let g = fade_in * fade_out * score.gain_at(t);
         for c in 0..2 {
             let mix = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.18;
-            buf[2 * i + c] = (mix * g).tanh();
+            // Bus saturation: drive into the tanh so the mix glues + grows harmonics (warmth,
+            // perceived loudness) instead of staying clean/thin — then trim back. Lifts the track
+            // out of "clean 90s GM synth" territory toward a produced sound.
+            buf[2 * i + c] = (mix * g * 1.6).tanh() * 0.84;
         }
     }
     Track {
