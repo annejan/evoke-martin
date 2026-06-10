@@ -148,6 +148,28 @@ fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
+/// CASIO / electric-piano: a tine-ish voice (sine carrier + a bell "ting" harmonic + a hair of saw
+/// cheese) with a pluck-to-light-sustain envelope — the kitschy Ome-Henk keyboard comping.
+fn casio(freq: f32) -> Box<dyn AudioUnit> {
+    Box::new(
+        (((sine_hz(freq)
+            + sine_hz(freq * 2.0) * 0.45
+            + sine_hz(freq * 4.0) * 0.18 // the bell "ting" on the attack
+            + saw_hz(freq) * 0.07) // a hair of plastic cheese
+            * 0.3)
+            >> lowpass_hz(2500.0, 0.7))
+            * envelope(|t: f32| {
+                let a = 0.004;
+                if t < a {
+                    t / a
+                } else {
+                    0.25 + 0.75 * (-(t - a) * 3.5).exp() // pluck → light sustain
+                }
+            })
+            * 0.5,
+    )
+}
+
 /// Equal-power pan gains for `pan` in [-1, 1] (-1 = hard left, 0 = centre, 1 = hard right).
 fn pan_gains(pan: f32) -> (f32, f32) {
     let a = (pan.clamp(-1.0, 1.0) + 1.0) * (std::f32::consts::FRAC_PI_4); // 0..PI/2
@@ -519,6 +541,28 @@ pub fn synth_track(score: &Score) -> Track {
                     supersaw,
                 );
                 b += 1;
+            }
+        }
+    }
+
+    // CASIO comp: a cheesy off-beat chord "chnk" on every up-beat (the "and"), gated to the END of
+    // the track (climax + outro) where the Ome-Henk electric piano creeps in.
+    let half = score.beat() / 2.0;
+    for name in ["climax", "outro"] {
+        if let Some((s0, s1)) = section_window(score, name) {
+            let mut t = (s0 / score.beat()).ceil() * score.beat() + half; // first up-beat
+            while t < s1 {
+                let m = score.levels(t).mids;
+                chord_spread(
+                    &mut bed,
+                    t,
+                    half * 0.95,
+                    0.05 + 0.06 * m,
+                    0.5,
+                    score.chord_at(t).triad(),
+                    casio,
+                );
+                t += score.beat();
             }
         }
     }
