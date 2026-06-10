@@ -448,7 +448,15 @@ impl Score {
         let find = |sections: &[Section], name: &str| sections.iter().position(|s| s.name == name);
 
         for (n, raw) in text.lines().enumerate() {
-            let line = raw.split('#').next().unwrap_or("").trim();
+            // Strip a `# comment`, but only when `#` starts the line or follows whitespace — so a
+            // sharp note like `F#6` (mid-token `#`) is NOT mistaken for a comment.
+            let bytes = raw.as_bytes();
+            let cut = raw
+                .char_indices()
+                .find(|&(i, c)| c == '#' && (i == 0 || bytes[i - 1].is_ascii_whitespace()))
+                .map(|(i, _)| i)
+                .unwrap_or(raw.len());
+            let line = raw[..cut].trim();
             if line.is_empty() {
                 continue;
             }
@@ -888,6 +896,25 @@ mod tests {
         // a plain number is seconds; whitespace + case are tolerated.
         assert_eq!(s.anchor_seconds("  2.5 "), Some(2.5));
         assert_eq!(s.anchor_seconds("nope"), None);
+    }
+
+    #[test]
+    fn sharp_notes_parse_and_real_comments_still_strip() {
+        // `#` is the comment char, but a mid-token `#` (the note F#5 / chord F#) must NOT be eaten —
+        // and a genuine trailing `# comment` must still be stripped (else the lead line mis-counts).
+        let dsl = "bpm 120\n\
+                   chords F#\n\
+                   section a 4 4\n\
+                   a.lead p0: F#5 . . .  . . . .  . . . .  . . . .   # trailing comment with # inside\n";
+        assert!(
+            Score::from_str(dsl).is_ok(),
+            "F#5 + a trailing comment should parse"
+        );
+        // a leading-`#` line is a comment (ignored); a bad note still errors.
+        assert!(Score::from_str(
+            "bpm 120\nchords G\nsection a 4 4\na.lead p0: Z9 . . . . . . . . . . . . . . .\n"
+        )
+        .is_err());
     }
 
     #[test]
