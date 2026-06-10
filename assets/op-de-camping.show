@@ -1,0 +1,37 @@
+# martin — the "OP DE CAMPING" demo, in the unified .show format. A text/branding morph ride synced
+# to the Op de Camping score (Ome Henk-flavoured DnB): the parody tagline OP VAKANTIE / MET deFEEST
+# builds over the couplets, and the hook OP DE CAMPING lands on every chorus drop. Built only from
+# licence-cleared shipped assets — no .ply needed.
+#
+#   MARTIN_SHOW=assets/op-de-camping.show cargo +nightly run --release
+#   MARTIN_SHOW=assets/op-de-camping.show ./record.sh op-de-camping.mp4
+#
+# (No song lyrics on screen — just the title hook, the deFEEST parody tagline and the credits.)
+
+# --- settings (each → MARTIN_<KEY>) ---
+morph_count = 160000
+
+# --- the show: text parts @@anchored to the score's sections, so the words hit with the music ---
+[seq]
+image:defeest-logo.png      @@intro      @12,3  ~sparkle              # deFEEST logo opens the show
+text:OP VAKANTIE            @@build      @28,3  ~typewriter  ^wave    # the parody setup (1st couplet)
+text:OP DE CAMPING          @@drop       @56,4  ~explode     ^wave    # THE HOOK — lands on the chorus
+text:MET deFEEST            @@breakdown  @28,3  ~swirl        ^wave   # the parody payoff (2nd couplet)
+text:OP DE CAMPING          @@climax     @52,4  ~outline     ^wave    # the big reprise, high + epic
+wall:ANUS|KLOOT|CINDER      @@outro      @12,4  ~fade                 # the crew, as the blast hits
+text:a deFEEST production    @10,4               ~pen-write   ^wave    # outro tag
+
+# --- the camera: a directed track (t = show-time seconds), tuned to the ~222s score timeline:
+#     intro 0 · build/couplet 14 · drop/chorus 44 · breakdown 103 · climax 133 · outro 192 · end 222.
+#     Slow drift around the origin with push-ins on the two OP DE CAMPING hooks and the final blast. ---
+[camera]
+t=0.0    pos=0,0,0   dist=2.7   yaw=1.40   pitch=0.12   # logo, head-on
+t=14.0   pos=0,0,0   dist=2.6   yaw=1.22   pitch=0.16   # OP VAKANTIE — drift left
+t=44.0   pos=0,0,0   dist=2.2   yaw=1.46   pitch=0.18   # push in HARD on the first OP DE CAMPING
+t=72.0   pos=0,0,0   dist=2.5   yaw=1.58   pitch=0.12   # orbit through the chorus
+t=103.0  pos=0,0,0   dist=2.8   yaw=1.26   pitch=0.14   # pull back for the breakdown couplet
+t=133.0  pos=0,0,0   dist=2.1   yaw=1.50   pitch=0.20   # climax — in tight + up, epic
+t=170.0  pos=0,0,0   dist=2.4   yaw=1.30   pitch=0.14   # ride the high reprise
+t=192.0  pos=0,0,0   dist=2.7   yaw=1.45   pitch=0.12   # outro — credits settle centre
+t=210.0  pos=0,0,0   dist=2.3   yaw=1.55   pitch=0.16   # lean in for the explosive blast
+t=222.0  pos=0,0,0   dist=3.2   yaw=1.42   pitch=0.10   # blown back out on the final hit
