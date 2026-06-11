@@ -650,6 +650,10 @@ impl Score {
         if sections.is_empty() {
             return Err("no sections defined".into());
         }
+        // Structural lint: surface the DSL's silent traps (WARN, don't fail — the show still plays).
+        for warning in validate(&sections) {
+            eprintln!("score: warning: {warning}");
+        }
         let mut score = Score::new(bpm, chords, sections);
         score.params = params;
         Ok(score)
@@ -805,6 +809,67 @@ impl Score {
         Score::from_str(include_str!("../assets/score.txt"))
             .expect("embedded assets/score.txt must parse")
     }
+}
+
+// ---- validation ----------------------------------------------------------------------------
+
+/// Structural lint of the parsed sections — returns human-readable WARNINGS (not errors: a bad score
+/// should never stop the show). It catches the silent traps the DSL otherwise hides:
+///   • a phase/bar-count mismatch — the classic one (`section x 8 4,4 fill` → 4+4+1≠8): the extra or
+///     missing bars just repeat the last phase, producing dead/duplicated bars with no error.
+///   • a drum pattern on a phase the section doesn't have (`x.kick p5` when x has 3 phases) — it
+///     never plays.
+///   • a melodic `p1`+ phrase — note lanes loop `p0` CONTINUOUSLY across the section (see
+///     `NoteLane::bar`), so any `p1`+ is silently ignored, and a lane with ONLY a `p1` is dead silent.
+fn validate(sections: &[Section]) -> Vec<String> {
+    let mut w = Vec::new();
+    for s in sections {
+        let declared = s.phases.iter().sum::<u32>() + u32::from(s.fill);
+        if declared != s.bars {
+            w.push(format!(
+                "section `{}`: {} bars but phases{} sum to {} — the extra/missing bars repeat the \
+                 last phase (likely a typo)",
+                s.name,
+                s.bars,
+                if s.fill { " + fill" } else { "" },
+                declared
+            ));
+        }
+        for (inst, lane) in [
+            ("kick", &s.kick),
+            ("snare", &s.snare),
+            ("hat", &s.hat),
+            ("stab", &s.stab),
+        ] {
+            if lane.phases.len() > s.phases.len() {
+                w.push(format!(
+                    "`{}.{inst}`: defines p{} but section `{}` has only {} phase(s) — that pattern \
+                     never plays",
+                    s.name,
+                    lane.phases.len() - 1,
+                    s.name,
+                    s.phases.len()
+                ));
+            }
+        }
+        for (lname, lane) in [("lead", &s.lead), ("arp", &s.arp), ("bass", &s.bass)] {
+            if lane.phases.iter().skip(1).any(|p| NoteLane::any(p)) {
+                w.push(format!(
+                    "`{}.{lname}`: p1+ phrases are ignored — melodic lanes loop p0 continuously \
+                     across the section",
+                    s.name
+                ));
+            }
+            if lane.phases.len() > 1 && lane.phases.first().is_some_and(|p| !NoteLane::any(p)) {
+                w.push(format!(
+                    "`{}.{lname}`: no p0 phrase (only p1+), so the lane is SILENT — melodic lanes \
+                     play p0; rename your phrase to p0",
+                    s.name
+                ));
+            }
+        }
+    }
+    w
 }
 
 // ---- parsing helpers -----------------------------------------------------------------------
@@ -1084,6 +1149,38 @@ mod tests {
         let dsl = "bpm 120\nchords C\nsection a 3 3\na.lead p0: G5 . . . . . . . . . . . . . . .\n";
         let s = Score::from_str(dsl).unwrap();
         assert_eq!(s.lead_notes().len(), 3); // G5 on every one of the 3 bars
+    }
+
+    #[test]
+    fn validate_flags_phase_mismatch_and_ignored_melodic_phases() {
+        // 8-bar section but phases 4,4 + fill = 9 (mismatch); a lead phrase written as p1 (no p0) is
+        // both "p1+ ignored" AND "silent". All are WARNINGS — the score still parses.
+        let dsl = "bpm 120\nchords C\nsection a 8 4,4 fill\n\
+                   a.kick p5: x... .... .... ....\n\
+                   a.lead p1: C5 . . . . . . . . . . . . . . .\n";
+        let s = Score::from_str(dsl).expect("warnings, not errors — still parses");
+        let w = validate(&s.sections);
+        assert!(
+            w.iter().any(|m| m.contains("bars but phases")),
+            "phase/bar mismatch flagged: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains(".kick`: defines p5")),
+            "out-of-range drum phase flagged: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("p1+ phrases are ignored")),
+            "ignored melodic phase flagged: {w:?}"
+        );
+        assert!(
+            w.iter().any(|m| m.contains("SILENT")),
+            "silent (p1-only) melodic lane flagged: {w:?}"
+        );
+        // and a clean score yields NO warnings.
+        assert!(
+            validate(&Score::builtin().sections).is_empty(),
+            "the built-in score must be warning-clean"
+        );
     }
 
     #[test]

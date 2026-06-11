@@ -801,13 +801,15 @@ pub fn synth_track(score: &Score) -> Track {
             score.chord_at(kt).root,
             0.92 * (0.9 + 0.1 * vel(kt, beat, 0)),
         );
-        // a light bass reinforcement under the kick (the pitched kick tail carries most of the low end)
+        // a SHORT, light bass body under the kick — just transient punch, not a sustained low pile.
+        // The pitched kick tail + the continuous sub already carry the low end, so a long/loud bass
+        // here only muddies it; keep it brief (0.25s) and quiet (0.18) so it adds thump, not mud.
         let v = vel(kt, beat, 0x88);
         render_into(
             &mut bed,
             kt,
-            0.5,
-            0.3 * v,
+            0.25,
+            0.18 * v,
             0.0,
             bass(bass_freq(score.chord_at(kt).root), v),
         );
