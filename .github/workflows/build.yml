@@ -14,14 +14,14 @@ jobs:
     name: REUSE compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: fsfe/reuse-action@v5
 
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # nightly (pinned by rust-toolchain.toml) for the unstable rustfmt.toml options.
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -36,7 +36,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # bevy_gaussian_splatting (vendored fork) needs udev + alsa headers on Linux;
       # winit needs wayland/xkbcommon. Windows (DX12) and macOS (Metal) need nothing.
@@ -87,7 +87,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux deps
         if: runner.os == 'Linux'

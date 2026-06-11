@@ -99,6 +99,44 @@ fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
     )
 }
 
+/// Wooz-bass: thick + dark in the low-mids, a slow GROWL that develops AFTER the hit, and a
+/// slightly-detuned, woozy quality — the pitch never quite settles. How each trait is built:
+///   • dark low-mid body — a sub sine for weight + two detuned saws, all through a RESONANT low-pass
+///     parked low (~220 Hz, Q≈3.2) so it sits in the low-mids and never gets bright.
+///   • growl-after-the-hit — the low-pass cutoff is WOBBLED by a ~5.5 Hz LFO whose depth ramps IN
+///     over ~0.4 s, so the note lands clean and the growl only opens up as it sustains.
+///   • woozy/unstable pitch — a ~4 Hz vibrato + a slower ~0.6 Hz drift on EACH oscillator (at
+///     different rates/phases) on top of ±12-cent detuning, so the three voices beat against each
+///     other and the pitch drifts. Best on HELD notes (it needs time to develop). A palette voice —
+///     wire it into the score where a sustained woozy sub fits (audition it with `woozbass_demo`).
+#[allow(dead_code)]
+fn woozbass(freq: f32) -> Box<dyn AudioUnit> {
+    use std::f32::consts::TAU;
+    // independent vibrato + slow drift per oscillator → they never lock, so the pitch feels unstable.
+    let f_sub =
+        lfo(move |t: f32| freq * (1.0 + 0.006 * (t * 4.3 * TAU).sin() + 0.004 * (t * 0.6 * TAU).sin()));
+    let f_up = lfo(move |t: f32| freq * 1.007 * (1.0 + 0.006 * (t * 4.1 * TAU + 1.0).sin()));
+    let f_dn = lfo(move |t: f32| freq * 0.993 * (1.0 + 0.005 * (t * 3.7 * TAU + 2.0).sin()));
+    let oscs = (f_sub >> sine()) * 0.7 + (f_up >> saw()) * 0.45 + (f_dn >> saw()) * 0.45;
+    // the developing growl: a resonant-LPF cutoff wobble whose depth eases in over ~0.4 s.
+    let cut = lfo(move |t: f32| {
+        let grow = (t / 0.4).min(1.0);
+        220.0 + grow * 230.0 * ((t * 5.5 * TAU).sin() * 0.5 + 0.5)
+    });
+    Box::new(
+        ((oscs | cut | constant(3.2)) >> lowpass())
+            * envelope(|t: f32| {
+                let a = 0.008;
+                if t < a {
+                    t / a // quick, clean attack...
+                } else {
+                    0.6 + 0.4 * (-(t - a) * 0.6).exp() // ...then a long sustain so the growl can bloom
+                }
+            })
+            * 0.5,
+    )
+}
+
 /// Lead: a 5-saw detuned stack with a per-note FILTER ENVELOPE — the cutoff sweeps down from ~4.9 kHz
 /// to ~700 Hz so every note plucks/opens and settles instead of droning through a fixed cutoff (a
 /// static cutoff on a saw is literally an organ). Softsign drive for brass bite; no sub-octave (that
@@ -1151,4 +1189,29 @@ pub fn encode_wav(track: &Track) -> Vec<u8> {
 /// Write the track as a `.wav` file so ffmpeg can mux it onto the recorded frames.
 pub fn write_wav(track: &Track, path: &str) -> std::io::Result<()> {
     std::fs::write(path, encode_wav(track))
+}
+
+#[cfg(test)]
+mod voice_demo {
+    use super::*;
+    use std::sync::Arc;
+
+    /// On-demand audition of `woozbass`: writes a few HELD notes to /tmp/woozbass.wav so the slow
+    /// growl + wooze can be heard. Run with:
+    ///   cargo +nightly test --release woozbass_demo -- --ignored
+    #[test]
+    #[ignore]
+    fn woozbass_demo() {
+        let sr = SAMPLE_RATE as f32;
+        let mut bed = vec![0f32; (7.0 * sr) as usize * 2];
+        // low fundamentals (A1..E2) held ~1 s each — long enough for the growl to develop.
+        let notes = [55.0f32, 73.42, 49.0, 82.41, 65.41, 55.0];
+        for (i, &f) in notes.iter().enumerate() {
+            render_into(&mut bed, i as f32 * 1.1, 1.0, 0.85, 0.0, woozbass(f));
+        }
+        let track = Track {
+            samples: Arc::new(bed),
+        };
+        write_wav(&track, "/tmp/woozbass.wav").expect("write demo wav");
+    }
 }
