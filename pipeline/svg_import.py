@@ -26,6 +26,7 @@ Usage:
 """
 import argparse, json, os, re, struct, subprocess, sys, tempfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 SVG_NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", SVG_NS)
@@ -108,7 +109,7 @@ def srgb_to_lin(c):
 
 
 def read_stl(path):
-    verts = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", open(path).read())
+    verts = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", Path(path).read_text())
     fv = [(float(a), float(b), float(c)) for a, b, c in verts]
     pos, nrm = [], []
     for i in range(0, len(fv), 3):
@@ -132,7 +133,7 @@ def extrude_group(tmp, viewW, VB, idx, dlist, thickness):
     ET.ElementTree(svg).write(spath, xml_declaration=True, encoding="utf-8")
     scad = os.path.join(tmp, f"g{idx}.scad")
     stl = os.path.join(tmp, f"g{idx}.stl")
-    open(scad, "w").write(
+    Path(scad).write_text(
         f'$fn=96;\nlinear_extrude(height={thickness:.5f}, center=true) import("{spath}", center=false);\n')
     subprocess.run(["openscad", "-o", stl, scad], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -194,7 +195,7 @@ def write_dae(out, layers):
         sn.append(f'''      <node id="{name}" name="{name}" type="NODE">
         <instance_geometry url="#{name}-geo"><bind_material><technique_common>
           <instance_material symbol="{name}-mat" target="#{name}-mat"/></technique_common></bind_material></instance_geometry></node>''')
-    open(out + ".dae", "w").write(f'''<?xml version="1.0" encoding="utf-8"?>
+    Path(out + ".dae").write_text(f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
   <asset><up_axis>Z_UP</up_axis></asset>
   <library_effects>

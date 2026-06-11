@@ -11,6 +11,7 @@ This is the project's own heavily-derived arrangement of "Op de Camping" (Ome He
 Navy" (Village People, 1979) — see REUSE.toml for source attribution. No lyrics are encoded.
 """
 import sys, struct, re
+from pathlib import Path
 
 SEMI = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
 PPQ = 480
@@ -41,9 +42,8 @@ def chord_notes(tok):
 def parse(path):
     bpm, gchords, sections, order = 120.0, [], {}, []
     lead, arp, bass, schords = {}, {}, {}, {}
-    for raw in open(path):
-        line = raw.split('#')[0].strip() if not raw.lstrip().startswith('#') else ''
-        # keep sharps: only strip a '#' that starts a comment (handled crudely: drop after ' #')
+    for raw in Path(path).read_text().splitlines():
+        # keep sharps: only strip a '#' that starts a comment (drop after ' #').
         line = re.split(r'\s#', raw)[0].strip()
         if raw.lstrip().startswith('#') or not line:
             continue
@@ -128,7 +128,6 @@ def main():
     out = sys.argv[2] if len(sys.argv) > 2 else 'op-de-camping.mid'
     bpm, gchords, order, sections, lead, arp, bass, schords = parse(src)
     tempo = int(60_000_000 / bpm)
-    meta = b'MTrk' + b''  # tempo/name track
     tbody = vlq(0) + b'\xff\x51\x03' + struct.pack('>I', tempo)[1:]
     tbody += vlq(0) + b'\xff\x03' + vlq(len(b'Op de Camping')) + b'Op de Camping'
     tbody += vlq(0) + b'\xff\x2f\x00'

@@ -19,6 +19,7 @@ End-to-end (needs `openscad` on PATH; no Blender required):
 """
 import struct, json, os, re, subprocess, tempfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(os.path.dirname(HERE), "assets")   # script lives in pipeline/, assets sit in assets/
@@ -86,7 +87,7 @@ def extrude(name, body):
 def read_stl(path):
     """ASCII STL (OpenSCAD default) -> (positions[3T], normals[3T]) triangle soup,
     with a freshly computed face normal per triangle."""
-    verts = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", open(path).read())
+    verts = re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", Path(path).read_text())
     fv = [(float(a), float(b), float(c)) for a, b, c in verts]
     pos, nrm = [], []
     for i in range(0, len(fv), 3):
