@@ -54,6 +54,12 @@ pub fn apply() {
     if !MORPH_COUNT.is_empty() {
         set("MARTIN_MORPH_COUNT", MORPH_COUNT);
     }
+    // Pre-rendered music baked in → play it directly (no ~30s live synth render → no silent start).
+    if !MUSIC_NAME.is_empty() && dir.join(MUSIC_NAME).exists() {
+        if let Some(p) = dir.join(MUSIC_NAME).to_str() {
+            set("MARTIN_MUSIC", p);
+        }
+    }
     println!(
         "bundle: extracted to {} — playing baked-in show",
         dir.display()

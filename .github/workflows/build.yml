@@ -104,10 +104,22 @@ jobs:
 
       # The show's procedural splats (galaxy/supershape/knot/…) aren't in the repo (.ply is gitignored)
       # — generate them fresh so build.rs can bake them in. The character captures (dog/Martins) are
-      # NOT used by the CI-safe show; only repo-tracked meshes + these generated shapes.
+      # NOT used by the CI-safe show; only repo-tracked meshes + these generated shapes. (numpy isn't
+      # preinstalled on the runners.)
       - name: Generate procedural splats
         shell: bash
-        run: python3 pipeline/gen-demo-splats.py assets
+        run: |
+          python3 -m pip install --user --quiet numpy
+          python3 pipeline/gen-demo-splats.py assets
+
+      # Pre-render the track to a WAV and bake it into the bundle, so the demo plays the music
+      # INSTANTLY + in sync (the live synth render takes ~30s — too slow for a one-click demo).
+      - name: Render the music
+        shell: bash
+        env:
+          MARTIN_SYNTH_WAV: assets/op-de-camping.wav
+          MARTIN_SCORE: assets/score.txt
+        run: cargo run --release   # the MARTIN_SYNTH_WAV path renders the WAV and exits (no window)
 
       - name: Build single binary (the Op de Camping demo, --features bundle)
         shell: bash

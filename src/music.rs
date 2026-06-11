@@ -34,11 +34,22 @@ fn spawn_synth(mut commands: Commands, score_res: Res<ScoreRes>) {
     if !want_audio {
         return;
     }
-    let score = score_res.0.clone();
     let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(audio::encode_wav(&audio::synth_track(&score)));
-    });
+    if let Ok(path) = std::env::var("MARTIN_MUSIC") {
+        // Pre-rendered (bundled) audio — load instantly so it plays in sync, no ~30s synth render.
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                let _ = tx.send(bytes);
+                info!("live audio: playing pre-rendered track ({path})");
+            }
+            Err(e) => warn!("live audio: MARTIN_MUSIC {path}: {e} — falling back to live render"),
+        }
+    } else {
+        let score = score_res.0.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(audio::encode_wav(&audio::synth_track(&score)));
+        });
+    }
     commands.insert_resource(Music {
         rx: std::sync::Mutex::new(rx),
         handle: None,

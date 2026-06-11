@@ -12,3 +12,4 @@
 show = "assets/op-de-camping-ci.show"   # the full splat demo (seq + 3D camera)
 score = "assets/score.txt"           # the Op de Camping track + @@anchor timing
 logo = "defeest-logo.png"            # the loader screen while it decompresses
+music = "assets/op-de-camping.wav"     # pre-rendered track baked in (no ~30s live render -> instant, in sync)

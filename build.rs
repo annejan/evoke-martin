@@ -65,6 +65,22 @@ fn main() {
         files.push((score_name.clone(), bytes));
     }
 
+    // Pre-rendered music: bake it in so the bundle plays the track INSTANTLY + in sync. (The live
+    // synth render takes ~30s — far too slow for a bundled demo, which is why it played silent.)
+    let music_name = match get("music") {
+        Some(m) => {
+            let mp = PathBuf::from(m);
+            let ext = mp.extension().and_then(|e| e.to_str()).unwrap_or("wav");
+            let name = format!("music.{ext}");
+            let bytes = std::fs::read(&mp)
+                .unwrap_or_else(|e| panic!("bundle: missing music {}: {e}", mp.display()));
+            println!("cargo:rerun-if-changed={}", mp.display());
+            files.push((name.clone(), bytes));
+            name
+        }
+        None => String::new(),
+    };
+
     let root_ply = names
         .iter()
         .find(|n| n.ends_with(".ply"))
@@ -82,6 +98,7 @@ fn main() {
     code.push_str(&format!("pub const SCORE_NAME: &str = {score_name:?};\n"));
     code.push_str(&format!("pub const ROOT_PLY: &str = {root_ply:?};\n"));
     code.push_str(&format!("pub const LOGO: &str = {logo:?};\n"));
+    code.push_str(&format!("pub const MUSIC_NAME: &str = {music_name:?};\n"));
     code.push_str(&format!(
         "pub const MORPH_COUNT: &str = {:?};\n",
         get("morph_count").unwrap_or("")
