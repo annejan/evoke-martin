@@ -19,7 +19,7 @@ ply = assets/aegg-baked.ply
 [seq]
 image:defeest-logo.png       @@intro      @8,3    ~sparkle                # deFEEST logo opens the show
 mesh:evoke-23.dae              @6,3                ~swarm      ^wave        # at EVOKE — the demoparty
-splat:aegg-baked.ply         @@build      @14,3   ~swarm      ^twist       # the badge.team Ægg swarms in
+mesh:aegg.dae                @@build      @14,3   ~swarm      ^twist       # the badge.team Ægg swarms in
 text:OP DE CAMPING            @15,3,1.2           ~typewriter ^wave        # the dream builds over the couplet
 splat:doggo.ply              @@drop       @14,4   ~ball       ^wave        # the DOG — pure joy on the chorus
 text:MET deFEEST              @12,4               ~explode    ^wave        # op de camping MET deFEEST
