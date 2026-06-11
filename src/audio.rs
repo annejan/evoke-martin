@@ -780,23 +780,39 @@ fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
 /// but the kick), an arp counter-line in the energetic sections, sidechain pump under the kick, a
 /// spread reverb send, the continuous sub, per-section fades × gain, soft clip.
 pub fn synth_track(score: &Score) -> Track {
-    use std::f32::consts::TAU;
     let sr = SAMPLE_RATE as f32;
     let total = (score.demo_len() * sr).ceil() as usize;
     let stereo = total * 2;
     let mut kickbuf = vec![0f32; stereo]; // sidechain source (never ducked)
     let mut bed = vec![0f32; stereo]; // everything else (pumped + reverbed)
+
+    // The render is split into ordered passes — drums → voices → harmony → fx → master. The order is
+    // load-bearing: every pass ACCUMULATES into `bed[i] += …`, so keeping the passes in this exact
+    // sequence keeps the floating-point sum bit-for-bit identical to the old monolithic function.
+    let kicks = score.hits(Inst::Kick);
+    render_drums(&mut kickbuf, &mut bed, score, &kicks);
+    render_voices(&mut bed, score, stereo);
+    render_harmony(&mut bed, score);
+    render_fx(&mut bed, score, total);
+    let buf = master(&kickbuf, &mut bed, score, &kicks, total, stereo);
+    Track {
+        samples: Arc::new(buf),
+    }
+}
+
+/// Drums → the kick (its own buffer, the sidechain source) + a short bass body under it, the intro
+/// percussion, and the snare / hat / stab lanes panned across the field. `kicks` is passed in (it is
+/// also the sidechain source in `master`, so it's computed once).
+fn render_drums(kickbuf: &mut [f32], bed: &mut [f32], score: &Score, kicks: &[f32]) {
     let beat = score.beat();
     // the rhythm section sits forward: hi-hats + snares are level-knobbed so they can be pushed up to
     // read as a prominent groove (the parts coming in were too polite). `set hats=` / `set snares=`.
     let hats_amp = score.param("hats", 0.3);
     let snare_amp = score.param("snares", 0.58);
-
-    let kicks = score.hits(Inst::Kick);
-    for &kt in &kicks {
+    for &kt in kicks {
         // kick stays near-full + dead-on so the pump locks; just a hair of velocity for life.
         render_hardkick(
-            &mut kickbuf,
+            kickbuf,
             kt,
             score.chord_at(kt).root,
             0.92 * (0.9 + 0.1 * vel(kt, beat, 0)),
@@ -806,7 +822,7 @@ pub fn synth_track(score: &Score) -> Track {
         // here only muddies it; keep it brief (0.25s) and quiet (0.18) so it adds thump, not mud.
         let v = vel(kt, beat, 0x88);
         render_into(
-            &mut bed,
+            bed,
             kt,
             0.25,
             0.18 * v,
@@ -814,7 +830,7 @@ pub fn synth_track(score: &Score) -> Track {
             bass(bass_freq(score.chord_at(kt).root), v),
         );
     }
-    render_intro_percussion(&mut kickbuf, &mut bed, score);
+    render_intro_percussion(kickbuf, bed, score);
 
     for (i, t) in score.hits(Inst::Snare).into_iter().enumerate() {
         // snares alternate left/centre/right — they're the backbeat anchor, spread them so the
@@ -825,7 +841,7 @@ pub fn synth_track(score: &Score) -> Track {
             _ => -0.05,
         };
         render_into(
-            &mut bed,
+            bed,
             groove(t, beat, 0x55, 0.003, 0.004),
             0.4,
             snare_amp * vel(t, beat, 0x55),
@@ -836,7 +852,7 @@ pub fn synth_track(score: &Score) -> Track {
     for (i, t) in score.hits(Inst::Hat).into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.65 } else { -0.65 }; // hats dance wider across the field
         render_into(
-            &mut bed,
+            bed,
             groove(t, beat, 0x77, 0.006, 0.0),
             0.12,
             hats_amp * vel(t, beat, 0x77),
@@ -847,7 +863,7 @@ pub fn synth_track(score: &Score) -> Track {
     for t in score.hits(Inst::Stab) {
         let m = score.levels(t).mids;
         chord_spread(
-            &mut bed,
+            bed,
             groove(t, beat, 0x6E, 0.004, 0.0),
             0.5,
             (0.10 + 0.10 * m) * vel(t, beat, 0x6E),
@@ -856,7 +872,14 @@ pub fn synth_track(score: &Score) -> Track {
             stab,
         );
     }
-    render_intro_bassline(&mut bed, score);
+}
+
+/// Melodic voices → the articulated intro bassline, the forward lead (+ octave sheen + a dotted-8th
+/// ping-pong echo added wet-only for depth), the arp counter-line (in its own buffer, ping-ponged),
+/// and the `<section>.bass` note-lane. `stereo` sizes the scratch echo/arp buffers.
+fn render_voices(bed: &mut [f32], score: &Score, stereo: usize) {
+    let beat = score.beat();
+    render_intro_bassline(bed, score);
 
     // lead: forward + centre — the HOOK, push it up so it cuts through the wall. The lead is the
     // melody the viewer hums leaving the tent; it does NOT sit behind the drums.
@@ -864,18 +887,11 @@ pub fn synth_track(score: &Score) -> Track {
     for (t, f) in score.lead_notes() {
         let v = vel(t, beat, 0x1A);
         let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(
-            &mut bed,
-            gt,
-            0.6,
-            score.param("lead", 0.82) * v,
-            0.0,
-            lead(f, v),
-        ); // STAR — `set lead=`
-        render_into(&mut bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
+        render_into(bed, gt, 0.6, score.param("lead", 0.82) * v, 0.0, lead(f, v)); // STAR — `set lead=`
+        render_into(bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
-                render_into(&mut bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v));
+                render_into(bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v));
                 // extra sheen in climax
             }
         }
@@ -935,19 +951,20 @@ pub fn synth_track(score: &Score) -> Track {
         } else {
             (0.42, bass(f, v))
         };
-        render_into(
-            &mut bed,
-            groove(t, beat, 0xB5, 0.003, 0.0),
-            dur,
-            amp,
-            0.0,
-            voice,
-        );
+        render_into(bed, groove(t, beat, 0xB5, 0.003, 0.0), dur, amp, 0.0, voice);
     }
+}
+
+/// Sustained harmony → the auto-panning pad (every bar), the epic supersaw + choir wall and the
+/// octave-up shimmer bloom in the big sections, and the off-beat stab layers (donk / house organ /
+/// casio). All gated by section name.
+fn render_harmony(bed: &mut [f32], score: &Score) {
+    use std::f32::consts::TAU;
+    let beat = score.beat();
+    let bar = score.bar();
     // sustained pad: one chord per bar, spread wide (warmth/body) with a SLOW auto-pan LFO so the
     // pad breathes and rotates across the stereo field — a static pad reads as wallpaper, a
     // moving one as atmosphere.
-    let bar = score.bar();
     let nbars = (score.demo_len() / bar).ceil() as usize;
     for b in 0..nbars {
         let t = b as f32 * bar;
@@ -955,7 +972,7 @@ pub fn synth_track(score: &Score) -> Track {
         let intro_pad = ((t - 6.0 * bar) / (2.0 * bar)).clamp(0.0, 1.0);
         let pan_spread = 0.5 + 0.25 * (t * 0.4 / bar * TAU).sin();
         chord_spread(
-            &mut bed,
+            bed,
             t,
             bar,
             (0.06 + 0.10 * m) * intro_pad,
@@ -980,12 +997,12 @@ pub fn synth_track(score: &Score) -> Track {
                                                                     // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
                                                                     // wall, not a centred pile.
                 for &f in score.chord_at(t).triad().iter() {
-                    render_into(&mut bed, t, bar, amp * 0.7, -0.95, supersaw(f));
-                    render_into(&mut bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
+                    render_into(bed, t, bar, amp * 0.7, -0.95, supersaw(f));
+                    render_into(bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
                     // lush choir bed an octave below the wall — grandeur/warmth under the bright saws
                     let ch = score.param("choir", 0.5); // `set choir=` — grandeur bed level
-                    render_into(&mut bed, t, bar, amp * ch, -0.6, choir(f * 0.5));
-                    render_into(&mut bed, t, bar, amp * ch, 0.6, choir(f * 0.5 * 1.003));
+                    render_into(bed, t, bar, amp * ch, -0.6, choir(f * 0.5));
+                    render_into(bed, t, bar, amp * ch, 0.6, choir(f * 0.5 * 1.003));
                 }
                 b += 1;
             }
@@ -1005,15 +1022,8 @@ pub fn synth_track(score: &Score) -> Track {
                     let t = b as f32 * bar;
                     let ramp = ((t - s0) / ((s1 - s0) * 0.6)).clamp(0.0, 1.0); // swells in over the first 60%
                     for &f in score.chord_at(t).triad().iter() {
-                        render_into(&mut bed, t, bar, shimmer * ramp, -0.85, choir(f * 2.0));
-                        render_into(
-                            &mut bed,
-                            t,
-                            bar,
-                            shimmer * ramp,
-                            0.85,
-                            choir(f * 2.0 * 1.004),
-                        );
+                        render_into(bed, t, bar, shimmer * ramp, -0.85, choir(f * 2.0));
+                        render_into(bed, t, bar, shimmer * ramp, 0.85, choir(f * 2.0 * 1.004));
                     }
                     b += 1;
                 }
@@ -1030,7 +1040,7 @@ pub fn synth_track(score: &Score) -> Track {
             while t < s1 {
                 let m = score.levels(t).mids;
                 chord_spread(
-                    &mut bed,
+                    bed,
                     groove(t, beat, 0xD0, 0.004, 0.0),
                     hb * 0.9,
                     (score.param("donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
@@ -1053,7 +1063,7 @@ pub fn synth_track(score: &Score) -> Track {
             while t < s1 {
                 let m = score.levels(t).mids;
                 chord_spread(
-                    &mut bed,
+                    bed,
                     groove(t, beat, 0x40, 0.004, 0.0),
                     hb * 0.95,
                     (score.param("house", 0.12) + 0.06 * m) * vel(t, beat, 0x40), // `set house=`
@@ -1075,7 +1085,7 @@ pub fn synth_track(score: &Score) -> Track {
             while t < s1 {
                 let m = score.levels(t).mids;
                 chord_spread(
-                    &mut bed,
+                    bed,
                     groove(t, beat, 0x4C, 0.005, 0.0),
                     half * 0.95,
                     (0.05 + 0.06 * m) * vel(t, beat, 0x4C),
@@ -1087,23 +1097,31 @@ pub fn synth_track(score: &Score) -> Track {
             }
         }
     }
+}
 
+/// Section-transition FX (risers, snare-rolls, jet whooshes, impacts), then the continuous sub-bass
+/// and the atmosphere bed — the last things added to `bed` before the master. `total` is the mono
+/// frame count (the sub + atmosphere run sample-by-sample).
+fn render_fx(bed: &mut [f32], score: &Score, total: usize) {
+    use std::f32::consts::TAU;
+    let sr = SAMPLE_RATE as f32;
+    let bar = score.bar();
     if let Some(t) = section_time(score, "build") {
-        render_riser(&mut bed, t - 2.0 * bar, 2.0 * bar, 0.10, -0.25);
+        render_riser(bed, t - 2.0 * bar, 2.0 * bar, 0.10, -0.25);
     }
     if let Some(t) = section_time(score, "drop") {
-        render_riser(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.26, 0.15);
-        render_snare_roll(&mut bed, t - 2.0 * bar, 2.0 * bar, score.beat()); // build-up roll
-        render_jet(&mut bed, t - 3.0 * bar, 3.0 * bar, 0.32); // afterburner pass into the drop
-        render_impact(&mut bed, t, 1.6, 0.62);
+        render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.26, 0.15);
+        render_snare_roll(bed, t - 2.0 * bar, 2.0 * bar, score.beat()); // build-up roll
+        render_jet(bed, t - 3.0 * bar, 3.0 * bar, 0.32); // afterburner pass into the drop
+        render_impact(bed, t, 1.6, 0.62);
     }
     if let Some(t) = section_time(score, "breakdown") {
-        render_impact(&mut bed, t, 2.2, 0.38);
+        render_impact(bed, t, 2.2, 0.38);
     }
     if let Some(t) = section_time(score, "climax") {
-        render_riser(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
-        render_jet(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.5); // a screaming jet rips into the climax
-        render_impact(&mut bed, t, 2.0, 0.72);
+        render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
+        render_jet(bed, t - 4.0 * bar, 4.0 * bar, 0.5); // a screaming jet rips into the climax
+        render_impact(bed, t, 2.0, 0.72);
     }
     // EXPLOSIVE finale — but CLEAN. The outro is the anthem: the chorus melody + the full epic wall
     // (extended above) + the crescendo gain carry it, ringing out with power. The FX stay out of the
@@ -1115,15 +1133,15 @@ pub fn synth_track(score: &Score) -> Track {
         // build OUT of the climax's final phase straight INTO the outro downbeat — a rising riser + roll
         // across the last bars of the climax so ~3:00→3:05 LIFTS into the finale instead of sagging
         // (the old dead "fake-out breather" sat right here). Pairs with the now-driving climax p3.
-        render_riser(&mut bed, t0 - 3.0 * bar, 3.0 * bar, 0.30, 0.0);
-        render_snare_roll(&mut bed, t0 - 2.0 * bar, 2.0 * bar, score.beat());
-        render_impact(&mut bed, t0, 1.4, 0.5); // land the outro downbeat — then let the anthem ring
+        render_riser(bed, t0 - 3.0 * bar, 3.0 * bar, 0.30, 0.0);
+        render_snare_roll(bed, t0 - 2.0 * bar, 2.0 * bar, score.beat());
+        render_impact(bed, t0, 1.4, 0.5); // land the outro downbeat — then let the anthem ring
         let build = (4.0 * bar).min(end - t0 - 0.1).max(0.5); // the final build window only
         let bs = end - build;
-        render_snare_roll(&mut bed, bs, build, score.beat()); // accelerating roll INTO the blast
-        render_riser(&mut bed, bs, build, 0.42, 0.0); // a rising uplifter under the roll
-        render_jet(&mut bed, end - 2.6, 2.0, 0.6); // jet screams down into the hit
-        render_impact(&mut bed, end - 2.2, 3.2, 1.0); // THE blast — rings out through the master fade
+        render_snare_roll(bed, bs, build, score.beat()); // accelerating roll INTO the blast
+        render_riser(bed, bs, build, 0.42, 0.0); // a rising uplifter under the roll
+        render_jet(bed, end - 2.6, 2.0, 0.6); // jet screams down into the hit
+        render_impact(bed, end - 2.2, 3.2, 1.0); // THE blast — rings out through the master fade
     }
 
     // Continuous sub-bass (centre) into the bed so it pumps with the sidechain. It follows the
@@ -1149,12 +1167,27 @@ pub fn synth_track(score: &Score) -> Track {
     // atmosphere: a dusty noise floor + sparse crackle — but ONLY from the build onward (it fades in
     // as the demo kicks off). The intro stays CLEAN sub-bass only; the floor would just read as crowd
     // "juich" noise over the bare intro.
-    render_atmosphere(&mut bed, sr, section_time(score, "build").unwrap_or(0.0));
+    render_atmosphere(bed, sr, section_time(score, "build").unwrap_or(0.0));
+}
 
+/// The master chain: build the sidechain duck (from `kicks`), the spread reverb send + its per-section
+/// depth automation, the Haas stereo widen (mutates `bed` in place), then the 2-band master loop →
+/// the final interleaved stereo buffer (the caller wraps it in a `Track`).
+fn master(
+    kickbuf: &[f32],
+    bed: &mut [f32],
+    score: &Score,
+    kicks: &[f32],
+    total: usize,
+    stereo: usize,
+) -> Vec<f32> {
+    use std::f32::consts::TAU;
+    let sr = SAMPLE_RATE as f32;
+    let dt = 1.0 / sr;
     // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
     let (depth, tau) = (score.param("sidechain", 0.78), 0.085f32); // `set sidechain=` — pump depth
-    for &kt in &kicks {
+    for &kt in kicks {
         let k0 = (kt * sr) as usize;
         for j in 0..(0.34 * sr) as usize {
             let i = k0 + j;
@@ -1168,7 +1201,7 @@ pub fn synth_track(score: &Score) -> Track {
         }
     }
 
-    let wet = reverb_send(&bed, sr);
+    let wet = reverb_send(bed, sr);
 
     // reverb-depth AUTOMATION: instead of one flat wet send, open the space in the sparse/emotional
     // sections (intro/breakdown/outro — size + feeling) and pull it back in the punchy drops (so the
@@ -1312,9 +1345,7 @@ pub fn synth_track(score: &Score) -> Track {
             buf[2 * i + c] = (pre[c] * gr).clamp(-1.0, 1.0);
         }
     }
-    Track {
-        samples: Arc::new(buf),
-    }
+    buf
 }
 
 /// Encode the track as a 16-bit PCM **stereo** WAV (`SAMPLE_RATE`) into a byte buffer — hand-rolled
