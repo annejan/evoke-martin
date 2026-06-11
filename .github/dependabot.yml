@@ -1,11 +1,34 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot — keeps dependencies (and the SHA-pinned GitHub Actions) current automatically, so the
+# pins in .github/workflows/*.yml stay fresh instead of silently rotting. Updates are grouped to keep
+# the PR volume sane for a hobby/demo repo.
+#
+# (Replaces an earlier config that used `rust-toolchain` as an ecosystem — that isn't a valid
+# Dependabot ecosystem, so it was a silent no-op. The Rust *toolchain* is pinned by rust-toolchain.toml
+# and isn't something Dependabot tracks; the Rust *crates* are the `cargo` ecosystem below.)
 version: 2
 updates:
-  - package-ecosystem: "rust-toolchain" 
-    directory: "/" # Location of package manifests
+  # The SHA-pinned actions in build.yml + codeql.yml — Dependabot bumps both the SHA and its `# vX`
+  # comment. One grouped PR a week for all of them.
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # The Rust crates (root Cargo.toml). Bevy's tree is large, so group all minor+patch bumps into one
+  # PR and only raise majors individually (they tend to need code changes). The vendored
+  # bevy_gaussian_splatting is a local path dep — Dependabot leaves it alone.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "deps"

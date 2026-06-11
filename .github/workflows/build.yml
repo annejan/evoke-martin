@@ -14,16 +14,16 @@ jobs:
     name: REUSE compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: fsfe/reuse-action@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
 
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # nightly (pinned by rust-toolchain.toml) for the unstable rustfmt.toml options.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
         with:
           components: rustfmt
       - run: cargo fmt --all --check
@@ -36,7 +36,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       # bevy_gaussian_splatting (vendored fork) needs udev + alsa headers on Linux;
       # winit needs wayland/xkbcommon. Windows (DX12) and macOS (Metal) need nothing.
@@ -50,10 +50,10 @@ jobs:
       # Default features require nightly (nightly_generic_alias / GATs);
       # the exact channel is pinned by rust-toolchain.toml.
       - name: Install nightly Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Build (release)
         run: cargo build --release
@@ -66,7 +66,7 @@ jobs:
         run: ls -lh target/release/martin* 2>/dev/null || true
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: martin-${{ matrix.os }}
           path: |
@@ -87,7 +87,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install Linux deps
         if: runner.os == 'Linux'
@@ -97,14 +97,14 @@ jobs:
             libudev-dev libasound2-dev libwayland-dev libxkbcommon-dev
 
       - name: Install nightly Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       # Consistent `python` across Linux/Windows/macOS runners (Windows has no `python3`).
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.x"
 
@@ -136,7 +136,7 @@ jobs:
         run: ls -lh target/release/martin* 2>/dev/null || true
 
       - name: Upload single binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: op-de-camping-${{ matrix.os }}
           path: |
