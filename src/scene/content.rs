@@ -170,12 +170,13 @@ pub(crate) fn part_gaussians(
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(60_000);
-            // MARTIN_MESH_SPLAT is the splat size as a FRACTION of the mesh's largest dimension
-            // (scale-invariant — works for a tiny badge or a unit object alike).
+            // MARTIN_MESH_SPLAT is the splat size as an OVERLAP factor on the mean inter-sample
+            // spacing: ~1.0 = disks just touch (crispest), >1 = more overlap (softer/smoother),
+            // <1 = gaps. Density-adaptive, so it's right for any mesh size or polygon count.
             let splat = std::env::var("MARTIN_MESH_SPLAT")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(0.006);
+                .unwrap_or(1.2);
             let rgb = std::env::var("MARTIN_MESH_RGB")
                 .ok()
                 .and_then(|s| {

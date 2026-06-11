@@ -27,14 +27,6 @@ fn sh_of(rgb: [f32; 3]) -> SphericalHarmonicCoefficients {
     sh
 }
 
-/// Deterministic hash → [0, 1) (no rng dependency; for area-weighted surface scatter).
-fn hash01(k: u32) -> f32 {
-    let mut n = k.wrapping_add(0x9E37_79B9).wrapping_mul(0x85EB_CA6B);
-    n ^= n >> 13;
-    n = n.wrapping_mul(0xC2B2_AE35);
-    ((n >> 8) & 0x00FF_FFFF) as f32 / 16_777_216.0
-}
-
 fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
@@ -133,19 +125,6 @@ fn sample_surface_disks<F>(
 where
     F: FnMut(usize, f32, f32, f32) -> SphericalHarmonicCoefficients,
 {
-    // Splat size proportional to the model: `splat` is a FRACTION of the largest dimension.
-    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
-    for t in tris {
-        for v in t {
-            for k in 0..3 {
-                lo[k] = lo[k].min(v[k]);
-                hi[k] = hi[k].max(v[k]);
-            }
-        }
-    }
-    let extent = (0..3).map(|k| hi[k] - lo[k]).fold(0.0_f32, f32::max);
-    let r_plane = (splat * extent).max(1e-6);
-    let r_thin = (r_plane * thin).max(1e-7);
     let yd = |v: [f32; 3]| {
         if flip_y {
             [v[0], -v[1], v[2]]
@@ -153,10 +132,20 @@ where
             v
         }
     };
+    // Size every splat to the mean inter-sample SPACING (× `splat`, an overlap factor ≈1) so the disks
+    // just cover the surface regardless of the mesh's size or polygon density. The old code used a
+    // fixed fraction of the bbox's largest dimension — decoupled from the actual point spacing — so it
+    // bloomed into a fuzzy haze where samples were dense and left gaps where they were sparse.
     let weights: Vec<f32> = tris.iter().map(double_area).collect();
     let total: f32 = weights.iter().sum::<f32>().max(1e-9);
+    let spacing = (0.5 * total / target_count.max(1) as f32).sqrt(); // double_area = 2·area
+    let r_plane = (splat * spacing).max(1e-6);
+    let r_thin = (r_plane * thin).max(1e-7);
     let mut out: Vec<Gaussian3d> = Vec::with_capacity(target_count + tris.len());
-    let mut idx: u32 = 0;
+    // R2 low-discrepancy sequence (plastic-number additive recurrence): evenly-spread barycentric
+    // samples instead of random ones, which kills the clumpy/grainy look. The accumulators stay in
+    // [0,1) so precision holds even at hundreds of thousands of points (a raw `frac(a·i)` would not).
+    let (mut r2u, mut r2v) = (0.5f32, 0.5f32);
     for (ti, tri) in tris.iter().enumerate() {
         let face_n = norm_or(
             cross(sub(yd(tri[1]), yd(tri[0])), sub(yd(tri[2]), yd(tri[0]))),
@@ -164,8 +153,11 @@ where
         );
         let n = ((target_count as f32 * weights[ti] / total).round() as usize).max(1);
         for _ in 0..n {
-            let (mut bu, mut bv) = (hash01(idx * 2), hash01(idx * 2 + 1));
-            idx = idx.wrapping_add(1);
+            const A1: f32 = 0.754_877_67; // 1/plastic
+            const A2: f32 = 0.569_840_3; // 1/plastic²
+            r2u = (r2u + A1).fract();
+            r2v = (r2v + A2).fract();
+            let (mut bu, mut bv) = (r2u, r2v);
             if bu + bv > 1.0 {
                 bu = 1.0 - bu;
                 bv = 1.0 - bv;
@@ -524,7 +516,7 @@ mod tests {
             eprintln!("skip dae_surface_samples: {} not present", p.display());
             return;
         }
-        let g = build_mesh_gaussians(&p, 10_000, 0.01, 0.2, [0.8, 0.85, 0.95]);
+        let g = build_mesh_gaussians(&p, 10_000, 1.2, 0.2, [0.8, 0.85, 0.95]);
         assert!(!g.is_empty(), "defeest.dae produced no gaussians");
         let finite = g.iter().all(|gg| {
             gg.position_visibility
@@ -562,7 +554,7 @@ mod tests {
             return;
         }
         let fallback = [0.8_f32, 0.85, 0.95];
-        let g = build_mesh_gaussians(&p, 60_000, 0.01, 0.2, fallback);
+        let g = build_mesh_gaussians(&p, 60_000, 1.2, 0.2, fallback);
         let grey = sh_of(fallback);
         let n_grey = g
             .iter()
