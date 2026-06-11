@@ -145,7 +145,11 @@ pub struct Section {
     pub arp: NoteLane,      // a second melodic line (the plucky counter-melody); empty = no arp
     pub bass: NoteLane, // an articulated bassline (one note per slot); empty = chord-root sub only
     pub chords: Vec<Chord>, // per-section chord override (cycles within the section); empty = global
-    pub start_bar: u32,     // computed by Score::new
+    /// Per-section mix/fx knob overrides (`<section>.set key=value`): when set, `param_at` returns
+    /// these inside this section instead of the global `set` value — e.g. a louder house organ in the
+    /// drop without touching the climax. Empty = use the global knob.
+    pub params: std::collections::HashMap<String, f32>,
+    pub start_bar: u32, // computed by Score::new
 }
 
 impl Section {
@@ -166,6 +170,7 @@ impl Section {
             arp: NoteLane::default(),
             bass: NoteLane::default(),
             chords: Vec::new(),
+            params: std::collections::HashMap::new(),
             start_bar: 0,
         }
     }
@@ -269,6 +274,18 @@ impl Score {
     /// synth uses so its levels/sends live in the score file, tunable without recompiling the engine.
     pub fn param(&self, key: &str, default: f32) -> f32 {
         self.params.get(key).copied().unwrap_or(default)
+    }
+
+    /// A mix/fx knob honouring a per-section override: if the section active at `t` has a
+    /// `<section>.set key=…` for `key`, return that; otherwise fall back to the global `param`. The
+    /// synth uses this for the knobs it reads per-onset (so a section can be louder/quieter without a
+    /// recompile and without touching the others — e.g. `drop.set house=0.18`).
+    pub fn param_at(&self, t: f32, key: &str, default: f32) -> f32 {
+        let s = &self.sections[self.section_index_at(t)];
+        s.params
+            .get(key)
+            .copied()
+            .unwrap_or_else(|| self.param(key, default))
     }
 
     // --- grid ---------------------------------------------------------------------------------
@@ -506,6 +523,22 @@ impl Score {
 
             // pattern line: `<section>.<inst> p<N>|fill: <16 steps>`
             if first.contains('.') {
+                // per-section knob override: `<section>.set key=value …` (no colon — mirrors global
+                // `set`; the synth reads it via `param_at` inside that section only).
+                if let Some((sec, "set")) = first.split_once('.') {
+                    let si = find(&sections, sec)
+                        .ok_or_else(|| format!("line {ln}: unknown section `{sec}`"))?;
+                    for tok in line.split_whitespace().skip(1) {
+                        let (k, v) = tok.split_once('=').ok_or_else(|| {
+                            format!("line {ln}: `{sec}.set` needs key=value, got `{tok}`")
+                        })?;
+                        let val = v
+                            .parse()
+                            .map_err(|_| format!("line {ln}: bad set value `{tok}`"))?;
+                        sections[si].params.insert(k.to_string(), val);
+                    }
+                    continue;
+                }
                 let (head, pat) = line
                     .split_once(':')
                     .ok_or_else(|| format!("line {ln}: pattern needs a ':'"))?;
@@ -708,6 +741,20 @@ impl Score {
                     "{}.chords: {}\n",
                     s.name,
                     s.chords.iter().map(chord_str).collect::<Vec<_>>().join(" ")
+                ));
+            }
+        }
+        for s in &self.sections {
+            if !s.params.is_empty() {
+                let mut kv: Vec<_> = s.params.iter().collect();
+                kv.sort_by(|a, b| a.0.cmp(b.0));
+                o.push_str(&format!(
+                    "{}.set {}\n",
+                    s.name,
+                    kv.iter()
+                        .map(|(k, v)| format!("{k}={}", fnum(**v)))
+                        .collect::<Vec<_>>()
+                        .join(" ")
                 ));
             }
         }
@@ -1180,6 +1227,36 @@ mod tests {
         assert!(
             validate(&Score::builtin().sections).is_empty(),
             "the built-in score must be warning-clean"
+        );
+    }
+
+    #[test]
+    fn per_section_set_overrides_the_global_knob_and_round_trips() {
+        let dsl = "bpm 120\nchords C\nsection intro 2 2\nsection drop 2 2\n\
+                   set house=0.1\ndrop.set house=0.3 lead=0.9\n";
+        let s = Score::from_str(dsl).unwrap();
+        let drop_t = s.section_start_secs(1) + 0.1;
+        assert!(
+            (s.param("house", 0.0) - 0.1).abs() < 1e-6,
+            "global house = 0.1"
+        );
+        assert!(
+            (s.param_at(0.1, "house", 0.0) - 0.1).abs() < 1e-6,
+            "intro falls back to the global 0.1"
+        );
+        assert!(
+            (s.param_at(drop_t, "house", 0.0) - 0.3).abs() < 1e-6,
+            "drop overrides house to 0.3"
+        );
+        assert!(
+            (s.param_at(drop_t, "lead", 0.0) - 0.9).abs() < 1e-6,
+            "drop also overrides lead"
+        );
+        // the override survives a to_dsl → from_str round-trip.
+        let s2 = Score::from_str(&s.to_dsl()).unwrap();
+        assert!(
+            (s2.param_at(drop_t, "house", 0.0) - 0.3).abs() < 1e-6,
+            "the per-section override round-trips through to_dsl"
         );
     }
 

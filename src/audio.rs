@@ -887,7 +887,14 @@ fn render_voices(bed: &mut [f32], score: &Score, stereo: usize) {
     for (t, f) in score.lead_notes() {
         let v = vel(t, beat, 0x1A);
         let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(bed, gt, 0.6, score.param("lead", 0.82) * v, 0.0, lead(f, v)); // STAR — `set lead=`
+        render_into(
+            bed,
+            gt,
+            0.6,
+            score.param_at(t, "lead", 0.82) * v,
+            0.0,
+            lead(f, v),
+        ); // STAR — `set lead=`
         render_into(bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
@@ -992,15 +999,15 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
             while (b as f32) * bar < s1 {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
-                let amp = score.param("supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
-                                                                    // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
-                                                                    // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
-                                                                    // wall, not a centred pile.
+                let amp = score.param_at(t, "supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
+                                                                          // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
+                                                                          // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
+                                                                          // wall, not a centred pile.
                 for &f in score.chord_at(t).triad().iter() {
                     render_into(bed, t, bar, amp * 0.7, -0.95, supersaw(f));
                     render_into(bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
                     // lush choir bed an octave below the wall — grandeur/warmth under the bright saws
-                    let ch = score.param("choir", 0.5); // `set choir=` — grandeur bed level
+                    let ch = score.param_at(t, "choir", 0.5); // `set choir=` — grandeur bed level
                     render_into(bed, t, bar, amp * ch, -0.6, choir(f * 0.5));
                     render_into(bed, t, bar, amp * ch, 0.6, choir(f * 0.5 * 1.003));
                 }
@@ -1043,7 +1050,7 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
                     bed,
                     groove(t, beat, 0xD0, 0.004, 0.0),
                     hb * 0.9,
-                    (score.param("donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
+                    (score.param_at(t, "donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
                     0.55,
                     score.chord_at(t).triad(),
                     donk,
@@ -1066,7 +1073,7 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
                     bed,
                     groove(t, beat, 0x40, 0.004, 0.0),
                     hb * 0.95,
-                    (score.param("house", 0.12) + 0.06 * m) * vel(t, beat, 0x40), // `set house=`
+                    (score.param_at(t, "house", 0.12) + 0.06 * m) * vel(t, beat, 0x40), // `set house=`
                     0.7,
                     score.chord_at(t).triad(),
                     houseorg,
