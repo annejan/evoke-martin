@@ -32,7 +32,7 @@ text:MET deFEEST              @12,4              ~explode     ^wave        # the
 splat:galaxy.ply              @13,3             ~vortex       ^turbulence  # the energy peak spins out
 splat:doggo.ply               @14,4             ~ball         ^wave        # the dog returns, jubilant
 text:HET ULTIEME GENOT       @@outro      @11,4   ~pen-write  ^wave        # the payoff lands on the outro
-mesh:defeest.dae               @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms
+mesh:defeest.dae rot:0,0,180               @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms
 wall:ANUS|KLOOT|CINDER        @10,4             ~fade                      # the crew, as the blast hits
 
 # --- the camera: a directed track (t = show-time seconds), tuned to the ~228s score timeline:
