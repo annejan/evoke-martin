@@ -28,7 +28,7 @@ text:MET deFEEST                   @12,4              ~explode     ^wave        
 splat:galaxy.ply                   @13,3             ~vortex       ^turbulence  # the peak spins out into a galaxy
 mesh:bornhack2026-hardware.dae     @14,3             ~drop         ^wind        # the badge board drops in
 text:HET ULTIEME GENOT            @@outro      @11,4   ~pen-write  ^wave        # the payoff lands on the outro
-mesh:defeest.dae rot:0,0,180                    @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms
+image:defeest-logo.png                    @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms
 wall:ANUS|KLOOT|CINDER             @10,4             ~fade                      # the crew, as the blast hits
 
 # --- the camera: a directed 3D track (t = show-time seconds), tuned to the ~228s score timeline:
