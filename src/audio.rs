@@ -33,8 +33,9 @@ impl Track {
 fn kick() -> Box<dyn AudioUnit> {
     Box::new(
         (envelope(|t: f32| 45.0 + 80.0 * (-t * 38.0).exp()) >> sine())
-            * envelope(|t: f32| (-t * 9.0).exp())
-            + (noise() >> highpass_hz(2200.0, 0.7)) * envelope(|t: f32| (-t * 130.0).exp()) * 0.4,
+            * envelope(|t: f32| (-t * 11.0).exp())
+            + (noise() >> highpass_hz(1800.0, 0.7)) * envelope(|t: f32| (-t * 130.0).exp()) * 0.6
+            + (noise() >> bandpass_hz(4000.0, 0.8)) * envelope(|t: f32| (-t * 200.0).exp()) * 0.3,
     )
 }
 
@@ -56,7 +57,7 @@ fn hat() -> Box<dyn AudioUnit> {
 /// so the three can be panned wide).
 fn stab(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        (saw_hz(freq) >> lowpass_hz(1600.0, 0.8))
+        (saw_hz(freq) >> lowpass_hz(1600.0, 0.8) >> highpass_hz(180.0, 0.7))
             * envelope(|t: f32| {
                 let a = 0.01;
                 if t < a {
@@ -69,21 +70,25 @@ fn stab(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Pad: one chord note an octave down through a soft low-pass, slow swell (panned per note for width).
+/// Pad: one chord note an octave down through a soft low-pass, slow swell, high-passed off the
+/// low-mids so it stops stacking into the same band as everything else (body/warmth, not honk).
 fn pad(freq: f32) -> Box<dyn AudioUnit> {
     Box::new(
-        (saw_hz(freq * 0.5) >> lowpass_hz(900.0, 0.6))
+        (saw_hz(freq * 0.5) >> lowpass_hz(900.0, 0.6) >> highpass_hz(150.0, 0.7))
             * envelope(|t: f32| (t * 2.0).min(1.0))
             * 0.22,
     )
 }
 
-/// Bass: a sub sine + two slightly-detuned saws (a Reese hint) through a brighter low-pass — gritty
-/// and present like a produced DnB bass, not a clean sine "organ bass". Master saturation adds the
-/// rest of the bite.
+/// Bass: a moving Reese — a sub sine + two ±8-cent-detuned saws (the phasing growl) through a
+/// resonant low-pass that drops from ~1.4 kHz to ~900 Hz, with per-VOICE tanh drive so the grit
+/// lives on the bass itself, not smeared across the whole bus.
 fn bass(freq: f32) -> Box<dyn AudioUnit> {
+    let saws =
+        sine_hz(freq) + saw_hz(freq) * 0.6 + saw_hz(freq * 1.008) * 0.5 + saw_hz(freq * 0.992) * 0.5;
+    let cut = envelope(|t: f32| 900.0 + 500.0 * (-t * 3.0).exp());
     Box::new(
-        ((sine_hz(freq) + saw_hz(freq) * 0.6 + saw_hz(freq * 1.004) * 0.4) >> lowpass_hz(720.0, 0.8))
+        ((saws | cut) >> lowpass_q(1.4) >> shape_fn(|x| (x * 2.2).tanh()))
             * envelope(|t: f32| {
                 let a = 0.005;
                 if t < a {
@@ -96,18 +101,20 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
-/// Lead: detuned saws plus a sine body through a darker filter. Keep it broad/modern rather than
-/// bright square-wave tracker lead.
+/// Lead: a 5-saw detuned stack with a per-note FILTER ENVELOPE — the cutoff sweeps down from ~4.9 kHz
+/// to ~700 Hz so every note plucks/opens and settles instead of droning through a fixed cutoff (a
+/// static cutoff on a saw is literally an organ). Softsign drive for brass bite; no sub-octave (that
+/// read as an organ pipe).
 fn lead(freq: f32) -> Box<dyn AudioUnit> {
+    let saws = (saw_hz(freq)
+        + saw_hz(freq * 1.007)
+        + saw_hz(freq * 0.993)
+        + saw_hz(freq * 1.014)
+        + saw_hz(freq * 0.986))
+        * 0.18;
+    let cut = envelope(|t: f32| 700.0 + 4200.0 * (-t * 7.0).exp());
     Box::new(
-        (((saw_hz(freq)
-            + saw_hz(freq * 1.007)
-            + saw_hz(freq * 0.993)
-            + saw_hz(freq * 1.014)
-            + saw_hz(freq * 0.986)
-            + sine_hz(freq * 0.5) * 0.8)
-            * 0.17)
-            >> lowpass_hz(2600.0, 1.0))
+        ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.5)))
             * envelope(|t: f32| {
                 let a = 0.02;
                 if t < a {
@@ -123,8 +130,10 @@ fn lead(freq: f32) -> Box<dyn AudioUnit> {
 /// Arp: short filtered pluck. Lower and quieter than the old bright square arp so it reads as
 /// motion in the groove, not late-90s game melody.
 fn arp(freq: f32) -> Box<dyn AudioUnit> {
+    let osc = saw_hz(freq) * 0.7 + square_hz(freq) * 0.15;
+    let cut = envelope(|t: f32| 600.0 + 4000.0 * (-t * 22.0).exp());
     Box::new(
-        ((saw_hz(freq) * 0.5 + sine_hz(freq) * 0.7) >> lowpass_hz(2400.0, 0.8))
+        ((osc | cut) >> lowpass_q(0.9) >> shape(Atan(0.5)))
             * envelope(|t: f32| {
                 let a = 0.008;
                 if t < a {
@@ -140,17 +149,18 @@ fn arp(freq: f32) -> Box<dyn AudioUnit> {
 /// Supersaw: 7 detuned saws + a sub-octave saw through a bright-ish filter, slow swell — the wide
 /// "epic" chord wall for the drop/climax. Held a full bar per chord note (panned wide by chord_spread).
 fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
+    let saws = (saw_hz(freq)
+        + saw_hz(freq * 1.006)
+        + saw_hz(freq * 0.994)
+        + saw_hz(freq * 1.013)
+        + saw_hz(freq * 0.987)
+        + saw_hz(freq * 1.020)
+        + saw_hz(freq * 0.980))
+        * 0.13;
+    let cut = envelope(|t: f32| 1300.0 + 3200.0 * (t * 1.0).min(1.0)); // filter swells open
     Box::new(
-        (((saw_hz(freq)
-            + saw_hz(freq * 1.005)
-            + saw_hz(freq * 0.995)
-            + saw_hz(freq * 1.011)
-            + saw_hz(freq * 0.989)
-            + saw_hz(freq * 1.018)
-            + saw_hz(freq * 0.982)
-            + saw_hz(freq * 0.5) * 1.2)
-            * 0.12) >> lowpass_hz(2800.0, 0.9))
-            * envelope(|t: f32| (t * 1.4).min(1.0)) // swell in, then sustain
+        ((saws | cut) >> lowpass_q(0.7) >> highpass_hz(180.0, 0.7)) // HP off the sub so it's huge, not muddy
+            * envelope(|t: f32| (t * 3.0).min(1.0))
             * 0.5,
     )
 }
@@ -158,19 +168,20 @@ fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
 /// CASIO / electric-piano: a tine-ish voice (sine carrier + a bell "ting" harmonic + a hair of saw
 /// cheese) with a pluck-to-light-sustain envelope — the kitschy Ome-Henk keyboard comping.
 fn casio(freq: f32) -> Box<dyn AudioUnit> {
+    let body = (sine_hz(freq)
+        + sine_hz(freq * 2.01) * 0.45
+        + sine_hz(freq * 4.02) * 0.18 // a slightly inharmonic bell "ting" (not a pure organ partial)
+        + saw_hz(freq) * 0.07) // a hair of plastic cheese
+        * 0.3;
+    let cut = envelope(|t: f32| 800.0 + 3000.0 * (-t * 11.0).exp());
     Box::new(
-        (((sine_hz(freq)
-            + sine_hz(freq * 2.0) * 0.45
-            + sine_hz(freq * 4.0) * 0.18 // the bell "ting" on the attack
-            + saw_hz(freq) * 0.07) // a hair of plastic cheese
-            * 0.3)
-            >> lowpass_hz(2500.0, 0.7))
+        ((body | cut) >> lowpass_q(0.8) >> shape(Atan(0.4)))
             * envelope(|t: f32| {
                 let a = 0.004;
                 if t < a {
                     t / a
                 } else {
-                    0.25 + 0.75 * (-(t - a) * 3.5).exp() // pluck → light sustain
+                    0.12 + 0.88 * (-(t - a) * 6.5).exp() // a real pluck now, no organ sustain plateau
                 }
             })
             * 0.5,
@@ -261,6 +272,36 @@ fn render_riser(buf: &mut [f32], start_t: f32, dur: f32, amp: f32, pan: f32) {
             (phase.sin() * 0.35 + bright * 0.65) * env * gate * amp,
             pan,
         );
+    }
+}
+
+/// Jet-engine flyby: band-limited noise (a sweeping band-pass built from two one-pole low-passes, so
+/// it can't self-oscillate) + a sweeping turbine whine, with a swell-to-flyby-then-away amplitude
+/// envelope and a left→right doppler pan. Rips into a section like an afterburner pass.
+fn render_jet(buf: &mut [f32], start_t: f32, dur: f32, amp: f32) {
+    use std::f32::consts::TAU;
+    let sr = SAMPLE_RATE as f32;
+    let start = (start_t.max(0.0) * sr) as usize;
+    let n = (dur.max(0.0) * sr) as usize;
+    let denom = std::cmp::max(n, 1) as f32;
+    let (mut lp1, mut lp2, mut phase) = (0.0f32, 0.0f32, 0.0f32);
+    for i in 0..n {
+        let p = i as f32 / denom;
+        let frame = start + i;
+        let nz = pseudo_noise(i + start * 7);
+        // band-pass = (low-pass at 2.5·cut) − (low-pass at cut); cut sweeps up over the pass.
+        let cut = 400.0 + 2600.0 * p;
+        let a_lo = 1.0 - (-TAU * cut / sr).exp();
+        let a_hi = 1.0 - (-TAU * (cut * 2.5) / sr).exp();
+        lp1 += a_lo * (nz - lp1);
+        lp2 += a_hi * (nz - lp2);
+        let band = lp2 - lp1;
+        // turbine whine: a tone that rises into the flyby and dopplers back down.
+        let whz = 700.0 + 1800.0 * (1.0 - (2.0 * p - 1.0).abs());
+        phase = (phase + TAU * whz / sr) % TAU;
+        let whine = phase.sin() * 0.2;
+        let env = (1.0 - (2.0 * p - 1.0).abs()).powf(1.3); // swell → flyby → away
+        add_stereo(buf, frame, (band * 3.0 + whine) * env * amp, (2.0 * p - 1.0) * 0.8);
     }
 }
 
@@ -411,11 +452,18 @@ fn bass_freq(root: f32) -> f32 {
 /// with slightly different delays L vs R → a wide, decorrelated room tail (dry excluded).
 fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
     let frames = bed.len() / 2;
-    let damp = 0.35_f32;
-    // mono sum of the bed feeds the reverb.
-    let mono: Vec<f32> = (0..frames)
+    let damp = 0.25_f32;
+    // mono sum of the bed, HIGH-PASSED at ~300 Hz before the combs so the tail is air/space, not a
+    // low-mid wash that welds the voices together (the reverb was a big part of the "organ" blanket).
+    let mut mono: Vec<f32> = (0..frames)
         .map(|i| 0.5 * (bed[2 * i] + bed[2 * i + 1]))
         .collect();
+    let a = 1.0 - (-std::f32::consts::TAU * 300.0 / sr).exp();
+    let mut hp = 0.0f32;
+    for s in mono.iter_mut() {
+        hp += a * (*s - hp);
+        *s -= hp;
+    }
     let comb = |delays: &[(f32, f32)]| -> Vec<f32> {
         let mut wet = vec![0f32; frames];
         for &(ds, fb) in delays {
@@ -538,15 +586,14 @@ pub fn synth_track(score: &Score) -> Track {
             while (b as f32) * bar < s1 {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
-                chord_spread(
-                    &mut bed,
-                    t,
-                    bar,
-                    0.045 + 0.05 * m,
-                    0.9,
-                    score.chord_at(t).triad(),
-                    supersaw,
-                );
+                let amp = 0.045 + 0.05 * m;
+                // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
+                // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
+                // wall, not a centred pile.
+                for &f in score.chord_at(t).triad().iter() {
+                    render_into(&mut bed, t, bar, amp * 0.55, -0.95, supersaw(f));
+                    render_into(&mut bed, t, bar, amp * 0.55, 0.95, supersaw(f * 1.004));
+                }
                 b += 1;
             }
         }
@@ -580,6 +627,7 @@ pub fn synth_track(score: &Score) -> Track {
     if let Some(t) = section_time(score, "drop") {
         render_riser(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.26, 0.15);
         render_snare_roll(&mut bed, t - 2.0 * bar, 2.0 * bar, score.beat()); // build-up roll
+        render_jet(&mut bed, t - 3.0 * bar, 3.0 * bar, 0.32); // afterburner pass into the drop
         render_impact(&mut bed, t, 1.6, 0.62);
     }
     if let Some(t) = section_time(score, "breakdown") {
@@ -587,6 +635,7 @@ pub fn synth_track(score: &Score) -> Track {
     }
     if let Some(t) = section_time(score, "climax") {
         render_riser(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
+        render_jet(&mut bed, t - 4.0 * bar, 4.0 * bar, 0.5); // a screaming jet rips into the climax
         render_impact(&mut bed, t, 2.0, 0.72);
     }
     // EXPLOSIVE finale (demoscene big ending): an accelerating snare-roll + riser crescendo through
@@ -598,6 +647,7 @@ pub fn synth_track(score: &Score) -> Track {
         render_riser(&mut bed, t0, (end - t0).min(7.0), 0.36, 0.0);
         render_impact(&mut bed, t0, 1.6, 0.45); // the outro lands
         render_impact(&mut bed, (t0 + end) * 0.5, 1.6, 0.55); // a mid-outro hit
+        render_jet(&mut bed, end - 4.0, 2.2, 0.6); // a jet screams down into the blast
         render_impact(&mut bed, end - 2.4, 3.2, 1.0); // THE blast — decays through the fade
     }
 
@@ -621,7 +671,7 @@ pub fn synth_track(score: &Score) -> Track {
 
     // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
-    let (depth, tau) = (0.55f32, 0.11f32);
+    let (depth, tau) = (0.70f32, 0.09f32);
     for &kt in &kicks {
         let k0 = (kt * sr) as usize;
         for j in 0..(0.34 * sr) as usize {
@@ -638,20 +688,57 @@ pub fn synth_track(score: &Score) -> Track {
 
     let wet = reverb_send(&bed, sr);
 
-    // master: dry kick + pumped bed + spread reverb tail, per-section fades × gain_at, soft clip.
+    // master: a 2-BAND mastering chain instead of a single full-bus tanh (which glazed the whole mix
+    // into an organ). Per channel: split at ~160 Hz → keep the sub + kick CLEAN; on the UPPER band
+    // only: mid/side WIDEN (lows stay mono-tight), add an HF-AIR exciter (the "crisp" sparkle the
+    // track lacked), then gentle saturation. Recombine, then a shared soft peak-LIMITER for loudness
+    // (not a tone-shaping waveshaper) keeps L/R centred.
     let demo = score.demo_len();
     let mut buf = vec![0f32; stereo];
+    let split_k = 1.0 - (-std::f32::consts::TAU * 160.0 * dt).exp();
+    let mut lp = [0.0f32; 2];
+    let mut air_lp = [0.0f32; 2];
+    let mut gr = 1.0f32;
+    let atk = 1.0 - (-1.0 / (0.002 * sr)).exp();
+    let rel = 1.0 - (-1.0 / (0.15 * sr)).exp();
     for i in 0..total {
         let t = i as f32 * dt;
         let fade_in = (t / 1.5).clamp(0.0, 1.0);
         let fade_out = ((demo - t) / 2.0).clamp(0.0, 1.0);
         let g = fade_in * fade_out * score.gain_at(t);
+        // split each channel into a clean low band + an upper band
+        let mut lo = [0.0f32; 2];
+        let mut hi = [0.0f32; 2];
         for c in 0..2 {
-            let mix = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.18;
-            // Bus saturation: drive into the tanh so the mix glues + grows harmonics (warmth,
-            // perceived loudness) instead of staying clean/thin — then trim back. Lifts the track
-            // out of "clean 90s GM synth" territory toward a produced sound.
-            buf[2 * i + c] = (mix * g * 1.6).tanh() * 0.84;
+            let x = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.16;
+            lp[c] += split_k * (x - lp[c]);
+            lo[c] = lp[c];
+            hi[c] = x - lp[c];
+        }
+        // mid/side widen the UPPER band only (low end stays mono → translates + stays tight)
+        let m = 0.5 * (hi[0] + hi[1]);
+        let s = 0.5 * (hi[0] - hi[1]) * 1.35;
+        hi[0] = m + s;
+        hi[1] = m - s;
+        // HF-air exciter + gentle saturation on the upper band, recombined with the clean lows
+        let mut pre = [0.0f32; 2];
+        for c in 0..2 {
+            air_lp[c] += 0.5 * (hi[c] - air_lp[c]);
+            let air = hi[c] - air_lp[c];
+            let hi_x = hi[c] + (air * 1.5).tanh() * 0.3;
+            let hi_s = (hi_x * 1.25).tanh();
+            pre[c] = (lo[c] + hi_s) * g;
+        }
+        // shared soft peak-limiter (one gain for both channels → image stays centred)
+        let peak = pre[0].abs().max(pre[1].abs());
+        let target = if peak > 0.88 { 0.88 / peak } else { 1.0 };
+        if target < gr {
+            gr += (target - gr) * atk;
+        } else {
+            gr += (1.0 - gr) * rel;
+        }
+        for c in 0..2 {
+            buf[2 * i + c] = (pre[c] * gr).clamp(-1.0, 1.0);
         }
     }
     Track {
