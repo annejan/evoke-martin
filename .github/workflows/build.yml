@@ -102,6 +102,12 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      # Consistent `python` across Linux/Windows/macOS runners (Windows has no `python3`).
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
       # The show's procedural splats (galaxy/supershape/knot/…) aren't in the repo (.ply is gitignored)
       # — generate them fresh so build.rs can bake them in. The character captures (dog/Martins) are
       # NOT used by the CI-safe show; only repo-tracked meshes + these generated shapes. (numpy isn't
@@ -109,8 +115,8 @@ jobs:
       - name: Generate procedural splats
         shell: bash
         run: |
-          python3 -m pip install --user --quiet numpy
-          python3 pipeline/gen-demo-splats.py assets
+          python -m pip install --quiet numpy
+          python pipeline/gen-demo-splats.py assets
 
       # Pre-render the track to a WAV and bake it into the bundle, so the demo plays the music
       # INSTANTLY + in sync (the live synth render takes ~30s — too slow for a one-click demo).
