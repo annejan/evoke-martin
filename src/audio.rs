@@ -182,6 +182,27 @@ fn choir(freq: f32) -> Box<dyn AudioUnit> {
     )
 }
 
+/// Donk: a bright, plucky detuned-saw chord stab — the euphoric off-beat "donk" of happy-hardcore /
+/// house / party music. Snappy filter pluck + an octave partial + a touch of drive so it cuts and
+/// bounces on the up-beats.
+fn donk(freq: f32) -> Box<dyn AudioUnit> {
+    let saws =
+        (saw_hz(freq) + saw_hz(freq * 1.01) + saw_hz(freq * 0.99) + saw_hz(freq * 2.0) * 0.4) * 0.2;
+    let cut = envelope(|t: f32| 900.0 + 3600.0 * (-t * 16.0).exp());
+    Box::new(
+        ((saws | cut) >> lowpass_q(1.0) >> shape(Tanh(1.4)))
+            * envelope(|t: f32| {
+                let a = 0.003;
+                if t < a {
+                    t / a
+                } else {
+                    (-(t - a) * 12.0).exp()
+                }
+            })
+            * 0.4,
+    )
+}
+
 /// CASIO / electric-piano: a tine-ish voice (sine carrier + a bell "ting" harmonic + a hair of saw
 /// cheese) with a pluck-to-light-sustain envelope — the kitschy Ome-Henk keyboard comping.
 fn casio(freq: f32) -> Box<dyn AudioUnit> {
@@ -804,6 +825,28 @@ pub fn synth_track(score: &Score) -> Track {
                     render_into(&mut bed, t, bar, amp * 0.5, 0.6, choir(f * 0.5 * 1.003));
                 }
                 b += 1;
+            }
+        }
+    }
+
+    // euphoric off-beat "DONK" stab — happy-hardcore / house party energy: a bright plucky chord
+    // bounce on every up-beat (the "and") through the drop + climax, under the held wall.
+    let hb = score.beat() / 2.0;
+    for name in ["drop", "climax"] {
+        if let Some((s0, s1)) = section_window(score, name) {
+            let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
+            while t < s1 {
+                let m = score.levels(t).mids;
+                chord_spread(
+                    &mut bed,
+                    groove(t, beat, 0xD0, 0.004, 0.0),
+                    hb * 0.9,
+                    (0.055 + 0.05 * m) * vel(t, beat, 0xD0),
+                    0.55,
+                    score.chord_at(t).triad(),
+                    donk,
+                );
+                t += score.beat();
             }
         }
     }
