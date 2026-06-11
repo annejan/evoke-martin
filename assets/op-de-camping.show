@@ -1,7 +1,8 @@
 # martin — the "OP DE CAMPING" demo, in the unified .show format. A text/branding morph ride synced
 # to the Op de Camping score (Ome Henk-flavoured DnB): the parody tagline OP VAKANTIE / MET deFEEST
-# builds over the couplets, and the hook OP DE CAMPING lands on every chorus drop. Built only from
-# licence-cleared shipped assets — no .ply needed.
+# builds over the couplets, and the hook OP DE CAMPING lands on every chorus drop. The full-fat demo:
+# uses the big local .ply captures (the real Ægg gem, the dog, the Martins) — NOT CI-safe. For the
+# repo-only / CI build see op-de-camping-ci.show.
 #
 #   MARTIN_SHOW=assets/op-de-camping.show cargo +nightly run --release
 #   MARTIN_SHOW=assets/op-de-camping.show ./record.sh op-de-camping.mp4
@@ -17,9 +18,9 @@ ply = assets/aegg-baked.ply
 #     narrative: op de camping MET deFEEST = the ultimate joy; ZONDER deFEEST = kut. So the euphoric
 #     major chorus/climax carry "MET deFEEST", and the TRAGIC minor breakdown carries "ZONDER... kut".
 [seq]
-image:defeest-logo.png       @@intro      @8,3    ~sparkle                # deFEEST logo opens the show
+mesh:defeest.dae rot:180,0,0 @@intro      @8,3    ~sparkle                # the 3D deFEEST logo opens the show (rot:180,0,0 faces it front, upright)
 mesh:evoke-23.dae              @6,3                ~swarm      ^wave        # at EVOKE — the demoparty
-mesh:aegg.dae                @@build      @14,3   ~swarm      ^twist       # the badge.team Ægg swarms in
+splat:aegg.ply               @@build      @14,3   ~swarm      ^twist       # the REAL badge.team Ægg — the glowing photogrammetry gem swarms in
 text:OP DE CAMPING            @15,3,1.2           ~typewriter ^wave        # the dream builds over the couplet
 splat:doggo.ply              @@drop       @14,4   ~ball       ^wave        # the DOG — pure joy on the chorus
 text:MET deFEEST              @12,4               ~explode    ^wave        # op de camping MET deFEEST
@@ -32,7 +33,7 @@ text:MET deFEEST              @12,4              ~explode     ^wave        # the
 splat:galaxy.ply              @13,3             ~vortex       ^turbulence  # the energy peak spins out
 splat:doggo.ply               @14,4             ~ball         ^wave        # the dog returns, jubilant
 text:HET ULTIEME GENOT       @@outro      @11,4   ~pen-write  ^wave        # the payoff lands on the outro
-image:defeest-logo.png               @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms
+mesh:defeest.dae rot:180,0,0         @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms (real 3D mesh, morphs + deforms)
 wall:ANUS|KLOOT|CINDER        @10,4             ~fade                      # the crew, as the blast hits
 
 # --- the camera: a directed track (t = show-time seconds), tuned to the ~228s score timeline:
