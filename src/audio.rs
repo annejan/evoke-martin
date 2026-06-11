@@ -71,12 +71,13 @@ fn pad(freq: f32) -> Box<dyn AudioUnit> {
 /// Bass: a moving Reese — a sub sine + two ±8-cent-detuned saws (the phasing growl) through a
 /// resonant low-pass that drops from ~1.4 kHz to ~900 Hz, with per-VOICE tanh drive so the grit
 /// lives on the bass itself, not smeared across the whole bus.
-fn bass(freq: f32) -> Box<dyn AudioUnit> {
+fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
     let saws =
         sine_hz(freq) + saw_hz(freq) * 0.6 + saw_hz(freq * 1.008) * 0.5 + saw_hz(freq * 0.992) * 0.5;
     let cut = envelope(|t: f32| 900.0 + 500.0 * (-t * 3.0).exp());
+    let drive = 1.8 + 0.8 * vel; // harder notes growl harder
     Box::new(
-        ((saws | cut) >> lowpass_q(1.4) >> shape_fn(|x| (x * 2.2).tanh()))
+        ((saws | cut) >> lowpass_q(1.4) >> shape_fn(move |x| (x * drive).tanh()))
             * envelope(|t: f32| {
                 let a = 0.005;
                 if t < a {
@@ -93,17 +94,19 @@ fn bass(freq: f32) -> Box<dyn AudioUnit> {
 /// to ~700 Hz so every note plucks/opens and settles instead of droning through a fixed cutoff (a
 /// static cutoff on a saw is literally an organ). Softsign drive for brass bite; no sub-octave (that
 /// read as an organ pipe).
-fn lead(freq: f32) -> Box<dyn AudioUnit> {
+fn lead(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
     let saws = (saw_hz(freq)
         + saw_hz(freq * 1.007)
         + saw_hz(freq * 0.993)
         + saw_hz(freq * 1.014)
         + saw_hz(freq * 0.986))
         * 0.18;
-    // brighter floor (1300, not 700) + a slower sweep so the note stays PRESENT, not muffled/ethereal.
-    let cut = envelope(|t: f32| 1300.0 + 3400.0 * (-t * 4.5).exp());
+    // brighter floor + a slower sweep so the note stays PRESENT; the sweep PEAK tracks velocity, so a
+    // hard note opens bright and a soft one stays mellow (a played instrument, not one fixed timbre).
+    let top = 2200.0 + 2600.0 * vel;
+    let cut = envelope(move |t: f32| 1300.0 + top * (-t * 4.5).exp());
     Box::new(
-        ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.5)))
+        ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.4 + 0.4 * vel)))
             * envelope(|t: f32| {
                 let a = 0.02;
                 if t < a {
@@ -118,9 +121,10 @@ fn lead(freq: f32) -> Box<dyn AudioUnit> {
 
 /// Arp: short filtered pluck. Lower and quieter than the old bright square arp so it reads as
 /// motion in the groove, not late-90s game melody.
-fn arp(freq: f32) -> Box<dyn AudioUnit> {
+fn arp(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
     let osc = saw_hz(freq) * 0.7 + square_hz(freq) * 0.15;
-    let cut = envelope(|t: f32| 600.0 + 4000.0 * (-t * 22.0).exp());
+    let top = 2500.0 + 2500.0 * vel;
+    let cut = envelope(move |t: f32| 600.0 + top * (-t * 22.0).exp());
     Box::new(
         ((osc | cut) >> lowpass_q(0.9) >> shape(Atan(0.5)))
             * envelope(|t: f32| {
@@ -225,6 +229,35 @@ fn pseudo_noise(i: usize) -> f32 {
     n = n.wrapping_mul(0x85EB_CA6B);
     n ^= n >> 13;
     (n as f32 / u32::MAX as f32) * 2.0 - 1.0
+}
+
+/// Per-note VELOCITY from the metric 16th-slot position + a deterministic hash: downbeats accent,
+/// the back-beat next, off-beats soften, weak 16ths ghost — with ±15% humanizing jitter. Multiplied
+/// into every voice's render amp (and the filter brightness) so the track breathes like a performance
+/// instead of the flat, every-note-identical GM wall that reads as cheap.
+fn vel(t: f32, beat: f32, seed: u32) -> f32 {
+    let sl = beat / 4.0;
+    let slot = ((t / sl).round() as i64).rem_euclid(16) as usize;
+    let metric = match slot {
+        0 => 1.0,
+        8 => 0.94,
+        4 | 12 => 0.84,
+        2 | 6 | 10 | 14 => 0.68,
+        _ => 0.52,
+    };
+    let h = pseudo_noise((t * 9973.0) as usize ^ seed as usize) * 0.5 + 0.5; // 0..1
+    (metric * (0.85 + 0.30 * h)).clamp(0.25, 1.0)
+}
+
+/// Humanize an onset time: swing the odd 16ths late + lay the lane back a touch + a little jitter, so
+/// the groove pushes/pulls instead of sitting dead on the quantize grid (the second machine tell). The
+/// kick and the sidechain source stay dead-on — only the bed voices are grooved.
+fn groove(t: f32, beat: f32, seed: u32, jit: f32, lay: f32) -> f32 {
+    let sl = beat / 4.0;
+    let s = (t / sl).round() as i64;
+    let swing = if s.rem_euclid(2) == 1 { 0.10 * sl } else { 0.0 };
+    let j = pseudo_noise((t * 4099.0) as usize ^ seed as usize) * jit;
+    (t + swing + lay + j).max(0.0)
 }
 
 fn add_stereo(buf: &mut [f32], frame: usize, v: f32, pan: f32) {
@@ -396,12 +429,12 @@ fn render_intro_bassline(buf: &mut [f32], score: &Score) {
         let t = b as f32 * bar;
         let root = bass_freq(score.chord_at(t).root);
         let amp = if b < 6 { 0.18 } else { 0.26 };
-        render_into(buf, t, 0.7, amp, 0.0, bass(root));
+        render_into(buf, t, 0.7, amp, 0.0, bass(root, 0.85));
         if b >= 5 {
-            render_into(buf, t + 2.0 * beat, 0.45, amp * 0.75, 0.0, bass(root));
+            render_into(buf, t + 2.0 * beat, 0.45, amp * 0.75, 0.0, bass(root, 0.7));
         }
         if b >= 7 {
-            render_into(buf, t + 3.0 * beat, 0.35, amp * 0.55, 0.0, bass(root * 1.5));
+            render_into(buf, t + 3.0 * beat, 0.35, amp * 0.55, 0.0, bass(root * 1.5, 0.6));
         }
     }
 }
@@ -530,36 +563,39 @@ pub fn synth_track(score: &Score) -> Track {
     let stereo = total * 2;
     let mut kickbuf = vec![0f32; stereo]; // sidechain source (never ducked)
     let mut bed = vec![0f32; stereo]; // everything else (pumped + reverbed)
+    let beat = score.beat();
 
     let kicks = score.hits(Inst::Kick);
     for &kt in &kicks {
-        render_hardkick(&mut kickbuf, kt, score.chord_at(kt).root, 0.92);
+        // kick stays near-full + dead-on so the pump locks; just a hair of velocity for life.
+        render_hardkick(&mut kickbuf, kt, score.chord_at(kt).root, 0.92 * (0.9 + 0.1 * vel(kt, beat, 0)));
         // a light bass reinforcement under the kick (the pitched kick tail carries most of the low end)
+        let v = vel(kt, beat, 0x88);
         render_into(
             &mut bed,
             kt,
             0.5,
-            0.3,
+            0.3 * v,
             0.0,
-            bass(bass_freq(score.chord_at(kt).root)),
+            bass(bass_freq(score.chord_at(kt).root), v),
         );
     }
     render_intro_percussion(&mut kickbuf, &mut bed, score);
 
     for t in score.hits(Inst::Snare) {
-        render_into(&mut bed, t, 0.4, 0.5, 0.0, snare());
+        render_into(&mut bed, groove(t, beat, 0x55, 0.003, 0.004), 0.4, 0.5 * vel(t, beat, 0x55), 0.0, snare());
     }
     for (i, t) in score.hits(Inst::Hat).into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.5 } else { -0.5 }; // hats dance across the field
-        render_into(&mut bed, t, 0.12, 0.2, pan, hat());
+        render_into(&mut bed, groove(t, beat, 0x77, 0.006, 0.0), 0.12, 0.2 * vel(t, beat, 0x77), pan, hat());
     }
     for t in score.hits(Inst::Stab) {
         let m = score.levels(t).mids;
         chord_spread(
             &mut bed,
-            t,
+            groove(t, beat, 0x6E, 0.004, 0.0),
             0.5,
-            0.10 + 0.10 * m,
+            (0.10 + 0.10 * m) * vel(t, beat, 0x6E),
             0.6,
             score.chord_at(t).triad(),
             stab,
@@ -571,25 +607,29 @@ pub fn synth_track(score: &Score) -> Track {
     // (extra in the climax) so it reads as present, not ethereal.
     let climax = section_window(score, "climax");
     for (t, f) in score.lead_notes() {
-        render_into(&mut bed, t, 0.6, 0.34, 0.0, lead(f));
-        render_into(&mut bed, t, 0.6, 0.08, 0.0, lead(f * 2.0)); // octave sheen everywhere
+        let v = vel(t, beat, 0x1A);
+        let gt = groove(t, beat, 0x3A, 0.005, 0.005);
+        render_into(&mut bed, gt, 0.6, 0.34 * v, 0.0, lead(f, v));
+        render_into(&mut bed, gt, 0.6, 0.08 * v, 0.0, lead(f * 2.0, v)); // octave sheen everywhere
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
-                render_into(&mut bed, t, 0.6, 0.10, 0.0, lead(f * 2.0));
+                render_into(&mut bed, gt, 0.6, 0.10 * v, 0.0, lead(f * 2.0, v));
             }
         }
     }
     // arp counter-line: a score note-lane (`<section>.arp` in assets/score.txt), panned alternately.
     for (i, (t, f)) in score.arp_notes().into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.55 } else { -0.55 };
-        render_into(&mut bed, t, 0.2, 0.15, pan, arp(f));
+        let v = vel(t, beat, 0x2B);
+        render_into(&mut bed, groove(t, beat, 0x9C, 0.006, 0.0), 0.2, 0.15 * v, pan, arp(f, v));
     }
 
     // articulated bassline: the `<section>.bass` note-lane (the real funky bass), centred — a punchy
     // `bass` voice at each onset, riding on top of the continuous drone sub below.
     for (t, f) in score.bass_notes() {
-        let amp = 0.20 + 0.18 * score.levels(t).sub_bass; // sit with the section's sub level
-        render_into(&mut bed, t, 0.42, amp, 0.0, bass(f));
+        let v = vel(t, beat, 0xB5);
+        let amp = (0.20 + 0.18 * score.levels(t).sub_bass) * v; // sit with the section's sub level
+        render_into(&mut bed, groove(t, beat, 0xB5, 0.003, 0.0), 0.42, amp, 0.0, bass(f, v));
     }
     // sustained pad: one chord per bar, spread wide (warmth/body).
     let bar = score.bar();
@@ -640,9 +680,9 @@ pub fn synth_track(score: &Score) -> Track {
                 let m = score.levels(t).mids;
                 chord_spread(
                     &mut bed,
-                    t,
+                    groove(t, beat, 0x4C, 0.005, 0.0),
                     half * 0.95,
-                    0.05 + 0.06 * m,
+                    (0.05 + 0.06 * m) * vel(t, beat, 0x4C),
                     0.5,
                     score.chord_at(t).triad(),
                     casio,
