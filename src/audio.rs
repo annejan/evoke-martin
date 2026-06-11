@@ -143,16 +143,25 @@ fn woozbass(freq: f32) -> Box<dyn AudioUnit> {
 /// static cutoff on a saw is literally an organ). Softsign drive for brass bite; no sub-octave (that
 /// read as an organ pipe).
 fn lead(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
-    let saws = (saw_hz(freq)
-        + saw_hz(freq * 1.007)
-        + saw_hz(freq * 0.993)
-        + saw_hz(freq * 1.014)
-        + saw_hz(freq * 0.986))
+    use std::f32::consts::TAU;
+    // a gentle vibrato that SWELLS IN over the note — the lead leans into the note like a singer
+    // instead of sitting as one static, ethereal tone. Each saw gets its own phase (lush, decorrelated).
+    let vib = move |mult: f32, ph: f32| {
+        lfo(move |t: f32| {
+            let depth = 0.005 * (t * 1.4).min(1.0);
+            freq * mult * (1.0 + depth * (t * 5.0 * TAU + ph).sin())
+        })
+    };
+    let saws = ((vib(1.0, 0.0) >> saw())
+        + (vib(1.007, 1.0) >> saw())
+        + (vib(0.993, 2.0) >> saw())
+        + (vib(1.014, 3.0) >> saw())
+        + (vib(0.986, 4.0) >> saw()))
         * 0.18;
-    // brighter floor + a slower sweep so the note stays PRESENT; the sweep PEAK tracks velocity, so a
-    // hard note opens bright and a soft one stays mellow (a played instrument, not one fixed timbre).
-    let top = 2200.0 + 2600.0 * vel;
-    let cut = envelope(move |t: f32| 1300.0 + top * (-t * 4.5).exp());
+    // a higher floor + a slower sweep so the note stays PRESENT and bright (it SINGS) instead of
+    // closing down to a thin/ethereal whisper; the sweep PEAK still tracks velocity.
+    let top = 2400.0 + 2600.0 * vel;
+    let cut = envelope(move |t: f32| 1550.0 + top * (-t * 3.4).exp());
     Box::new(
         ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.4 + 0.4 * vel)))
             * envelope(|t: f32| {
@@ -160,10 +169,10 @@ fn lead(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
                 if t < a {
                     t / a
                 } else {
-                    0.34 + 0.66 * (-(t - a) * 1.1).exp() // higher sustain floor = it carries the melody
+                    0.55 + 0.45 * (-(t - a) * 0.85).exp() // high sustain floor → the note holds + SINGS
                 }
             })
-            * 0.75,
+            * 0.8,
     )
 }
 

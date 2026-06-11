@@ -16,7 +16,7 @@ chords G Am G D  G Am G D  Em C G D  Em C D D
 #   lead = melody level   sub = sub-bass weight   supersaw/choir/donk = the chord-wall layers
 #   reverb = wet send     sidechain = pump depth  widen = stereo width
 #   makeup = glue/loudness ceiling = limiter ceiling
-set lead=0.88 sub=0.46 supersaw=0.07 choir=0.6 donk=0.055 reverb=0.35 sidechain=0.78 widen=1.6 makeup=1.18 ceiling=0.93 woozbass=0
+set lead=0.88 sub=0.46 supersaw=0.07 choir=0.6 donk=0.055 reverb=0.35 sidechain=0.78 widen=1.6 makeup=1.18 ceiling=0.93 woozbass=1
 
 # section <name> <bars> <phase-bars,csv> [fill]. Phase bars drive the DRUM energy only; the melody
 # runs underneath as one continuous loop. build/breakdown = 2x the 8-bar verse, drop/climax = 2x the
@@ -143,6 +143,6 @@ outro.bass p0: D2 . D3 .  D2 . D3 .  D2 . D3 .  F#2 . F#3 .   G2 . G3 .  G2 . G3
 # EPIC: wider contrast — intro/build/breakdown quieter, drop/climax/outro louder, bigger ramps.
 # climax goes to 1.2 (push the limiter harder for perceived loudness), outro crescendos to 1.3.
 # The explosive blast at the end rides the limiter for that compressed wall-of-sound impact.
-gain intro 0.18>0.45 build 0.25>1.1 drop 1.05 breakdown 0.07 climax 0.6>1.25 outro 0.4>1.35
+gain intro 0.18>0.45 build 0.25>1.1 drop 1.05 breakdown 0.45 climax 0.6>1.25 outro 0.4>1.35
 sub intro 0.12>0.35 build 0.15>1.0 drop 1.0 breakdown 0.55 climax 0.5>1.0 outro 0.25>1.0
-mids intro 0>0.2 build 0.2>1.0 drop 1.0 breakdown 0.08 climax 0.7>1.0 outro 0.35>1.0
+mids intro 0>0.2 build 0.2>1.0 drop 1.0 breakdown 0.5 climax 0.7>1.0 outro 0.35>1.0
