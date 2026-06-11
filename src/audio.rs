@@ -743,7 +743,7 @@ pub fn synth_track(score: &Score) -> Track {
     for (t, f) in score.lead_notes() {
         let v = vel(t, beat, 0x1A);
         let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(&mut bed, gt, 0.6, 0.82 * v, 0.0, lead(f, v)); // main lead — the STAR, up front + loud
+        render_into(&mut bed, gt, 0.6, score.param("lead", 0.82) * v, 0.0, lead(f, v)); // STAR — `set lead=`
         render_into(&mut bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
@@ -816,7 +816,7 @@ pub fn synth_track(score: &Score) -> Track {
             while (b as f32) * bar < s1 {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
-                let amp = 0.07 + 0.07 * m; // bring the wall up — it's a big part of the fullness
+                let amp = score.param("supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
                 // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
                 // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
                 // wall, not a centred pile.
@@ -824,8 +824,9 @@ pub fn synth_track(score: &Score) -> Track {
                     render_into(&mut bed, t, bar, amp * 0.7, -0.95, supersaw(f));
                     render_into(&mut bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
                     // lush choir bed an octave below the wall — grandeur/warmth under the bright saws
-                    render_into(&mut bed, t, bar, amp * 0.5, -0.6, choir(f * 0.5));
-                    render_into(&mut bed, t, bar, amp * 0.5, 0.6, choir(f * 0.5 * 1.003));
+                    let ch = score.param("choir", 0.5); // `set choir=` — grandeur bed level
+                    render_into(&mut bed, t, bar, amp * ch, -0.6, choir(f * 0.5));
+                    render_into(&mut bed, t, bar, amp * ch, 0.6, choir(f * 0.5 * 1.003));
                 }
                 b += 1;
             }
@@ -844,7 +845,7 @@ pub fn synth_track(score: &Score) -> Track {
                     &mut bed,
                     groove(t, beat, 0xD0, 0.004, 0.0),
                     hb * 0.9,
-                    (0.055 + 0.05 * m) * vel(t, beat, 0xD0),
+                    (score.param("donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
                     0.55,
                     score.chord_at(t).triad(),
                     donk,
@@ -920,7 +921,8 @@ pub fn synth_track(score: &Score) -> Track {
         let fundamental = phase.sin();
         let harmonic = (phase * 2.0).sin() * 0.42; // more 2nd harmonic = an EPIC sub that translates
         let third = (phase * 3.0).sin() * 0.16; // a little grit so it reads on small speakers
-        let s = (fundamental + harmonic + third) * (0.14 + 0.46 * score.levels(t).sub_bass);
+        let s = (fundamental + harmonic + third)
+            * (0.14 + score.param("sub", 0.46) * score.levels(t).sub_bass); // `set sub=`
         bed[2 * i] += s;
         bed[2 * i + 1] += s;
     }
@@ -932,7 +934,7 @@ pub fn synth_track(score: &Score) -> Track {
 
     // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
-    let (depth, tau) = (0.78f32, 0.085f32); // deeper pump → a cleaner kick-then-bass pocket
+    let (depth, tau) = (score.param("sidechain", 0.78), 0.085f32); // `set sidechain=` — pump depth
     for &kt in &kicks {
         let k0 = (kt * sr) as usize;
         for j in 0..(0.34 * sr) as usize {
@@ -991,6 +993,12 @@ pub fn synth_track(score: &Score) -> Track {
     let g_atk = 1.0 - (-1.0 / (0.010 * sr)).exp(); // 10 ms
     let g_rel = 1.0 - (-1.0 / (0.18 * sr)).exp(); // 180 ms
     let mut g_env = 0.0f32;
+    // mix/fx knobs read from the score (`set reverb=… widen=… makeup=… ceiling=…`), hoisted out of
+    // the per-sample loop — so the master can be tuned in the score file without recompiling.
+    let reverb_amt = score.param("reverb", 0.35);
+    let widen = score.param("widen", 1.55);
+    let makeup = score.param("makeup", 1.18);
+    let ceiling = score.param("ceiling", 0.93);
     for i in 0..total {
         let t = i as f32 * dt;
         let fade_in = (t / 1.5).clamp(0.0, 1.0);
@@ -1000,14 +1008,14 @@ pub fn synth_track(score: &Score) -> Track {
         let mut lo = [0.0f32; 2];
         let mut hi = [0.0f32; 2];
         for c in 0..2 {
-            let x = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.35;
+            let x = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * reverb_amt;
             lp[c] += split_k * (x - lp[c]);
             lo[c] = lp[c];
             hi[c] = x - lp[c];
         }
         // mid/side widen the UPPER band only (low end stays mono → translates + stays tight)
         let m = 0.5 * (hi[0] + hi[1]);
-        let s = 0.5 * (hi[0] - hi[1]) * 1.55;
+        let s = 0.5 * (hi[0] - hi[1]) * widen;
         hi[0] = m + s;
         hi[1] = m - s;
         // HF-air exciter + gentle saturation on the upper band, recombined with the clean lows
@@ -1025,11 +1033,11 @@ pub fn synth_track(score: &Score) -> Track {
         let thr = 0.5;
         let gtarget = if g_env > thr { (thr / g_env).sqrt() } else { 1.0 }; // 2:1
         glue += (gtarget - glue) * if gtarget < glue { g_atk } else { g_rel };
-        pre[0] *= glue * 1.18; // makeup (+~1.4 dB)
-        pre[1] *= glue * 1.18;
+        pre[0] *= glue * makeup; // `set makeup=` — louder, glued
+        pre[1] *= glue * makeup;
         // shared soft peak-limiter (one gain for both channels → image stays centred)
         let peak = pre[0].abs().max(pre[1].abs());
-        let target = if peak > 0.93 { 0.93 / peak } else { 1.0 };
+        let target = if peak > ceiling { ceiling / peak } else { 1.0 };
         if target < gr {
             gr += (target - gr) * atk;
         } else {

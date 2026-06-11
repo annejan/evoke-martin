@@ -233,6 +233,9 @@ pub struct Score {
     pub chords: Vec<Chord>, // per-bar chord progression (cycles); drives bass + stab
     pub sections: Vec<Section>,
     total_bars: u32,
+    /// Free-form mix/fx knobs from `set <key>=<value>` lines — the synth reads these (with built-in
+    /// defaults) so the SOUND can be tuned by editing the score file (no recompile), not the engine.
+    params: std::collections::HashMap<String, f32>,
 }
 
 impl Score {
@@ -258,7 +261,14 @@ impl Score {
             chords,
             sections,
             total_bars: bar,
+            params: std::collections::HashMap::new(),
         }
+    }
+
+    /// A mix/fx knob (`set <key>=<value>` in the score), or `default` if unset — the single hook the
+    /// synth uses so its levels/sends live in the score file, tunable without recompiling the engine.
+    pub fn param(&self, key: &str, default: f32) -> f32 {
+        self.params.get(key).copied().unwrap_or(default)
     }
 
     // --- grid ---------------------------------------------------------------------------------
@@ -475,6 +485,7 @@ impl Score {
         let mut bpm = 140.0_f32;
         let mut chords: Vec<Chord> = Vec::new();
         let mut sections: Vec<Section> = Vec::new();
+        let mut params: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
         let find = |sections: &[Section], name: &str| sections.iter().position(|s| s.name == name);
 
         for (n, raw) in text.lines().enumerate() {
@@ -620,13 +631,28 @@ impl Score {
                         }
                     }
                 }
+                // `set lead=0.82 reverb=0.35 ...` — free-form mix/fx knobs the synth reads (with its
+                // own defaults). Lets the SOUND be tuned by editing the score, not recompiling.
+                "set" => {
+                    for tok in it {
+                        let (k, v) = tok
+                            .split_once('=')
+                            .ok_or_else(|| format!("line {ln}: `set` needs key=value, got `{tok}`"))?;
+                        let val = v
+                            .parse()
+                            .map_err(|_| format!("line {ln}: bad set value `{tok}`"))?;
+                        params.insert(k.to_string(), val);
+                    }
+                }
                 other => return Err(format!("line {ln}: unknown keyword `{other}`")),
             }
         }
         if sections.is_empty() {
             return Err("no sections defined".into());
         }
-        Ok(Score::new(bpm, chords, sections))
+        let mut score = Score::new(bpm, chords, sections);
+        score.params = params;
+        Ok(score)
     }
 
     /// Serialize back to the tracker DSL — `MARTIN_SCORE_DUMP` writes the built-in this way for a
@@ -643,6 +669,19 @@ impl Score {
                 .collect::<Vec<_>>()
                 .join(" ")
         ));
+        if !self.params.is_empty() {
+            let mut kv: Vec<_> = self.params.iter().collect();
+            kv.sort_by(|a, b| a.0.cmp(b.0));
+            o.push_str("# mix/fx knobs (tune the SOUND here, no recompile — synth reads these).\n");
+            o.push_str("set ");
+            o.push_str(
+                &kv.iter()
+                    .map(|(k, v)| format!("{k}={}", fnum(**v)))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
+            o.push_str("\n\n");
+        }
         o.push_str("# section <name> <bars> <phase-bars,csv> [fill]\n");
         for s in &self.sections {
             let ph = s
