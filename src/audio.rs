@@ -526,29 +526,33 @@ fn render_jet(buf: &mut [f32], start_t: f32, dur: f32, amp: f32) {
     let start = (start_t.max(0.0) * sr) as usize;
     let n = (dur.max(0.0) * sr) as usize;
     let denom = std::cmp::max(n, 1) as f32;
-    let (mut lp1, mut lp2, mut phase) = (0.0f32, 0.0f32, 0.0f32);
+    let (mut lp1, mut lp2, mut lp3) = (0.0f32, 0.0f32, 0.0f32);
+    let (mut ph1, mut ph2) = (0.0f32, 0.0f32);
     for i in 0..n {
         let p = i as f32 / denom;
         let frame = start + i;
         let nz = pseudo_noise(i + start * 7);
-        // band-pass = (low-pass at 2.5·cut) − (low-pass at cut); cut sweeps up over the pass.
-        let cut = 400.0 + 2600.0 * p;
+        // a RESONANT noise band whose centre rises across the pass (faster near the end) — an uplifter
+        // "whoosh", not a polite sweep. Two overlapping band-passes stack into a richer scream than the
+        // old single 1-pole band did.
+        let cut = 350.0 + 3200.0 * p * p;
         let a_lo = 1.0 - (-TAU * cut / sr).exp();
-        let a_hi = 1.0 - (-TAU * (cut * 2.5) / sr).exp();
+        let a_hi = 1.0 - (-TAU * (cut * 2.2) / sr).exp();
+        let a_n = 1.0 - (-TAU * (cut * 1.4) / sr).exp();
         lp1 += a_lo * (nz - lp1);
         lp2 += a_hi * (nz - lp2);
-        let band = lp2 - lp1;
-        // turbine whine: a tone that rises into the flyby and dopplers back down.
-        let whz = 700.0 + 1800.0 * (1.0 - (2.0 * p - 1.0).abs());
-        phase = (phase + TAU * whz / sr) % TAU;
-        let whine = phase.sin() * 0.2;
+        lp3 += a_n * (nz - lp3);
+        let band = (lp2 - lp1) * 2.5 + (lp2 - lp3) * 2.0;
+        // a DETUNED-saw turbine pair (not a clean sine — that was the synthetic tell) rising into the
+        // hit, low under the noise: pitch motion without the cheesy pure-tone whine.
+        let whz = 500.0 + 2200.0 * p;
+        ph1 = (ph1 + TAU * whz / sr) % TAU;
+        ph2 = (ph2 + TAU * whz * 1.011 / sr) % TAU;
+        let saw = |ph: f32| (ph / TAU) * 2.0 - 1.0;
+        let turbine = (saw(ph1) + saw(ph2)) * 0.06;
         let env = (1.0 - (2.0 * p - 1.0).abs()).powf(1.3); // swell → flyby → away
-        add_stereo(
-            buf,
-            frame,
-            (band * 3.0 + whine) * env * amp,
-            (2.0 * p - 1.0) * 0.8,
-        );
+        let v = ((band + turbine) * env).tanh() * amp; // soft drive → grit, not a clean sweep
+        add_stereo(buf, frame, v, (2.0 * p - 1.0) * 0.8);
     }
 }
 
@@ -650,8 +654,8 @@ fn render_intro_percussion(kickbuf: &mut [f32], bed: &mut [f32], score: &Score) 
             render_hardkick(kickbuf, base + 2.0 * beat, root, k_amp * 0.55);
         }
         if b >= 5 {
-            render_into(bed, base + beat, 0.10, 0.08, -0.35, hat());
-            render_into(bed, base + 3.0 * beat, 0.10, 0.08, 0.35, hat());
+            render_into(bed, base + beat, 0.10, 0.12, -0.35, hat());
+            render_into(bed, base + 3.0 * beat, 0.10, 0.12, 0.35, hat());
         }
         if b >= 6 {
             for s in 0..8 {
@@ -659,7 +663,7 @@ fn render_intro_percussion(kickbuf: &mut [f32], bed: &mut [f32], score: &Score) 
                     bed,
                     base + s as f32 * beat * 0.5,
                     0.07,
-                    0.045,
+                    0.07,
                     if s % 2 == 0 { -0.45 } else { 0.45 },
                     hat(),
                 );
@@ -783,6 +787,10 @@ pub fn synth_track(score: &Score) -> Track {
     let mut kickbuf = vec![0f32; stereo]; // sidechain source (never ducked)
     let mut bed = vec![0f32; stereo]; // everything else (pumped + reverbed)
     let beat = score.beat();
+    // the rhythm section sits forward: hi-hats + snares are level-knobbed so they can be pushed up to
+    // read as a prominent groove (the parts coming in were too polite). `set hats=` / `set snares=`.
+    let hats_amp = score.param("hats", 0.3);
+    let snare_amp = score.param("snares", 0.58);
 
     let kicks = score.hits(Inst::Kick);
     for &kt in &kicks {
@@ -818,7 +826,7 @@ pub fn synth_track(score: &Score) -> Track {
             &mut bed,
             groove(t, beat, 0x55, 0.003, 0.004),
             0.4,
-            0.5 * vel(t, beat, 0x55),
+            snare_amp * vel(t, beat, 0x55),
             pan,
             snare(),
         );
@@ -829,7 +837,7 @@ pub fn synth_track(score: &Score) -> Track {
             &mut bed,
             groove(t, beat, 0x77, 0.006, 0.0),
             0.12,
-            0.2 * vel(t, beat, 0x77),
+            hats_amp * vel(t, beat, 0x77),
             pan,
             hat(),
         );
@@ -1102,6 +1110,11 @@ pub fn synth_track(score: &Score) -> Track {
     // mid-outro hit across the WHOLE ~40 s outro — that read as messy noise, not a rising, epic finale.)
     if let Some(t0) = section_time(score, "outro") {
         let end = score.demo_len();
+        // build OUT of the climax's final phase straight INTO the outro downbeat — a rising riser + roll
+        // across the last bars of the climax so ~3:00→3:05 LIFTS into the finale instead of sagging
+        // (the old dead "fake-out breather" sat right here). Pairs with the now-driving climax p3.
+        render_riser(&mut bed, t0 - 3.0 * bar, 3.0 * bar, 0.30, 0.0);
+        render_snare_roll(&mut bed, t0 - 2.0 * bar, 2.0 * bar, score.beat());
         render_impact(&mut bed, t0, 1.4, 0.5); // land the outro downbeat — then let the anthem ring
         let build = (4.0 * bar).min(end - t0 - 0.1).max(0.5); // the final build window only
         let bs = end - build;

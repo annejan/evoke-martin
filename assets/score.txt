@@ -19,12 +19,14 @@ chords G Am G D  G Am G D  Em C G D  Em C D D
 #   makeup = glue/loudness ceiling = limiter ceiling
 #   shimmer = airy octave-up choir bloom over the climax+outro   reverbauto = section reverb-depth
 #     automation (space in intro/breakdown/outro, dry/punchy in the drop; 0 = flat send)
-set lead=0.88 sub=0.46 supersaw=0.07 choir=0.6 donk=0.035 house=0.12 reverb=0.35 sidechain=0.78 widen=1.6 makeup=1.18 ceiling=0.93 woozbass=1 shimmer=0.09 reverbauto=1
+#   hats = hi-hat level   snares = snare level (the rhythm section — push them up to sit forward)
+set lead=0.88 sub=0.46 supersaw=0.07 choir=0.6 donk=0.035 house=0.12 reverb=0.35 sidechain=0.78 widen=1.6 makeup=1.18 ceiling=0.93 woozbass=1 shimmer=0.09 reverbauto=1 hats=0.3 snares=0.58
 
 # section <name> <bars> <phase-bars,csv> [fill]. Phase bars drive the DRUM energy only; the melody
 # runs underneath as one continuous loop. build/breakdown = 2x the 8-bar verse, drop/climax = 2x the
-# 16-bar chorus. EPIC TWEAKS: climax split into 4×8-bar phases for a fake-out breather before the
-# final push; outro stretched from 17→25 bars for a longer explosive finale buildup.
+# 16-bar chorus. EPIC TWEAKS: climax split into 4×8-bar phases; its LAST phase (p3) DRIVES (full kick +
+# backbeat + 16th hats) and a riser+roll builds straight into the outro — it used to drop to a dead
+# "fake-out breather" there (~3:00) which just sagged. Outro stretched to 25 bars for the finale.
 section intro 8 8
 section build 17 8,8 fill
 section drop 33 8,8,8,8 fill
@@ -44,7 +46,7 @@ outro.chords: D G G A D A D G D G G A D A D G
 # patterns: <section>.<kick|snare|hat|stab> p<N>|fill: 16 steps. DnB two-step = kick 1 + "and of 3"
 # (step 11), snare on 2 & 4 (steps 5 & 13); funk from ghost kicks/snares; rolls in the fills.
 # EPIC: fills are more dramatic — build fill has a snare roll, climax fill is max intensity, climax
-# p2 has 16th-note hats, climax p3 is a fake-out breather before the outro explosion.
+# p2+p3 drive at full 16th-note intensity straight into the outro (no mid-finale sag).
 build.kick p0: x... .... .... ....
 build.kick p1: x... .... ..x. ....
 build.kick fill: x.xx x.x. xxxx x.xx
@@ -86,20 +88,22 @@ breakdown.stab p0: .... .... x... ....
 climax.kick p0: x... ..x. x... ..x.
 climax.kick p1: x..x ..x. x... .xx.
 climax.kick p2: x.x. ..x. x.x. xxxx
-climax.kick p3: x... .... .... ....
+climax.kick p3: x... ..x. x... ..x.
 climax.kick fill: x.x. xxxx xxxx x.xx
 climax.snare p0: .... x... .... x...
 climax.snare p1: .... x..x ..x. x..x
 climax.snare p2: .... x..x ..x. x.xx
+climax.snare p3: .... x..x ..x. x.xx
 climax.snare fill: xxxx xxxx xxxx xxxx
 climax.hat p0: x.xx x.x. xx.x x.xx
 climax.hat p1: xxxx x.xx xx.x xxxx
 climax.hat p2: xxxx xxxx xxxx xxxx
-climax.hat p3: x... .... .... ....
+climax.hat p3: xxxx xxxx xxxx xxxx
 climax.hat fill: xxxx xxxx xxxx xxxx
 climax.stab p0: .... ..x. .... ..x.
 climax.stab p1: ..x. ...x ..x. ...x
 climax.stab p2: x.x. x.x. x.x. x.x.
+climax.stab p3: x.x. x.x. x.x. x.x.
 climax.stab fill: x.x. x.x. x.x. x.x.
 outro.kick p0: x... ..x. x... ..x.
 outro.kick p1: x..x ..x. x.xx .xx.
@@ -146,6 +150,6 @@ outro.bass p0: D2 . D3 .  D2 . D3 .  D2 . D3 .  F#2 . F#3 .   G2 . G3 .  G2 . G3
 # EPIC: wider contrast — intro/build/breakdown quieter, drop/climax/outro louder, bigger ramps.
 # climax goes to 1.2 (push the limiter harder for perceived loudness), outro crescendos to 1.3.
 # The explosive blast at the end rides the limiter for that compressed wall-of-sound impact.
-gain intro 0.18>0.45 build 0.25>1.1 drop 1.05 breakdown 0.45 climax 0.6>1.25 outro 0.4>1.35
-sub intro 0.12>0.35 build 0.15>1.0 drop 1.0 breakdown 0.55 climax 0.5>1.0 outro 0.25>1.0
-mids intro 0>0.2 build 0.2>1.0 drop 1.0 breakdown 0.5 climax 0.7>1.0 outro 0.35>1.0
+gain intro 0.18>0.45 build 0.25>1.1 drop 1.05 breakdown 0.45 climax 0.6>1.25 outro 0.95>1.35
+sub intro 0.12>0.35 build 0.15>1.0 drop 1.0 breakdown 0.55 climax 0.5>1.0 outro 0.8>1.0
+mids intro 0>0.2 build 0.2>1.0 drop 1.0 breakdown 0.5 climax 0.7>1.0 outro 0.85>1.0
