@@ -113,8 +113,9 @@ fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
 fn woozbass(freq: f32) -> Box<dyn AudioUnit> {
     use std::f32::consts::TAU;
     // independent vibrato + slow drift per oscillator → they never lock, so the pitch feels unstable.
-    let f_sub =
-        lfo(move |t: f32| freq * (1.0 + 0.006 * (t * 4.3 * TAU).sin() + 0.004 * (t * 0.6 * TAU).sin()));
+    let f_sub = lfo(move |t: f32| {
+        freq * (1.0 + 0.006 * (t * 4.3 * TAU).sin() + 0.004 * (t * 0.6 * TAU).sin())
+    });
     let f_up = lfo(move |t: f32| freq * 1.007 * (1.0 + 0.006 * (t * 4.1 * TAU + 1.0).sin()));
     let f_dn = lfo(move |t: f32| freq * 0.993 * (1.0 + 0.005 * (t * 3.7 * TAU + 2.0).sin()));
     let oscs = (f_sub >> sine()) * 0.7 + (f_up >> saw()) * 0.45 + (f_dn >> saw()) * 0.45;
@@ -1193,8 +1194,9 @@ pub fn write_wav(track: &Track, path: &str) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod voice_demo {
-    use super::*;
     use std::sync::Arc;
+
+    use super::*;
 
     /// On-demand audition of `woozbass`: writes a few HELD notes to /tmp/woozbass.wav so the slow
     /// growl + wooze can be heard. Run with:
