@@ -141,11 +141,11 @@ pub struct Section {
     pub snare: Lane,
     pub hat: Lane,
     pub stab: Lane,
-    pub lead: NoteLane, // melody (one note per slot); empty = no lead
-    pub arp: NoteLane,  // a second melodic line (the plucky counter-melody); empty = no arp
+    pub lead: NoteLane,     // melody (one note per slot); empty = no lead
+    pub arp: NoteLane,      // a second melodic line (the plucky counter-melody); empty = no arp
     pub bass: NoteLane, // an articulated bassline (one note per slot); empty = chord-root sub only
     pub chords: Vec<Chord>, // per-section chord override (cycles within the section); empty = global
-    pub start_bar: u32, // computed by Score::new
+    pub start_bar: u32,     // computed by Score::new
 }
 
 impl Section {
@@ -635,9 +635,9 @@ impl Score {
                 // own defaults). Lets the SOUND be tuned by editing the score, not recompiling.
                 "set" => {
                     for tok in it {
-                        let (k, v) = tok
-                            .split_once('=')
-                            .ok_or_else(|| format!("line {ln}: `set` needs key=value, got `{tok}`"))?;
+                        let (k, v) = tok.split_once('=').ok_or_else(|| {
+                            format!("line {ln}: `set` needs key=value, got `{tok}`")
+                        })?;
                         let val = v
                             .parse()
                             .map_err(|_| format!("line {ln}: bad set value `{tok}`"))?;

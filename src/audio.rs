@@ -79,8 +79,10 @@ fn pad(freq: f32) -> Box<dyn AudioUnit> {
 /// resonant low-pass that drops from ~1.4 kHz to ~900 Hz, with per-VOICE tanh drive so the grit
 /// lives on the bass itself, not smeared across the whole bus.
 fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
-    let saws =
-        sine_hz(freq) + saw_hz(freq) * 0.6 + saw_hz(freq * 1.008) * 0.5 + saw_hz(freq * 0.992) * 0.5;
+    let saws = sine_hz(freq)
+        + saw_hz(freq) * 0.6
+        + saw_hz(freq * 1.008) * 0.5
+        + saw_hz(freq * 0.992) * 0.5;
     let cut = envelope(|t: f32| 900.0 + 500.0 * (-t * 3.0).exp());
     let drive = 1.8 + 0.8 * vel; // harder notes growl harder
     Box::new(
@@ -177,9 +179,7 @@ fn choir(freq: f32) -> Box<dyn AudioUnit> {
         + saw_hz(freq * 0.991)
         + sine_hz(freq * 0.5) * 0.6)
         * 0.15;
-    Box::new(
-        (saws >> lowpass_hz(2600.0, 0.7)) * envelope(|t: f32| (t * 1.0).min(1.0)) * 0.3,
-    )
+    Box::new((saws >> lowpass_hz(2600.0, 0.7)) * envelope(|t: f32| (t * 1.0).min(1.0)) * 0.3)
 }
 
 /// Donk: a bright, plucky detuned-saw chord stab — the euphoric off-beat "donk" of happy-hardcore /
@@ -432,7 +432,7 @@ fn render_hardkick(buf: &mut [f32], t: f32, root: f32, amp: f32) {
         let raw = ph_b.sin() + ((ph_b / TAU) * 2.0 - 1.0) * 0.5; // sine + saw partial (the "zaag")
         let driven = (raw * 5.0).tanh(); // overdrive
         let body = (driven * 1.6).clamp(-1.0, 1.0) * (-tt * 9.0).exp(); // + hard-clip edge, fast decay
-        // tonal tail: the pitched "piep", distorted, slower decay
+                                                                        // tonal tail: the pitched "piep", distorted, slower decay
         ph_t = (ph_t + TAU * tail_hz / sr) % TAU;
         let tail = (ph_t.sin() * 3.0).tanh() * (-tt * 5.0).exp();
         // click transient: bright noise blip for the attack snap
@@ -467,7 +467,12 @@ fn render_jet(buf: &mut [f32], start_t: f32, dur: f32, amp: f32) {
         phase = (phase + TAU * whz / sr) % TAU;
         let whine = phase.sin() * 0.2;
         let env = (1.0 - (2.0 * p - 1.0).abs()).powf(1.3); // swell → flyby → away
-        add_stereo(buf, frame, (band * 3.0 + whine) * env * amp, (2.0 * p - 1.0) * 0.8);
+        add_stereo(
+            buf,
+            frame,
+            (band * 3.0 + whine) * env * amp,
+            (2.0 * p - 1.0) * 0.8,
+        );
     }
 }
 
@@ -540,7 +545,14 @@ fn render_intro_bassline(buf: &mut [f32], score: &Score) {
             render_into(buf, t + 2.0 * beat, 0.45, amp * 0.75, 0.0, bass(root, 0.7));
         }
         if b >= 7 {
-            render_into(buf, t + 3.0 * beat, 0.35, amp * 0.55, 0.0, bass(root * 1.5, 0.6));
+            render_into(
+                buf,
+                t + 3.0 * beat,
+                0.35,
+                amp * 0.55,
+                0.0,
+                bass(root * 1.5, 0.6),
+            );
         }
     }
 }
@@ -699,7 +711,12 @@ pub fn synth_track(score: &Score) -> Track {
     let kicks = score.hits(Inst::Kick);
     for &kt in &kicks {
         // kick stays near-full + dead-on so the pump locks; just a hair of velocity for life.
-        render_hardkick(&mut kickbuf, kt, score.chord_at(kt).root, 0.92 * (0.9 + 0.1 * vel(kt, beat, 0)));
+        render_hardkick(
+            &mut kickbuf,
+            kt,
+            score.chord_at(kt).root,
+            0.92 * (0.9 + 0.1 * vel(kt, beat, 0)),
+        );
         // a light bass reinforcement under the kick (the pitched kick tail carries most of the low end)
         let v = vel(kt, beat, 0x88);
         render_into(
@@ -716,12 +733,30 @@ pub fn synth_track(score: &Score) -> Track {
     for (i, t) in score.hits(Inst::Snare).into_iter().enumerate() {
         // snares alternate left/centre/right — they're the backbeat anchor, spread them so the
         // groove breathes across the field instead of sitting dead centre.
-        let pan = match i % 3 { 0 => -0.2, 1 => 0.15, _ => -0.05 };
-        render_into(&mut bed, groove(t, beat, 0x55, 0.003, 0.004), 0.4, 0.5 * vel(t, beat, 0x55), pan, snare());
+        let pan = match i % 3 {
+            0 => -0.2,
+            1 => 0.15,
+            _ => -0.05,
+        };
+        render_into(
+            &mut bed,
+            groove(t, beat, 0x55, 0.003, 0.004),
+            0.4,
+            0.5 * vel(t, beat, 0x55),
+            pan,
+            snare(),
+        );
     }
     for (i, t) in score.hits(Inst::Hat).into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.65 } else { -0.65 }; // hats dance wider across the field
-        render_into(&mut bed, groove(t, beat, 0x77, 0.006, 0.0), 0.12, 0.2 * vel(t, beat, 0x77), pan, hat());
+        render_into(
+            &mut bed,
+            groove(t, beat, 0x77, 0.006, 0.0),
+            0.12,
+            0.2 * vel(t, beat, 0x77),
+            pan,
+            hat(),
+        );
     }
     for t in score.hits(Inst::Stab) {
         let m = score.levels(t).mids;
@@ -743,11 +778,19 @@ pub fn synth_track(score: &Score) -> Track {
     for (t, f) in score.lead_notes() {
         let v = vel(t, beat, 0x1A);
         let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(&mut bed, gt, 0.6, score.param("lead", 0.82) * v, 0.0, lead(f, v)); // STAR — `set lead=`
+        render_into(
+            &mut bed,
+            gt,
+            0.6,
+            score.param("lead", 0.82) * v,
+            0.0,
+            lead(f, v),
+        ); // STAR — `set lead=`
         render_into(&mut bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
-                render_into(&mut bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v)); // extra sheen in climax
+                render_into(&mut bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v));
+                // extra sheen in climax
             }
         }
     }
@@ -757,7 +800,14 @@ pub fn synth_track(score: &Score) -> Track {
     for (t, f) in score.lead_notes() {
         let v = vel(t, beat, 0x1A);
         let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(&mut lead_echo, gt, 0.5, 0.30 * v, 0.0, lead(f, (v * 0.7).max(0.25)));
+        render_into(
+            &mut lead_echo,
+            gt,
+            0.5,
+            0.30 * v,
+            0.0,
+            lead(f, (v * 0.7).max(0.25)),
+        );
     }
     let lead_dry = lead_echo.clone();
     render_pingpong(&mut lead_echo, beat * 0.75, 0.34, 0.55); // dotted-8th throw
@@ -771,7 +821,14 @@ pub fn synth_track(score: &Score) -> Track {
     for (i, (t, f)) in score.arp_notes().into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.7 } else { -0.7 };
         let v = vel(t, beat, 0x2B);
-        render_into(&mut arp_buf, groove(t, beat, 0x9C, 0.006, 0.0), 0.2, 0.20 * v, pan, arp(f, v));
+        render_into(
+            &mut arp_buf,
+            groove(t, beat, 0x9C, 0.006, 0.0),
+            0.2,
+            0.20 * v,
+            pan,
+            arp(f, v),
+        );
     }
     // ping-pong delay: 8th note, bounces L-R-L-R, 3–4 repeats, glued under the lead. (`beat` is
     // seconds-per-beat, so an 8th note is beat/2 — NOT 60/beat, which would be a ~70 s no-op.)
@@ -785,7 +842,14 @@ pub fn synth_track(score: &Score) -> Track {
     for (t, f) in score.bass_notes() {
         let v = vel(t, beat, 0xB5);
         let amp = (0.20 + 0.18 * score.levels(t).sub_bass) * v; // sit with the section's sub level
-        render_into(&mut bed, groove(t, beat, 0xB5, 0.003, 0.0), 0.42, amp, 0.0, bass(f, v));
+        render_into(
+            &mut bed,
+            groove(t, beat, 0xB5, 0.003, 0.0),
+            0.42,
+            amp,
+            0.0,
+            bass(f, v),
+        );
     }
     // sustained pad: one chord per bar, spread wide (warmth/body) with a SLOW auto-pan LFO so the
     // pad breathes and rotates across the stereo field — a static pad reads as wallpaper, a
@@ -817,9 +881,9 @@ pub fn synth_track(score: &Score) -> Track {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
                 let amp = score.param("supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
-                // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
-                // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
-                // wall, not a centred pile.
+                                                                    // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
+                                                                    // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
+                                                                    // wall, not a centred pile.
                 for &f in score.chord_at(t).triad().iter() {
                     render_into(&mut bed, t, bar, amp * 0.7, -0.95, supersaw(f));
                     render_into(&mut bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
@@ -964,10 +1028,14 @@ pub fn synth_track(score: &Score) -> Track {
         let m = 0.5 * (bed[2 * i] + bed[2 * i + 1]);
         hp += hp_a * (m - hp);
         let h = m - hp; // high-passed at 600
-        // band-pass: one-pole low-pass at 6000 after the HP
+                        // band-pass: one-pole low-pass at 6000 after the HP
         bp += lp_a * (h - bp);
         // write the band-passed signal into the delay line, read from it offset by haas_d
-        let delayed = if i >= haas_d { haas_buf[(i - haas_d) % haas_d] } else { 0.0 };
+        let delayed = if i >= haas_d {
+            haas_buf[(i - haas_d) % haas_d]
+        } else {
+            0.0
+        };
         haas_buf[i % haas_d] = bp;
         // add delayed copy to R channel only (Haas: L arrives first, R arrives late → brain
         // hears a wide phantom image anchored on the left side).
@@ -1031,7 +1099,11 @@ pub fn synth_track(score: &Score) -> Track {
         let det = pre[0].abs().max(pre[1].abs());
         g_env += (det - g_env) * if det > g_env { g_atk } else { g_rel };
         let thr = 0.5;
-        let gtarget = if g_env > thr { (thr / g_env).sqrt() } else { 1.0 }; // 2:1
+        let gtarget = if g_env > thr {
+            (thr / g_env).sqrt()
+        } else {
+            1.0
+        }; // 2:1
         glue += (gtarget - glue) * if gtarget < glue { g_atk } else { g_rel };
         pre[0] *= glue * makeup; // `set makeup=` — louder, glued
         pre[1] *= glue * makeup;
