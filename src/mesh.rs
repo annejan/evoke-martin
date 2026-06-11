@@ -275,6 +275,125 @@ fn sample_tex(img: &image::RgbaImage, u: f32, v: f32) -> [f32; 3] {
 /// flat disk in the surface plane: in-plane radius `splat` (a FRACTION of the model's largest
 /// dimension), thinned to `thin`× that along the normal. Missing / bad files → empty (the part
 /// just renders nothing rather than crashing the show).
+/// glTF (.glb/.gltf) → gaussians. mesh-loader can't read glTF, so we parse it here: walk the node
+/// graph accumulating world transforms, pull each primitive's positions/indices/normals/vertex
+/// colours, and surface-sample the triangles exactly like the .obj/.dae path. No textures (vertex
+/// colours when present, else the caller's flat `rgb`).
+fn build_gltf_gaussians(
+    path: &Path,
+    target_count: usize,
+    splat: f32,
+    thin: f32,
+    rgb: [f32; 3],
+) -> Vec<Gaussian3d> {
+    let (doc, buffers, _) = match gltf::import(path) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("mesh {}: {e}", path.display());
+            return Vec::new();
+        }
+    };
+    type M = [[f32; 4]; 4]; // column-major (glTF convention)
+    let mul = |a: &M, b: &M| -> M {
+        let mut o = [[0.0f32; 4]; 4];
+        for (c, oc) in o.iter_mut().enumerate() {
+            for (r, ocr) in oc.iter_mut().enumerate() {
+                *ocr = (0..4).map(|k| a[k][r] * b[c][k]).sum();
+            }
+        }
+        o
+    };
+    let xf_p = |m: &M, p: [f32; 3]| {
+        [
+            m[0][0] * p[0] + m[1][0] * p[1] + m[2][0] * p[2] + m[3][0],
+            m[0][1] * p[0] + m[1][1] * p[1] + m[2][1] * p[2] + m[3][1],
+            m[0][2] * p[0] + m[1][2] * p[1] + m[2][2] * p[2] + m[3][2],
+        ]
+    };
+    let xf_n = |m: &M, n: [f32; 3]| {
+        let v = [
+            m[0][0] * n[0] + m[1][0] * n[1] + m[2][0] * n[2],
+            m[0][1] * n[0] + m[1][1] * n[1] + m[2][1] * n[2],
+            m[0][2] * n[0] + m[1][2] * n[1] + m[2][2] * n[2],
+        ];
+        let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
+        [v[0] / l, v[1] / l, v[2] / l]
+    };
+
+    let mut tris: Vec<[[f32; 3]; 3]> = Vec::new();
+    let mut tri_norms: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
+    let mut tri_cols: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
+    let id: M = [
+        [1., 0., 0., 0.],
+        [0., 1., 0., 0.],
+        [0., 0., 1., 0.],
+        [0., 0., 0., 1.],
+    ];
+    let scene = doc.default_scene().or_else(|| doc.scenes().next());
+    let mut stack: Vec<(gltf::Node, M)> = Vec::new();
+    if let Some(scene) = scene {
+        stack.extend(scene.nodes().map(|n| (n, id)));
+    }
+    while let Some((node, parent)) = stack.pop() {
+        let world = mul(&parent, &node.transform().matrix());
+        if let Some(mesh) = node.mesh() {
+            for prim in mesh.primitives() {
+                let reader = prim.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
+                let Some(pos) = reader.read_positions() else {
+                    continue;
+                };
+                let positions: Vec<[f32; 3]> = pos.collect();
+                let normals: Option<Vec<[f32; 3]>> = reader.read_normals().map(|n| n.collect());
+                let colors: Option<Vec<[f32; 3]>> =
+                    reader.read_colors(0).map(|c| c.into_rgb_f32().collect());
+                let indices: Vec<u32> = reader
+                    .read_indices()
+                    .map(|i| i.into_u32().collect())
+                    .unwrap_or_else(|| (0..positions.len() as u32).collect());
+                for t in indices.chunks_exact(3) {
+                    let (a, b, c) = (t[0] as usize, t[1] as usize, t[2] as usize);
+                    let (Some(&pa), Some(&pb), Some(&pc)) =
+                        (positions.get(a), positions.get(b), positions.get(c))
+                    else {
+                        continue;
+                    };
+                    tris.push([xf_p(&world, pa), xf_p(&world, pb), xf_p(&world, pc)]);
+                    tri_norms.push(normals.as_ref().map(|nn| {
+                        [
+                            xf_n(&world, nn[a]),
+                            xf_n(&world, nn[b]),
+                            xf_n(&world, nn[c]),
+                        ]
+                    }));
+                    tri_cols.push(colors.as_ref().map(|cc| [cc[a], cc[b], cc[c]]));
+                }
+            }
+        }
+        stack.extend(node.children().map(|ch| (ch, world)));
+    }
+    if tris.is_empty() {
+        eprintln!("mesh {}: no triangles (glTF)", path.display());
+        return Vec::new();
+    }
+    let flat = sh_of(rgb);
+    sample_surface_disks(
+        &tris,
+        &tri_norms,
+        target_count,
+        splat,
+        thin,
+        true,
+        |ti, bw, bu, bv| match tri_cols[ti] {
+            Some(c) => sh_of([
+                c[0][0] * bw + c[1][0] * bu + c[2][0] * bv,
+                c[0][1] * bw + c[1][1] * bu + c[2][1] * bv,
+                c[0][2] * bw + c[1][2] * bu + c[2][2] * bv,
+            ]),
+            None => flat,
+        },
+    )
+}
+
 pub fn build_mesh_gaussians(
     path: &Path,
     target_count: usize,
@@ -282,6 +401,15 @@ pub fn build_mesh_gaussians(
     thin: f32,
     rgb: [f32; 3],
 ) -> Vec<Gaussian3d> {
+    // mesh-loader handles .obj/.stl/.dae/.ply but NOT glTF — route .glb/.gltf to a dedicated path.
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext == "glb" || ext == "gltf" {
+        return build_gltf_gaussians(path, target_count, splat, thin, rgb);
+    }
     let scene = match mesh_loader::Loader::default().load(path) {
         Ok(s) => s,
         Err(e) => {

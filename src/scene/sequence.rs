@@ -467,6 +467,18 @@ pub(crate) fn build_sequence(
     let mut sources: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
     let mut out_clouds: Vec<Option<Handle<PlanarGaussian3d>>> = Vec::new();
     for (idx, raw) in raws.into_iter().enumerate() {
+        // ROBUSTNESS: a part that produced 0 gaussians (an unsupported/broken asset) must NOT reach
+        // the morph shader — an empty cloud is a wgpu validation error that crashes the whole render.
+        // Degrade it to a transparent placeholder so the show plays on (the part is just invisible).
+        let raw = if raw.is_empty() {
+            warn!(
+                "part {}: 0 gaussians — substituting a transparent placeholder (asset failed to load?)",
+                seq.parts[idx].content.label()
+            );
+            crate::mesh::transparent_placeholder(256)
+        } else {
+            raw
+        };
         let mut shaped = resample_morton(raw, n);
         // bake the part's own `rot:` into its shape (so sources/out clouds inherit it, and the morph
         // between differently-oriented parts reorients smoothly). glb parts rotate in sample_gl_mesh.
