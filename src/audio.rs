@@ -354,6 +354,32 @@ fn render_riser(buf: &mut [f32], start_t: f32, dur: f32, amp: f32, pan: f32) {
     }
 }
 
+/// Atmospheric texture bed under the WHOLE track: a soft band-limited noise floor + sparse vinyl
+/// crackle. Game/chiptune music is dead-silent between notes; produced trip-hop/downtempo records
+/// (Massive Attack / Portishead) always sit on a dusty textured floor — that bed is a big part of
+/// what reads as "a record" instead of "a bright synth preset". Kept low + slightly decorrelated L/R.
+fn render_atmosphere(bed: &mut [f32], sr: f32) {
+    use std::f32::consts::TAU;
+    let total = bed.len() / 2;
+    let (mut lp, mut hp) = (0.0f32, 0.0f32);
+    let a = 1.0 - (-TAU * 2000.0 / sr).exp();
+    let ah = 1.0 - (-TAU * 350.0 / sr).exp();
+    for i in 0..total {
+        let n = pseudo_noise(i * 2 + 7);
+        lp += a * (n - lp); // low-pass...
+        hp += ah * (lp - hp); // ...minus a high-pass = a soft ~350-2000 Hz band (warm hiss, no fizz)
+        let floor = (lp - hp) * 0.010;
+        let crackle = if pseudo_noise(i * 3 + 1) > 0.9994 {
+            pseudo_noise(i * 7) * 0.045 // sparse dust clicks
+        } else {
+            0.0
+        };
+        let v = floor + crackle;
+        bed[2 * i] += v;
+        bed[2 * i + 1] += v * 0.92;
+    }
+}
+
 /// Modern hardstyle / rawstyle KICK, tuned per hit to the chord root: a tight click transient → a
 /// heavily DISTORTED pitch-swept body (sine + a saw partial driven through tanh then hard-clipped =
 /// the "zaag"/gabber grit) → a pitched tonal TAIL on the root pitch-class (the "piep" — the kick is
@@ -701,6 +727,20 @@ pub fn synth_track(score: &Score) -> Track {
             }
         }
     }
+    // lead depth: a dotted-8th ping-pong of the lead in its own buffer; we add only the WET (echoes)
+    // so the dry lead stays up front while its repeats open a 3D space behind it (front-to-back depth).
+    let mut lead_echo = vec![0f32; stereo];
+    for (t, f) in score.lead_notes() {
+        let v = vel(t, beat, 0x1A);
+        let gt = groove(t, beat, 0x3A, 0.005, 0.005);
+        render_into(&mut lead_echo, gt, 0.5, 0.30 * v, 0.0, lead(f, (v * 0.7).max(0.25)));
+    }
+    let lead_dry = lead_echo.clone();
+    render_pingpong(&mut lead_echo, beat * 0.75, 0.34, 0.55); // dotted-8th throw
+    for i in 0..stereo {
+        bed[i] += lead_echo[i] - lead_dry[i]; // echoes only — the dry lead already sits in bed
+    }
+
     // arp counter-line into its OWN buffer so we can process it (ping-pong delay) without
     // smearing the drums or the lead — spatial separation is the whole trick.
     let mut arp_buf = vec![0f32; stereo];
@@ -709,8 +749,9 @@ pub fn synth_track(score: &Score) -> Track {
         let v = vel(t, beat, 0x2B);
         render_into(&mut arp_buf, groove(t, beat, 0x9C, 0.006, 0.0), 0.2, 0.20 * v, pan, arp(f, v));
     }
-    // ping-pong delay: 8th note at 140 BPM, bounces L-R-L-R, 3–4 repeats, glued under the lead.
-    render_pingpong(&mut arp_buf, 60.0 / beat / 2.0, 0.35, 0.30);
+    // ping-pong delay: 8th note, bounces L-R-L-R, 3–4 repeats, glued under the lead. (`beat` is
+    // seconds-per-beat, so an 8th note is beat/2 — NOT 60/beat, which would be a ~70 s no-op.)
+    render_pingpong(&mut arp_buf, beat / 2.0, 0.35, 0.30);
     for i in 0..stereo {
         bed[i] += arp_buf[i];
     }
@@ -836,6 +877,10 @@ pub fn synth_track(score: &Score) -> Track {
         bed[2 * i] += s;
         bed[2 * i + 1] += s;
     }
+
+    // atmosphere: a dusty noise floor + sparse vinyl crackle under everything — the textured bed that
+    // reads as "a record" instead of a silent-between-notes synth preset (depth/feel, even if faked).
+    render_atmosphere(&mut bed, sr);
 
     // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
