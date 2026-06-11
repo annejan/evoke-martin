@@ -24,6 +24,7 @@ path = [
     "USAGE.md",
     "build.rs",
     "bundle.toml",
+    "bundle-camping.toml",
 ]
 SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
 SPDX-License-Identifier = "MIT"
