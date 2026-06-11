@@ -74,3 +74,6 @@ assets/greetings-logos
 
 # copyright reference MIDIs (transcription only, not shipped)
 /assets/*.mid
+
+# local mesh->splat A/B render artifacts (not assets)
+mesh-ab/

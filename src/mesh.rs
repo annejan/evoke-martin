@@ -98,13 +98,14 @@ fn push_disk(
     sh: SphericalHarmonicCoefficients,
     r_plane: f32,
     r_thin: f32,
+    alpha: f32,
 ) {
     let (t, b) = tangent_basis(n_axis);
     out.push(Gaussian3d {
         position_visibility: [pos[0], pos[1], pos[2], 1.0].into(),
         spherical_harmonic: sh,
         rotation: quat_from_basis(t, b, n_axis).into(),
-        scale_opacity: [r_plane, r_plane, r_thin, 1.0].into(),
+        scale_opacity: [r_plane, r_plane, r_thin, alpha].into(),
     });
 }
 
@@ -119,6 +120,7 @@ fn sample_surface_disks<F>(
     target_count: usize,
     splat: f32,
     thin: f32,
+    alpha: f32,
     flip_y: bool,
     mut color: F,
 ) -> Vec<Gaussian3d>
@@ -176,7 +178,7 @@ where
                 Some(nn) => norm_or(yd(lerp3(nn)), face_n),
                 None => face_n,
             };
-            push_disk(&mut out, yd(p), n_axis, sh, r_plane, r_thin);
+            push_disk(&mut out, yd(p), n_axis, sh, r_plane, r_thin, alpha);
         }
     }
     out
@@ -215,6 +217,7 @@ pub fn build_gaussians_from_tris(
     target_count: usize,
     splat: f32,
     thin: f32,
+    alpha: f32,
 ) -> Vec<Gaussian3d> {
     sample_surface_disks(
         tris,
@@ -222,6 +225,7 @@ pub fn build_gaussians_from_tris(
         target_count,
         splat,
         thin,
+        alpha,
         false,
         |ti, _, _, _| sh_of(tri_rgb[ti]),
     )
@@ -276,6 +280,7 @@ fn build_gltf_gaussians(
     target_count: usize,
     splat: f32,
     thin: f32,
+    alpha: f32,
     rgb: [f32; 3],
 ) -> Vec<Gaussian3d> {
     let (doc, buffers, _) = match gltf::import(path) {
@@ -374,6 +379,7 @@ fn build_gltf_gaussians(
         target_count,
         splat,
         thin,
+        alpha,
         true,
         |ti, bw, bu, bv| match tri_cols[ti] {
             Some(c) => sh_of([
@@ -391,6 +397,7 @@ pub fn build_mesh_gaussians(
     target_count: usize,
     splat: f32,
     thin: f32,
+    alpha: f32,
     rgb: [f32; 3],
 ) -> Vec<Gaussian3d> {
     // mesh-loader handles .obj/.stl/.dae/.ply but NOT glTF — route .glb/.gltf to a dedicated path.
@@ -400,7 +407,7 @@ pub fn build_mesh_gaussians(
         .unwrap_or("")
         .to_ascii_lowercase();
     if ext == "glb" || ext == "gltf" {
-        return build_gltf_gaussians(path, target_count, splat, thin, rgb);
+        return build_gltf_gaussians(path, target_count, splat, thin, alpha, rgb);
     }
     let scene = match mesh_loader::Loader::default().load(path) {
         Ok(s) => s,
@@ -480,6 +487,7 @@ pub fn build_mesh_gaussians(
         target_count,
         splat,
         thin,
+        alpha,
         true,
         |ti, bw, bu, bv| {
             let mi = tri_mesh[ti];
@@ -516,7 +524,7 @@ mod tests {
             eprintln!("skip dae_surface_samples: {} not present", p.display());
             return;
         }
-        let g = build_mesh_gaussians(&p, 10_000, 1.2, 0.2, [0.8, 0.85, 0.95]);
+        let g = build_mesh_gaussians(&p, 10_000, 1.2, 0.2, 1.0, [0.8, 0.85, 0.95]);
         assert!(!g.is_empty(), "defeest.dae produced no gaussians");
         let finite = g.iter().all(|gg| {
             gg.position_visibility
@@ -554,7 +562,7 @@ mod tests {
             return;
         }
         let fallback = [0.8_f32, 0.85, 0.95];
-        let g = build_mesh_gaussians(&p, 60_000, 1.2, 0.2, fallback);
+        let g = build_mesh_gaussians(&p, 60_000, 1.2, 0.2, 1.0, fallback);
         let grey = sh_of(fallback);
         let n_grey = g
             .iter()

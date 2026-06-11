@@ -27,9 +27,10 @@ pub(crate) struct SeqModel {
     shape: Handle<PlanarGaussian3d>, // this part's shape asset, filled from the sampled mesh
     morph_n: usize, // gaussian budget the shape resamples to
     sample_count: usize, // disks to scatter over the mesh before resampling
-    splat: f32,     // disk size (fraction of the mesh's largest dim)
-    thin: f32,      // disk thickness fraction
-    sampled: bool,  // done once the mesh has loaded + been sampled
+    splat: f32, // disk size (overlap factor on mean inter-sample spacing; ~1 = disks just touch)
+    thin: f32,  // disk thickness fraction
+    alpha: f32, // per-splat opacity (1 = solid; <1 softens silhouette edges)
+    sampled: bool, // done once the mesh has loaded + been sampled
 }
 
 /// Spawn a `glb:` dissolve overlay: the rendered glTF mesh (hidden + identity until sampled, so
@@ -66,8 +67,9 @@ pub(crate) fn spawn_gl_dissolve(
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(morph_n),
-            splat: env_f("MARTIN_MESH_SPLAT", 0.006),
-            thin: env_f("MARTIN_MESH_THIN", 0.2),
+            splat: env_f("MARTIN_MESH_SPLAT", 1.2),
+            thin: env_f("MARTIN_MESH_THIN", 0.3),
+            alpha: env_f("MARTIN_MESH_OPACITY", 0.6),
             sampled: false,
         },
     ));
@@ -170,6 +172,7 @@ pub(crate) fn sample_gl_mesh(
             model.sample_count,
             model.splat,
             model.thin,
+            model.alpha,
         );
         // normalize like every morph part — capture (centroid, scale) to place the mesh identically.
         let (c, k) = crate::morph::normalize_to(&mut raw, NORMALIZE_EXTENT);

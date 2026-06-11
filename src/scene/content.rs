@@ -185,11 +185,19 @@ pub(crate) fn part_gaussians(
                 })
                 .unwrap_or([0.80, 0.85, 0.95]);
             // MARTIN_MESH_THIN: disk thickness as a fraction of the in-plane radius (flatness).
+            // Default 0.3 — slightly rounded, so disks read less razor-flat at grazing angles.
             let thin = std::env::var("MARTIN_MESH_THIN")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(0.2);
-            mesh::build_mesh_gaussians(&root.join(name), count, splat, thin, rgb)
+                .unwrap_or(0.3);
+            // MARTIN_MESH_OPACITY: per-splat alpha. 1.0 = solid; <1 lets disks blend front-to-back, so
+            // the surface stays opaque where many overlap (interior) but softens where few do (the
+            // silhouette) — which melts the flat-disk "hairs" at grazing edges. Default 0.6.
+            let alpha = std::env::var("MARTIN_MESH_OPACITY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.6);
+            mesh::build_mesh_gaussians(&root.join(name), count, splat, thin, alpha, rgb)
         }
         // A real glTF mesh isn't sampled to gaussians — build_composition spawns it as PBR geometry.
         PartContent::Model(_) => Vec::new(),
