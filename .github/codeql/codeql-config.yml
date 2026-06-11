@@ -1,0 +1,16 @@
+# CodeQL configuration for martin (the demo engine), used by .github/workflows/codeql.yml.
+name: "martin CodeQL config"
+
+# The broad suite: security + quality/maintainability queries (more thorough than the default
+# code-scanning suite) — worth it for an engine that gets reused across demos.
+queries:
+  - uses: security-and-quality
+
+query-filters:
+  # morph.rs `hash01(k, seed)` is a deterministic per-particle PRNG for procedural gaussian scatter
+  # (`k.wrapping_mul(seed) >> 8`) — NOT cryptography; this codebase does no crypto at all. CodeQL's
+  # hard-coded-cryptographic-value heuristic mis-reads the large mixing constants as crypto salts.
+  # Exclude the rule so it stops producing critical false positives as the engine grows. (Remove this
+  # filter if real cryptography is ever added.)
+  - exclude:
+      id: rust/hard-coded-cryptographic-value
