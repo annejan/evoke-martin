@@ -10,32 +10,47 @@
 
 # --- settings (each → MARTIN_<KEY>) ---
 morph_count = 160000
+# sets the .ply root to assets/ so `splat:` filenames resolve (badge.team Ægg, the dog, the Martins).
+ply = assets/aegg-baked.ply
 
 # --- the show: text parts @@anchored to the score's sections so the WORDS MATCH THE EMOTION. The
 #     narrative: op de camping MET deFEEST = the ultimate joy; ZONDER deFEEST = kut. So the euphoric
 #     major chorus/climax carry "MET deFEEST", and the TRAGIC minor breakdown carries "ZONDER... kut".
 [seq]
-image:defeest-logo.png      @@intro      @12,3  ~sparkle              # deFEEST logo opens the show
-text:OP DE CAMPING          @@build      @28,3  ~typewriter  ^wave    # the dream builds over the couplet
-text:MET deFEEST            @@drop       @56,4  ~explode     ^wave    # JOY on the chorus: op de camping MET deFEEST
-text:ZONDER deFEEST         @@breakdown  @15,3  ~swirl               # the tragic turn (minor breakdown)...
-text:IS HET KUT             @15,3               ~fade         ^wave   # ...is kut
-text:OP DE CAMPING          @@climax     @28,4  ~outline     ^wave    # the triumphant euphoric reprise...
-text:MET deFEEST            @28,4               ~explode     ^wave    # ...MET deFEEST — the ultimate joy
-text:HET ULTIEME GENOT      @@outro      @12,4  ~pen-write   ^wave    # the payoff lands on the outro
-wall:ANUS|KLOOT|CINDER       @10,4               ~fade                 # the crew, as the blast hits
+image:defeest-logo.png     @@intro      @11,3   ~sparkle                # deFEEST logo opens the show
+splat:aegg-baked.ply       @@build      @14,3   ~swarm      ^wave       # the badge.team Ægg swarms in
+text:OP DE CAMPING          @15,3,1.2           ~typewriter ^wave       # the dream, over the couplet
+splat:doggo.ply            @@drop       @20,4   ~ball       ^wave       # the DOG — pure joy on the chorus
+text:MET deFEEST            @18,4               ~explode    ^wave       # op de camping MET deFEEST
+splat:martin.ply            @18,3              ~swirl       ^twist      # a Martin grooves through the drop
+text:ZONDER deFEEST        @@breakdown  @14,3   ~swirl                  # the tragic turn (minor breakdown)...
+text:IS HET KUT             @14,3              ~fade        ^wave       # ...is kut
+splat:martin-peace.ply     @@climax     @17,4   ~swarm      ^wave       # Martin ✌ — the euphoric reprise
+text:MET deFEEST            @18,4              ~explode     ^wave       # the ultimate joy
+splat:doggo.ply             @18,4             ~ball         ^wave       # the dog returns, jubilant
+text:HET ULTIEME GENOT     @@outro      @12,4   ~pen-write  ^wave       # the payoff lands on the outro
+splat:aegg-baked.ply        @12,3             ~swarm        ^wave       # the Ægg, one last time
+wall:ANUS|KLOOT|CINDER      @11,4              ~fade                     # the crew, as the blast hits
 
-# --- the camera: a directed track (t = show-time seconds), tuned to the ~222s score timeline:
-#     intro 0 · build/couplet 14 · drop/chorus 44 · breakdown 103 · climax 133 · outro 192 · end 222.
-#     Slow drift around the origin with push-ins on the two OP DE CAMPING hooks and the final blast. ---
+# --- the camera: a directed track (t = show-time seconds), tuned to the ~228s score timeline:
+#     intro 0 · build 14 · drop 43 · breakdown 99 · climax 129 · outro 185 · end 228.
+#     The camera NOW MOVES in 3D — arcs, flybys, push-ins, a blast-back — so the viewer rides
+#     a spatial journey, not a static swivel. Each hook gets a kinetic accent. ---
 [camera]
-t=0.0    pos=0,0,0   dist=2.7   yaw=1.40   pitch=0.12   # logo, head-on
-t=14.0   pos=0,0,0   dist=2.6   yaw=1.22   pitch=0.16   # OP VAKANTIE — drift left
-t=44.0   pos=0,0,0   dist=2.2   yaw=1.46   pitch=0.18   # push in HARD on the first OP DE CAMPING
-t=72.0   pos=0,0,0   dist=2.5   yaw=1.58   pitch=0.12   # orbit through the chorus
-t=103.0  pos=0,0,0   dist=2.8   yaw=1.26   pitch=0.14   # pull back for the breakdown couplet
-t=133.0  pos=0,0,0   dist=2.1   yaw=1.50   pitch=0.20   # climax — in tight + up, epic
-t=170.0  pos=0,0,0   dist=2.4   yaw=1.30   pitch=0.14   # ride the high reprise
-t=192.0  pos=0,0,0   dist=2.7   yaw=1.45   pitch=0.12   # outro — credits settle centre
-t=210.0  pos=0,0,0   dist=2.3   yaw=1.55   pitch=0.16   # lean in for the explosive blast
-t=222.0  pos=0,0,0   dist=3.2   yaw=1.42   pitch=0.10   # blown back out on the final hit
+t=0.0     pos=-0.8,-0.3,0  dist=2.9   yaw=1.50   pitch=0.10   # logo enters from the left
+t=11.0    pos=0,0,0         dist=2.6   yaw=1.35   pitch=0.14   # settle centre as intro peaks
+t=14.0    pos=0,0,0         dist=2.5   yaw=1.20   pitch=0.16   # OP VAKANTIE — drift left
+t=28.0    pos=0.6,-0.2,0.3  dist=2.4   yaw=1.10   pitch=0.18   # arc right through the build
+t=42.0    pos=0,0,0         dist=2.2   yaw=1.50   pitch=0.20   # snap back centre, tense before drop
+t=43.0    pos=0,0,0         dist=1.8   yaw=1.50   pitch=0.22   # PUSH IN HARD on the drop
+t=60.0    pos=-0.4,0.2,0.2  dist=2.0   yaw=1.62   pitch=0.16   # drift left, ride the chorus
+t=80.0    pos=0.5,0,0       dist=2.3   yaw=1.42   pitch=0.14   # arc back right through the drop
+t=99.0    pos=0.8,0.3,0.4   dist=2.8   yaw=1.20   pitch=0.12   # pull back + drift right for breakdown
+t=114.0   pos=0.2,-0.2,0    dist=3.0   yaw=1.30   pitch=0.10   # sag — the "kut" moment
+t=128.0   pos=0,0,0         dist=2.5   yaw=1.45   pitch=0.16   # recentre for the climax
+t=129.0   pos=0,0,0         dist=1.8   yaw=1.55   pitch=0.24   # CLIMAX — in tight, looking up
+t=150.0   pos=-0.6,-0.1,0   dist=2.0   yaw=1.70   pitch=0.20   # intense left orbit
+t=170.0   pos=0.5,0.2,0     dist=2.2   yaw=1.35   pitch=0.18   # swing right, ride the high
+t=185.0   pos=0,0,0         dist=2.5   yaw=1.50   pitch=0.14   # outro — credits centre
+t=210.0   pos=0,0,0         dist=2.0   yaw=1.58   pitch=0.18   # lean in for the blast
+t=225.0   pos=0,0,-1.2      dist=3.5   yaw=1.40   pitch=0.08   # BLOWN BACK — the final hit kicks you out
