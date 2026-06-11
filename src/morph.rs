@@ -37,7 +37,7 @@ pub fn cluster_of(shape: &[Gaussian3d], copies: usize) -> Vec<Gaussian3d> {
             hash01(k, 3_266_489_917) * TAU,
         );
         // uniform-ish in a flattened disc (a plate: wide, a little stacking in Y), random rotation.
-        // (Distinct LARGE salts — small salts like 0x1111_1111·k are a near-linear, low-entropy ramp.)
+        // (Distinct LARGE seeds — small seeds like 0x1111_1111·k are a near-linear, low-entropy ramp.)
         let ang = hash01(k, 668_265_263) * TAU;
         let rad = hash01(k, 374_761_393).sqrt() * DISC;
         let off = Vec3::new(
@@ -141,10 +141,10 @@ pub fn ball_of(shape: &[Gaussian3d], shell_r: f32) -> Vec<Gaussian3d> {
         .collect()
 }
 
-/// Per-particle deterministic pseudo-random in [0,1) from an index + salt — so transitions are
+/// Per-particle deterministic pseudo-random in [0,1) from an index + seed — so transitions are
 /// stable across runs (and identical frame-for-frame when recording).
-fn hash01(k: u32, salt: u32) -> f32 {
-    ((k.wrapping_mul(salt) >> 8) & 0xffff) as f32 / 65535.0
+fn hash01(k: u32, seed: u32) -> f32 {
+    ((k.wrapping_mul(seed) >> 8) & 0xffff) as f32 / 65535.0
 }
 
 /// FADE source: the shape itself, opacity 0 — it simply fades up in place (no motion).
