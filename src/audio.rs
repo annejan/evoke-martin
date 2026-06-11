@@ -100,7 +100,8 @@ fn lead(freq: f32) -> Box<dyn AudioUnit> {
         + saw_hz(freq * 1.014)
         + saw_hz(freq * 0.986))
         * 0.18;
-    let cut = envelope(|t: f32| 700.0 + 4200.0 * (-t * 7.0).exp());
+    // brighter floor (1300, not 700) + a slower sweep so the note stays PRESENT, not muffled/ethereal.
+    let cut = envelope(|t: f32| 1300.0 + 3400.0 * (-t * 4.5).exp());
     Box::new(
         ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.5)))
             * envelope(|t: f32| {
@@ -108,10 +109,10 @@ fn lead(freq: f32) -> Box<dyn AudioUnit> {
                 if t < a {
                     t / a
                 } else {
-                    0.20 + 0.80 * (-(t - a) * 1.3).exp()
+                    0.34 + 0.66 * (-(t - a) * 1.1).exp() // higher sustain floor = it carries the melody
                 }
             })
-            * 0.6,
+            * 0.75,
     )
 }
 
@@ -566,10 +567,12 @@ pub fn synth_track(score: &Score) -> Track {
     }
     render_intro_bassline(&mut bed, score);
 
-    // lead: forward + centre — octave-doubled in the climax for an anthem.
+    // lead: forward + centre — louder so it carries the melody, with an always-on octave-up sheen
+    // (extra in the climax) so it reads as present, not ethereal.
     let climax = section_window(score, "climax");
     for (t, f) in score.lead_notes() {
-        render_into(&mut bed, t, 0.6, 0.22, 0.0, lead(f));
+        render_into(&mut bed, t, 0.6, 0.34, 0.0, lead(f));
+        render_into(&mut bed, t, 0.6, 0.08, 0.0, lead(f * 2.0)); // octave sheen everywhere
         if let Some((s0, s1)) = climax {
             if (s0..s1).contains(&t) {
                 render_into(&mut bed, t, 0.6, 0.10, 0.0, lead(f * 2.0));
@@ -579,7 +582,7 @@ pub fn synth_track(score: &Score) -> Track {
     // arp counter-line: a score note-lane (`<section>.arp` in assets/score.txt), panned alternately.
     for (i, (t, f)) in score.arp_notes().into_iter().enumerate() {
         let pan = if i % 2 == 0 { 0.55 } else { -0.55 };
-        render_into(&mut bed, t, 0.2, 0.11, pan, arp(f));
+        render_into(&mut bed, t, 0.2, 0.15, pan, arp(f));
     }
 
     // articulated bassline: the `<section>.bass` note-lane (the real funky bass), centred — a punchy
@@ -599,7 +602,7 @@ pub fn synth_track(score: &Score) -> Track {
             &mut bed,
             t,
             bar,
-            (0.035 + 0.07 * m) * intro_pad,
+            (0.06 + 0.10 * m) * intro_pad, // fuller pad body so the mix isn't empty between hits
             0.7,
             score.chord_at(t).triad(),
             pad,
@@ -614,13 +617,13 @@ pub fn synth_track(score: &Score) -> Track {
             while (b as f32) * bar < s1 {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
-                let amp = 0.045 + 0.05 * m;
+                let amp = 0.07 + 0.07 * m; // bring the wall up — it's a big part of the fullness
                 // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
                 // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
                 // wall, not a centred pile.
                 for &f in score.chord_at(t).triad().iter() {
-                    render_into(&mut bed, t, bar, amp * 0.55, -0.95, supersaw(f));
-                    render_into(&mut bed, t, bar, amp * 0.55, 0.95, supersaw(f * 1.004));
+                    render_into(&mut bed, t, bar, amp * 0.7, -0.95, supersaw(f));
+                    render_into(&mut bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
                 }
                 b += 1;
             }
@@ -699,7 +702,7 @@ pub fn synth_track(score: &Score) -> Track {
 
     // sidechain pump: a fast dip right on each kick recovering over ~0.11s → the dance "breath".
     let mut duck = vec![1.0f32; total];
-    let (depth, tau) = (0.70f32, 0.09f32);
+    let (depth, tau) = (0.58f32, 0.09f32);
     for &kt in &kicks {
         let k0 = (kt * sr) as usize;
         for j in 0..(0.34 * sr) as usize {
@@ -738,7 +741,7 @@ pub fn synth_track(score: &Score) -> Track {
         let mut lo = [0.0f32; 2];
         let mut hi = [0.0f32; 2];
         for c in 0..2 {
-            let x = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.16;
+            let x = kickbuf[2 * i + c] + bed[2 * i + c] * duck[i] + wet[2 * i + c] * 0.2;
             lp[c] += split_k * (x - lp[c]);
             lo[c] = lp[c];
             hi[c] = x - lp[c];
