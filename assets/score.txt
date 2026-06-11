@@ -49,13 +49,15 @@ outro.chords: D G G A D A D G D G G A D A D G
 
 # patterns: <section>.<kick|snare|hat|stab> p<N>|fill: 16 steps. DnB two-step = kick 1 + "and of 3"
 # (step 11), snare on 2 & 4 (steps 5 & 13); funk from ghost kicks/snares; rolls in the fills.
-# EPIC: fills are more dramatic — build fill has a snare roll, climax fill is max intensity, climax
-# p2+p3 drive at full 16th-note intensity straight into the outro (no mid-finale sag).
+# EPIC: climax p2+p3 drive at full 16th-note intensity straight into the outro (no mid-finale sag).
+# Fills now have DISTINCT character (so no single fill is "just another max roll" — the climax is THE
+# peak): build = accelerando into the drop, drop = a groovy syncopated build, climax = MAX (the only
+# full 16th roll), outro = a swell from near-silence into the blast.
 build.kick p0: x... .... .... ....
 build.kick p1: x... .... ..x. ....
 build.kick fill: x.xx x.x. xxxx x.xx
 build.snare p1: .... x... .... x...
-build.snare fill: xxxx xxxx xxxx xxxx
+build.snare fill: ..x. ..x. x.x. xxxx
 build.hat p0: x..x x..x x..x x..x
 build.hat p1: x.xx x.x. xx.x x.xx
 build.hat fill: xxxx xxxx xxxx xxxx
@@ -70,7 +72,7 @@ drop.snare p0: .... x... .... x...
 drop.snare p1: .... x..x ..x. x..x
 drop.snare p2: .... x..x x..x x..x
 drop.snare p3: x..x x..x x..x .xxx
-drop.snare fill: xxxx xxxx xxxx xxxx
+drop.snare fill: x..x x..x x.xx xxxx
 drop.hat p0: x.xx x.x. xx.x x.xx
 drop.hat p1: xxxx x.xx xx.x xxxx
 drop.hat p2: xxxx xxxx xxxx xxxx
@@ -84,7 +86,10 @@ drop.stab fill: ..x. x..x ..x. x..x
 breakdown.kick p0: x... .... .... ....
 breakdown.kick p1: x... .... ..x. ....
 breakdown.kick fill: x... .... .... ....
-# breakdown = the tragic "ZONDER deFEEST IS HET KUT" — no backbeat snare, just sub + pad breathing.
+# breakdown = the tragic "ZONDER deFEEST IS HET KUT". p0 breathes (just sub + pad, no snare); p1
+# rebuilds in HALFTIME — the snare lands on beat 3 (not the DnB 2&4 the drop uses), a heavy, spacious
+# feel that gives the section its own texture instead of just a quieter version of the drop.
+breakdown.snare p1: .... .... x... ....
 breakdown.snare fill: .... .... x... ..xx
 breakdown.hat p1: x... ..x. x... ..x.
 breakdown.hat fill: x.x. x.x. xxxx ....
@@ -116,7 +121,7 @@ outro.kick fill: x.x. xxxx xxxx xxxx
 outro.snare p0: .... x... .... x...
 outro.snare p1: .... x..x ..x. x..x
 outro.snare p2: x.xx x.xx x.xx x.xx
-outro.snare fill: xxxx xxxx xxxx xxxx
+outro.snare fill: .... ..xx .xxx xxxx
 outro.hat p0: x.xx x.x. xx.x x.xx
 outro.hat p1: xxxx x.xx xxxx x.xx
 outro.hat p2: xxxx xxxx xxxx xxxx
