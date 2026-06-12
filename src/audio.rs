@@ -5,6 +5,7 @@
 //! and a forward detuned lead. The whole track renders offline; martin plays it live (bevy_audio)
 //! and/or writes a WAV that ffmpeg muxes onto recorded frames. (Placeholder — real track: Cinder.)
 
+use std::cell::Cell;
 use std::sync::Arc;
 
 use fundsp::prelude32::*;
@@ -12,6 +13,17 @@ use fundsp::prelude32::*;
 use crate::score::{Inst, Score};
 
 pub const SAMPLE_RATE: u32 = 44_100;
+
+thread_local! {
+    /// `set oversample=1` → the distortion-heavy voices (saw/tanh stacks: lead, bass, supersaw, donk,
+    /// house) run their oscillator+filter+shaper at 2× and downsample back, taming the aliasing those
+    /// hard nonlinearities fold down at 44.1 kHz (audible as fizz in quiet/exposed parts). Off by
+    /// default so the render is unchanged; set once per `synth_track` from the score.
+    static OVERSAMPLE: Cell<bool> = const { Cell::new(false) };
+}
+fn oversampling() -> bool {
+    OVERSAMPLE.with(|c| c.get())
+}
 
 #[derive(Clone)]
 pub struct Track {
@@ -79,13 +91,13 @@ fn pad(freq: f32) -> Box<dyn AudioUnit> {
 /// resonant low-pass that drops from ~1.4 kHz to ~900 Hz, with per-VOICE tanh drive so the grit
 /// lives on the bass itself, not smeared across the whole bus.
 fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
-    let saws = sine_hz(freq)
-        + saw_hz(freq) * 0.6
-        + saw_hz(freq * 1.008) * 0.5
-        + saw_hz(freq * 0.992) * 0.5;
-    let cut = envelope(|t: f32| 900.0 + 500.0 * (-t * 3.0).exp());
-    let drive = 1.8 + 0.8 * vel; // harder notes growl harder
-    Box::new(
+    let mk = move || {
+        let saws = sine_hz(freq)
+            + saw_hz(freq) * 0.6
+            + saw_hz(freq * 1.008) * 0.5
+            + saw_hz(freq * 0.992) * 0.5;
+        let cut = envelope(|t: f32| 900.0 + 500.0 * (-t * 3.0).exp());
+        let drive = 1.8 + 0.8 * vel; // harder notes growl harder
         ((saws | cut) >> lowpass_q(1.4) >> shape_fn(move |x| (x * drive).tanh()))
             * envelope(|t: f32| {
                 let a = 0.005;
@@ -95,8 +107,13 @@ fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
                     (-(t - a) * 4.0).exp()
                 }
             })
-            * 0.46,
-    )
+            * 0.46
+    };
+    if oversampling() {
+        Box::new(oversample(mk()))
+    } else {
+        Box::new(mk())
+    }
 }
 
 /// Wooz-bass: thick + dark in the low-mids, a slow GROWL that develops AFTER the hit, and a
@@ -144,25 +161,25 @@ fn woozbass(freq: f32) -> Box<dyn AudioUnit> {
 /// read as an organ pipe).
 fn lead(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
     use std::f32::consts::TAU;
-    // a gentle vibrato that SWELLS IN over the note — the lead leans into the note like a singer
-    // instead of sitting as one static, ethereal tone. Each saw gets its own phase (lush, decorrelated).
-    let vib = move |mult: f32, ph: f32| {
-        lfo(move |t: f32| {
-            let depth = 0.005 * (t * 1.4).min(1.0);
-            freq * mult * (1.0 + depth * (t * 5.0 * TAU + ph).sin())
-        })
-    };
-    let saws = ((vib(1.0, 0.0) >> saw())
-        + (vib(1.007, 1.0) >> saw())
-        + (vib(0.993, 2.0) >> saw())
-        + (vib(1.014, 3.0) >> saw())
-        + (vib(0.986, 4.0) >> saw()))
-        * 0.18;
-    // a higher floor + a slower sweep so the note stays PRESENT and bright (it SINGS) instead of
-    // closing down to a thin/ethereal whisper; the sweep PEAK still tracks velocity.
-    let top = 2400.0 + 2600.0 * vel;
-    let cut = envelope(move |t: f32| 1550.0 + top * (-t * 3.4).exp());
-    Box::new(
+    let mk = move || {
+        // a gentle vibrato that SWELLS IN over the note — the lead leans into the note like a singer
+        // instead of one static, ethereal tone. Each saw gets its own phase (lush, decorrelated).
+        let vib = move |mult: f32, ph: f32| {
+            lfo(move |t: f32| {
+                let depth = 0.005 * (t * 1.4).min(1.0);
+                freq * mult * (1.0 + depth * (t * 5.0 * TAU + ph).sin())
+            })
+        };
+        let saws = ((vib(1.0, 0.0) >> saw())
+            + (vib(1.007, 1.0) >> saw())
+            + (vib(0.993, 2.0) >> saw())
+            + (vib(1.014, 3.0) >> saw())
+            + (vib(0.986, 4.0) >> saw()))
+            * 0.18;
+        // a higher floor + a slower sweep so the note stays PRESENT and bright (it SINGS) instead of
+        // closing down to a thin/ethereal whisper; the sweep PEAK still tracks velocity.
+        let top = 2400.0 + 2600.0 * vel;
+        let cut = envelope(move |t: f32| 1550.0 + top * (-t * 3.4).exp());
         ((saws | cut) >> lowpass_q(0.8) >> shape(Softsign(0.4 + 0.4 * vel)))
             * envelope(|t: f32| {
                 let a = 0.02;
@@ -172,8 +189,13 @@ fn lead(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
                     0.55 + 0.45 * (-(t - a) * 0.85).exp() // high sustain floor → the note holds + SINGS
                 }
             })
-            * 0.8,
-    )
+            * 0.8
+    };
+    if oversampling() {
+        Box::new(oversample(mk()))
+    } else {
+        Box::new(mk())
+    }
 }
 
 /// Arp: short filtered pluck. Lower and quieter than the old bright square arp so it reads as
@@ -199,21 +221,26 @@ fn arp(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
 /// Supersaw: 7 detuned saws + a sub-octave saw through a bright-ish filter, slow swell — the wide
 /// "epic" chord wall for the drop/climax. Held a full bar per chord note (panned wide by chord_spread).
 fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
-    let saws = (saw_hz(freq)
-        + saw_hz(freq * 1.006)
-        + saw_hz(freq * 0.994)
-        + saw_hz(freq * 1.013)
-        + saw_hz(freq * 0.987)
-        + saw_hz(freq * 1.020)
-        + saw_hz(freq * 0.980))
-        * 0.13;
-    let cut = envelope(|t: f32| 1300.0 + 3200.0 * (t * 1.0).min(1.0)); // filter swells open
-    Box::new(
-        // HP off the sub, then DRIVE it (rawstyle screech grit) — a hard wall, not a polite pad.
+    let mk = move || {
+        let saws = (saw_hz(freq)
+            + saw_hz(freq * 1.006)
+            + saw_hz(freq * 0.994)
+            + saw_hz(freq * 1.013)
+            + saw_hz(freq * 0.987)
+            + saw_hz(freq * 1.020)
+            + saw_hz(freq * 0.980))
+            * 0.13;
+        let cut = envelope(|t: f32| 1300.0 + 3200.0 * (t * 1.0).min(1.0)); // filter swells open
+                                                                           // HP off the sub, then DRIVE it (rawstyle screech grit) — a hard wall, not a polite pad.
         ((saws | cut) >> lowpass_q(0.7) >> highpass_hz(180.0, 0.7) >> shape(Tanh(1.8)))
             * envelope(|t: f32| (t * 3.0).min(1.0))
-            * 0.42,
-    )
+            * 0.42
+    };
+    if oversampling() {
+        Box::new(oversample(mk()))
+    } else {
+        Box::new(mk())
+    }
 }
 
 /// Choir / ensemble pad: a wide bank of detuned saws + a sub-octave sine body through a soft filter
@@ -234,10 +261,11 @@ fn choir(freq: f32) -> Box<dyn AudioUnit> {
 /// house / party music. Snappy filter pluck + an octave partial + a touch of drive so it cuts and
 /// bounces on the up-beats.
 fn donk(freq: f32) -> Box<dyn AudioUnit> {
-    let saws =
-        (saw_hz(freq) + saw_hz(freq * 1.01) + saw_hz(freq * 0.99) + saw_hz(freq * 2.0) * 0.4) * 0.2;
-    let cut = envelope(|t: f32| 900.0 + 3600.0 * (-t * 16.0).exp());
-    Box::new(
+    let mk = move || {
+        let saws =
+            (saw_hz(freq) + saw_hz(freq * 1.01) + saw_hz(freq * 0.99) + saw_hz(freq * 2.0) * 0.4)
+                * 0.2;
+        let cut = envelope(|t: f32| 900.0 + 3600.0 * (-t * 16.0).exp());
         ((saws | cut) >> lowpass_q(1.0) >> shape(Tanh(1.4)))
             * envelope(|t: f32| {
                 let a = 0.003;
@@ -247,8 +275,13 @@ fn donk(freq: f32) -> Box<dyn AudioUnit> {
                     (-(t - a) * 12.0).exp()
                 }
             })
-            * 0.4,
-    )
+            * 0.4
+    };
+    if oversampling() {
+        Box::new(oversample(mk()))
+    } else {
+        Box::new(mk())
+    }
 }
 
 /// House organ stab: the classic early-90s "M1 organ" rave/house chord stab — Haddaway "What Is Love",
@@ -257,15 +290,15 @@ fn donk(freq: f32) -> Box<dyn AudioUnit> {
 /// sustain through a bright resonant filter. Hollow + euphoric, but the drive + minor chords keep the
 /// dark edge. Rendered per triad note so the chord can be panned wide.
 fn houseorg(freq: f32) -> Box<dyn AudioUnit> {
-    let organ = (sine_hz(freq)              // 16' fundamental
-        + sine_hz(freq * 2.0) * 0.7         // 8'  octave
-        + sine_hz(freq * 3.0) * 0.5         // 5⅓' fifth — the nasal organ honk
-        + sine_hz(freq * 4.0) * 0.32        // 4'  two octaves up
-        + saw_hz(freq * 1.005) * 0.28       // detuned saw pair = the "zaag" bite + width
-        + saw_hz(freq * 0.995) * 0.28)
-        * 0.17;
-    let cut = envelope(|t: f32| 1200.0 + 3600.0 * (-t * 8.5).exp()); // bright pluck that settles fast
-    Box::new(
+    let mk = move || {
+        let organ = (sine_hz(freq)              // 16' fundamental
+            + sine_hz(freq * 2.0) * 0.7         // 8'  octave
+            + sine_hz(freq * 3.0) * 0.5         // 5⅓' fifth — the nasal organ honk
+            + sine_hz(freq * 4.0) * 0.32        // 4'  two octaves up
+            + saw_hz(freq * 1.005) * 0.28       // detuned saw pair = the "zaag" bite + width
+            + saw_hz(freq * 0.995) * 0.28)
+            * 0.17;
+        let cut = envelope(|t: f32| 1200.0 + 3600.0 * (-t * 8.5).exp()); // bright pluck, settles fast
         ((organ | cut) >> lowpass_q(1.1) >> shape(Tanh(1.3)))
             * envelope(|t: f32| {
                 let a = 0.004;
@@ -275,8 +308,13 @@ fn houseorg(freq: f32) -> Box<dyn AudioUnit> {
                     0.22 + 0.78 * (-(t - a) * 7.0).exp() // percussive attack → a short organ sustain
                 }
             })
-            * 0.44,
-    )
+            * 0.44
+    };
+    if oversampling() {
+        Box::new(oversample(mk()))
+    } else {
+        Box::new(mk())
+    }
 }
 
 /// CASIO / electric-piano: a tine-ish voice (sine carrier + a bell "ting" harmonic + a hair of saw
@@ -783,6 +821,7 @@ fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
 /// but the kick), an arp counter-line in the energetic sections, sidechain pump under the kick, a
 /// spread reverb send, the continuous sub, per-section fades × gain, soft clip.
 pub fn synth_track(score: &Score) -> Track {
+    OVERSAMPLE.with(|c| c.set(score.param("oversample", 0.0) > 0.5)); // `set oversample=1` — anti-alias
     let sr = SAMPLE_RATE as f32;
     let total = (score.demo_len() * sr).ceil() as usize;
     let stereo = total * 2;

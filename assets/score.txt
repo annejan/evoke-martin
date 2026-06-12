@@ -23,6 +23,8 @@ chords G Am G D  G Am G D  Em C G D  Em C D D
 #     automation (space in intro/breakdown/outro, dry/punchy in the drop; 0 = flat send)
 #   hats = hi-hat level   snares = snare level (the rhythm section — push them up to sit forward)
 #   atmosphere = dusty noise-floor / vinyl-crackle bed level (0 = off, for a clean/chiptune feel)
+#   oversample = 1 runs the distorted voices (lead/bass/supersaw/donk/house) at 2x to anti-alias the
+#     hard nonlinearities (cleaner highs, slower render); 0 (default) = the original, faster path
 # A knob can be OVERRIDDEN per section with `<section>.set key=value …` — the synth honours it inside
 # that section only (for the per-onset knobs: lead/supersaw/choir/donk/house). E.g. `drop.set house=0.18`
 # for a louder organ in the drop without touching the climax. (Master-bus knobs stay global; reverb
