@@ -48,6 +48,20 @@ VIEWER=1 ./pipeline/splat.sh ./photos/    # watch training live in Brush's windo
 the full recipe (and the single-image **[TRELLIS](https://huggingface.co/spaces/trellis-community/TRELLIS)**
 shortcut). View / clean / compress any `.ply` at <https://superspl.at/editor>.
 
+### Ready-made demo splats
+
+Two reference clouds from Mitchell Mosure (the upstream author) — fetched on demand (they're >100 MB
+so they're gitignored, not committed):
+
+```bash
+./pipeline/fetch-demo-assets.sh    # → assets/go_trimmed.ply + assets/trellis.glb
+MARTIN_PLY=assets/go_trimmed.ply cargo r-sh3                     # multi-view photogrammetry (SH3 glints)
+MARTIN_GLB=assets/trellis.glb MARTIN_GLB_DIST=2.6 cargo r-sh0    # a KHR_gaussian_splatting glTF scene
+```
+
+The go-board is a real multi-view capture (its `sh3` glint is visible — `cargo r-sh3`); the trellis is a
+single-image TRELLIS export (flat SH, so `sh0` loses nothing). See [build profiles](#build-profiles).
+
 ## Running the demo
 
 With nothing set, `cargo +nightly run --release` plays the **flagship demo** — the unified scene

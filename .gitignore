@@ -83,5 +83,9 @@ mesh-ab/
 # scratch greetings crawl — not used in current demos, intentionally untracked
 greetings.seq
 
-# Large external splat assets pulled in for experiments (go_trimmed.ply etc.) — never commit
+# Large external splat demo assets (Mosure's go-board + trellis). They exceed GitHub's 100 MB file
+# limit, so they live in assets/ locally but are NOT committed — fetch them with
+# `pipeline/fetch-demo-assets.sh`. /scratch/ is a throwaway dir for experiment artifacts.
+/assets/go_trimmed.ply
+/assets/trellis.glb
 /scratch/

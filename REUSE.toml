@@ -104,6 +104,7 @@ path = [
     "pipeline/gen-demo-splats.py",
     "pipeline/bundle.sh",
     "pipeline/release.sh",
+    "pipeline/fetch-demo-assets.sh",
     ".gitignore",
     ".gitattributes",
     ".cargo/config.toml",
