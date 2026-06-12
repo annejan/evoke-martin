@@ -1,4 +1,6 @@
-# martin score — tracker DSL. Edit + load with MARTIN_SCORE=<this file>.
+# martin score — tracker DSL. Edit + load with MARTIN_SCORE=<this file>. The loader LINTS the score
+# (phase/bar mismatch, a pattern on a missing phase, an ignored melodic p1+) and logs warnings;
+# set MARTIN_SCORE_STRICT=1 to make those warnings fatal (used in CI so a typo can't ship).
 #
 # THE TRACK: "Op de Camping" — a funky drum-&-bass / hardcore-leaning anthem. The melody is the real
 # "Op de Camping" tune (Ome Henk, 1995), transcribed 1:1 from MIDI. Lead = the lead horn, arp = the

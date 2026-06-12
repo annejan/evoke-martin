@@ -488,6 +488,21 @@ impl Score {
                     s.sections.len(),
                     s.demo_len()
                 );
+                // structural lint: surface the DSL's silent traps (phase/bar mismatch, a pattern on a
+                // phase the section lacks, an ignored melodic p1+). Warnings don't fail the load — the
+                // show still plays — UNLESS `MARTIN_SCORE_STRICT` is set (authoring / CI), then they're
+                // fatal so a broken score can't slip through.
+                let warnings = validate(&s.sections);
+                for w in &warnings {
+                    eprintln!("score: warning: {w}");
+                }
+                if !warnings.is_empty() && strict_scores() {
+                    eprintln!(
+                        "score: {} warning(s) with MARTIN_SCORE_STRICT — aborting",
+                        warnings.len()
+                    );
+                    std::process::exit(1);
+                }
                 s
             }
             Err(e) => {
@@ -683,10 +698,6 @@ impl Score {
         if sections.is_empty() {
             return Err("no sections defined".into());
         }
-        // Structural lint: surface the DSL's silent traps (WARN, don't fail — the show still plays).
-        for warning in validate(&sections) {
-            eprintln!("score: warning: {warning}");
-        }
         let mut score = Score::new(bpm, chords, sections);
         score.params = params;
         Ok(score)
@@ -859,6 +870,14 @@ impl Score {
 }
 
 // ---- validation ----------------------------------------------------------------------------
+
+/// `MARTIN_SCORE_STRICT` set (and not `0`/empty) → treat score warnings as fatal (for authoring + CI,
+/// so a phase/bar typo can't silently ship). Unset → warnings are logged but the show still plays.
+fn strict_scores() -> bool {
+    std::env::var("MARTIN_SCORE_STRICT")
+        .map(|v| !v.is_empty() && v != "0")
+        .unwrap_or(false)
+}
 
 /// Structural lint of the parsed sections — returns human-readable WARNINGS (not errors: a bad score
 /// should never stop the show). It catches the silent traps the DSL otherwise hides:

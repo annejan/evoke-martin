@@ -125,6 +125,7 @@ jobs:
         env:
           MARTIN_SYNTH_WAV: assets/op-de-camping.wav
           MARTIN_SCORE: assets/score.txt
+          MARTIN_SCORE_STRICT: "1" # fail the build on any score lint warning (phase/bar mismatch, …)
         run: cargo run --release   # the MARTIN_SYNTH_WAV path renders the WAV and exits (no window)
 
       - name: Build single binary (the Op de Camping demo, --features bundle)
