@@ -2,8 +2,9 @@
 # future demos. Replaces GitHub's *default* CodeQL setup (which must be turned OFF in
 # Settings → Code security → Code scanning, else the two analyses conflict). Over the default it adds:
 #   • the broader `security-and-quality` query suite (security + maintainability)
-#   • the real build environment for Rust (system headers + nightly + cache) so CodeQL resolves as
-#     many call targets / types as it can (the default setup's bare extraction scored low)
+#   • the real build environment for Rust (system headers + nightly + cache + a `cargo fetch` of the
+#     dep sources) so CodeQL resolves as many call targets / types as it can (the default setup's bare
+#     extraction scored low — it couldn't see the dependency crates)
 #   • a documented false-positive filter (the procedural-PRNG "salt" heuristic — see codeql-config.yml)
 #   • a weekly schedule, so new advisories surface even on idle weeks
 name: codeql
@@ -51,6 +52,14 @@ jobs:
       - name: Cache cargo
         if: matrix.language == 'rust'
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      # Fetch the dependency SOURCES so the Rust extractor can resolve calls/types INTO them (Bevy,
+      # wgpu, fundsp, the vendored splatting crate, …). Without the deps present the no-build extractor
+      # can't see them, and the "calls with a known target" quality metric drops under CodeQL's
+      # threshold (the "problems identifying dependencies" warning). build-mode stays `none`.
+      - name: Fetch Rust dependencies
+        if: matrix.language == 'rust'
+        run: cargo fetch --locked
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
