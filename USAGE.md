@@ -75,9 +75,10 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_PLY` | `assets/aegg.ply` | Primary splat / asset-folder override — its parent folder becomes the asset root. |
 | `MARTIN_PLY2` | — | A second splat, placed beside the first. |
 | `MARTIN_REFORM` | — | Morph target: the source splat(s) turn into this one. |
-| `MARTIN_GLB` | — | Load a **`KHR_gaussian_splatting` glTF** (`.glb`) as a standalone splat scene — the standard splat container (e.g. a TRELLIS single-image→3DGS export). Renders the cloud(s) with the normal bloom pipeline; no morph track. **NB:** this is glTF-as-*splats*, distinct from `glb:`/`model:` which load glTF as a real PBR *mesh*. Asset root = the `.glb`'s folder. |
+| `MARTIN_GLB` | — | Load a **`KHR_gaussian_splatting` glTF** (`.glb`) splat scene — the standard splat container (e.g. a TRELLIS single-image→3DGS export). **Alone**: a standalone scene view. **Combined with a seq/compose show**: the scene is *set dressing* placed alongside the morphing splats (same camera + bloom; put the `.glb` in the show's asset root, place it with `MARTIN_GLB_POS`). **NB:** glTF-as-*splats*, distinct from `glb:`/`model:` which load glTF as a real PBR *mesh*. |
 | `MARTIN_GLB_SCALE` | `1.0` | Scales the loaded `MARTIN_GLB` scene (handy when an export's native units are tiny or huge). |
-| `MARTIN_GLB_DIST` | `5.0` | Orbit-camera distance for `MARTIN_GLB` (smaller = tighter framing). |
+| `MARTIN_GLB_POS` | `0,0,0` | Places the `MARTIN_GLB` scene (`x,y,z`) — e.g. `2.2,-0.4,-1.5` to park it beside the morph track. |
+| `MARTIN_GLB_DIST` | `5.0` | Orbit-camera distance when `MARTIN_GLB` runs **alone** (smaller = tighter framing). |
 | `MARTIN_TEXT` | — | Splat-text: this string assembles out of a ball cloud (glowing). |
 | `MARTIN_SEQ` | — | A timeline of parts (see [Sequences](#sequences)). Highest precedence. |
 | `MARTIN_SHOW` | — | A **unified scene file** (`.show`) — settings + `[seq]` + `[compose]` + a `[camera]` track in one file. Expands into the other `MARTIN_*` vars (which still override it). See [The unified scene file](#the-unified-scene-file-martin_show). |

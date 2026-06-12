@@ -115,15 +115,18 @@ fn main() {
     ]
     .iter()
     .any(|k| std::env::var(k).is_ok());
-    let (sequence, asset_root) = if let Ok(glb) = std::env::var("MARTIN_GLB") {
-        // MARTIN_GLB: a standalone KHR_gaussian_splatting scene (glb::GlbScenePlugin spawns it) — no
-        // morph track. Asset root = the .glb's folder so the typed GaussianScene load resolves.
+    let glb_alone = std::env::var("MARTIN_GLB").is_ok() && !explicit_seq && composition.is_none();
+    let (sequence, asset_root) = if glb_alone {
+        // MARTIN_GLB alone: a standalone KHR_gaussian_splatting scene (glb::GlbScenePlugin spawns
+        // it) — no morph track. Asset root = the .glb's folder so the typed GaussianScene load
+        // resolves. COMBINED with a seq/compose show, the glb is set dressing instead: the normal
+        // branches below run and the .glb must sit in that show's asset root (e.g. assets/).
         (
             Sequence {
                 parts: Vec::new(),
                 count: 0,
             },
-            parent_dir(glb),
+            std::env::var("MARTIN_GLB").ok().and_then(parent_dir),
         )
     } else if explicit_seq || composition.is_none() {
         sequence_from_env(&score) // the morph track (or the default demo when nothing is set)

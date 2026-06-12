@@ -8,15 +8,18 @@
 //! crate's own `spawn_scene` system instantiate each cloud bundle as a child (`PlanarGaussian3dHandle`
 //! + `CloudSettings` + transform), which renders through martin's normal splat pipeline (bloom + sort).
 //!
-//! No morph/sequence — a standalone scene view. `MARTIN_GLB_SCALE` (default 1.0) sizes the scene and
-//! `MARTIN_GLB_DIST` (default 5.0) the orbit distance; the free-orbit camera circles the origin.
+//! Runs in two modes. **Alone** (no other content vars): a standalone scene view — `MARTIN_GLB_DIST`
+//! (default 5.0) sets the orbit distance and this module frames the camera + starts the recorder.
+//! **Combined** with a seq/compose show: the scene is *set dressing* placed alongside the morphing
+//! splats — the show owns the camera/clock, and the .glb must live in the show's asset root.
+//! `MARTIN_GLB_SCALE` (default 1.0) sizes the scene; `MARTIN_GLB_POS=x,y,z` (default origin) places it.
 
 use bevy::prelude::*;
 use bevy_gaussian_splatting::{GaussianScene, GaussianSceneHandle, PlanarGaussian3dHandle};
 
 use crate::camera::OrbitCam;
 use crate::scene::file_name_of;
-use crate::scene::sequence::SeqState;
+use crate::scene::sequence::{SeqState, Sequence};
 
 /// Spawn the scene handle once; the crate's `spawn_scene` instantiates the clouds when it's ready.
 fn spawn_glb_scene(mut commands: Commands, asset_server: Res<AssetServer>, mut done: Local<bool>) {
@@ -28,23 +31,44 @@ fn spawn_glb_scene(mut commands: Commands, asset_server: Res<AssetServer>, mut d
     };
     *done = true;
     let scale = env_f32("MARTIN_GLB_SCALE", 1.0);
+    let pos = std::env::var("MARTIN_GLB_POS")
+        .ok()
+        .map(|s| {
+            let mut it = s.split(',').map(|v| v.trim().parse().unwrap_or(0.0));
+            Vec3::new(
+                it.next().unwrap_or(0.0),
+                it.next().unwrap_or(0.0),
+                it.next().unwrap_or(0.0),
+            )
+        })
+        .unwrap_or(Vec3::ZERO);
     let handle: Handle<GaussianScene> = asset_server.load(file_name_of(&path));
     commands.spawn((
         GaussianSceneHandle(handle),
-        Transform::from_scale(Vec3::splat(scale)),
+        Transform::from_translation(pos).with_scale(Vec3::splat(scale)),
     ));
-    info!("glb: loading KHR_gaussian_splatting scene {path} (scale {scale})");
+    info!("glb: loading KHR_gaussian_splatting scene {path} (scale {scale}, pos {pos})");
 }
 
 /// Once the crate has spawned the scene's clouds, frame the camera and mark the show "built" so the
 /// recorder starts (the standalone glb path has no morph sequence to do that). In glb-only mode the
 /// only `PlanarGaussian3dHandle` entities are the scene's clouds, so their presence == ready.
+/// COMBINED with a show this must stay hands-off: the sequence owns `built` + the camera, and the
+/// morph's own clouds match this query too (setting `built` early would race `build_sequence`).
 fn glb_ready(
     clouds: Query<(), With<PlanarGaussian3dHandle>>,
+    seq: Option<Res<Sequence>>,
+    comp: Option<Res<crate::scene::compose::Composition>>,
     state: Option<ResMut<SeqState>>,
     mut camq: Query<&mut OrbitCam>,
     mut done: Local<bool>,
 ) {
+    let show_present = seq.map(|s| !s.parts.is_empty()).unwrap_or(false)
+        || comp.map(|c| !c.objects.is_empty()).unwrap_or(false);
+    if show_present {
+        *done = true; // combined mode — the seq/compose show drives readiness + the camera
+        return;
+    }
     if *done || clouds.is_empty() {
         return;
     }
