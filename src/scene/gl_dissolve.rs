@@ -47,12 +47,7 @@ pub(crate) fn spawn_gl_dissolve(
     shape: Handle<PlanarGaussian3d>,
     morph_n: usize,
 ) {
-    let env_f = |k: &str, d: f32| {
-        std::env::var(k)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(d)
-    };
+    use crate::envvar::or as env;
     commands.spawn((
         SceneRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(name.to_string()))),
         Transform::IDENTITY,
@@ -63,13 +58,10 @@ pub(crate) fn spawn_gl_dissolve(
             rot,
             shape,
             morph_n,
-            sample_count: std::env::var("MARTIN_MESH_COUNT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(morph_n),
-            splat: env_f("MARTIN_MESH_SPLAT", 1.2),
-            thin: env_f("MARTIN_MESH_THIN", 0.3),
-            alpha: env_f("MARTIN_MESH_OPACITY", 0.6),
+            sample_count: env("MARTIN_MESH_COUNT", morph_n),
+            splat: env("MARTIN_MESH_SPLAT", 1.2),
+            thin: env("MARTIN_MESH_THIN", 0.3),
+            alpha: env("MARTIN_MESH_OPACITY", 0.6),
             sampled: false,
         },
     ));

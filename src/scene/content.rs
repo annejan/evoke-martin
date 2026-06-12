@@ -166,17 +166,11 @@ pub(crate) fn part_gaussians(
         PartContent::Mesh(name) => {
             // MARTIN_MESH_COUNT (target gaussian count), MARTIN_MESH_SPLAT (size), MARTIN_MESH_RGB
             // ("r,g,b" flat colour; vertex colours used when the mesh has them).
-            let count = std::env::var("MARTIN_MESH_COUNT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(60_000);
+            let count = crate::envvar::or("MARTIN_MESH_COUNT", 60_000);
             // MARTIN_MESH_SPLAT is the splat size as an OVERLAP factor on the mean inter-sample
             // spacing: ~1.0 = disks just touch (crispest), >1 = more overlap (softer/smoother),
             // <1 = gaps. Density-adaptive, so it's right for any mesh size or polygon count.
-            let splat = std::env::var("MARTIN_MESH_SPLAT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(1.2);
+            let splat = crate::envvar::or("MARTIN_MESH_SPLAT", 1.2);
             let rgb = std::env::var("MARTIN_MESH_RGB")
                 .ok()
                 .and_then(|s| {
@@ -186,17 +180,11 @@ pub(crate) fn part_gaussians(
                 .unwrap_or([0.80, 0.85, 0.95]);
             // MARTIN_MESH_THIN: disk thickness as a fraction of the in-plane radius (flatness).
             // Default 0.3 — slightly rounded, so disks read less razor-flat at grazing angles.
-            let thin = std::env::var("MARTIN_MESH_THIN")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0.3);
+            let thin = crate::envvar::or("MARTIN_MESH_THIN", 0.3);
             // MARTIN_MESH_OPACITY: per-splat alpha. 1.0 = solid; <1 lets disks blend front-to-back, so
             // the surface stays opaque where many overlap (interior) but softens where few do (the
             // silhouette) — which melts the flat-disk "hairs" at grazing edges. Default 0.6.
-            let alpha = std::env::var("MARTIN_MESH_OPACITY")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0.6);
+            let alpha = crate::envvar::or("MARTIN_MESH_OPACITY", 0.6);
             mesh::build_mesh_gaussians(&root.join(name), count, splat, thin, alpha, rgb)
         }
         // A real glTF mesh isn't sampled to gaussians — build_composition spawns it as PBR geometry.

@@ -557,12 +557,13 @@ pub(crate) fn build_sequence(
     // Seed the free-orbit camera. MARTIN_ZOOM scales distance (>1 = closer); MARTIN_YAW /
     // MARTIN_PITCH (radians) seed the orbit angle so you can bake a found viewpoint into a
     // render (and freely orbit live from there).
-    let env_f = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<f32>().ok());
-    let zoom = env_f("MARTIN_ZOOM").filter(|z| *z > 0.0).unwrap_or(1.0);
+    use crate::envvar::or as env;
+    let zoom = env("MARTIN_ZOOM", 1.0_f32);
+    let zoom = if zoom > 0.0 { zoom } else { 1.0 }; // a non-positive zoom is meaningless → default
     let center = entity_rot * frame_center;
     let (mut yaw, mut pitch, mut dist) = (
-        env_f("MARTIN_YAW").unwrap_or(FRONT_YAW),
-        env_f("MARTIN_PITCH").unwrap_or(DEFAULT_PITCH),
+        env("MARTIN_YAW", FRONT_YAW),
+        env("MARTIN_PITCH", DEFAULT_PITCH),
         content_radius * frame_factor / zoom,
     );
     // MARTIN_CAMERAS=<cameras.json>: park the camera at a real capture pose (the only viewpoint

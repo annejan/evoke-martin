@@ -275,10 +275,7 @@ pub(crate) fn build_composition(
         .ok()
         .and_then(|s| Deform::parse(&s));
     // cap each object's splats so a stage of big splats stays performant on the iGPU.
-    let count = std::env::var("MARTIN_MORPH_COUNT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(120_000);
+    let count = crate::envvar::or("MARTIN_MORPH_COUNT", 120_000);
     let mut placed: Vec<(Vec3, f32)> = Vec::new(); // (centre, radius) per object, for framing
     let mut any_model = false;
     for obj in &comp.objects {
@@ -388,11 +385,8 @@ pub(crate) fn build_composition(
         .iter()
         .map(|(p, r)| (*p - center).length() + r)
         .fold(0.1_f32, f32::max);
-    let zoom = std::env::var("MARTIN_ZOOM")
-        .ok()
-        .and_then(|s| s.parse::<f32>().ok())
-        .filter(|z| *z > 0.0)
-        .unwrap_or(1.0);
+    let zoom = crate::envvar::or("MARTIN_ZOOM", 1.0_f32);
+    let zoom = if zoom > 0.0 { zoom } else { 1.0 }; // a non-positive zoom is meaningless → default
     let dist = radius * 2.5 / zoom;
     for mut c in &mut cam {
         c.target = center;

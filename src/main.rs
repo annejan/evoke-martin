@@ -25,6 +25,7 @@ mod background;
 mod bundle;
 mod camera;
 mod capture;
+mod envvar;
 mod loader;
 mod mesh;
 mod morph;
