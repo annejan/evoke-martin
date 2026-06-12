@@ -46,6 +46,22 @@ jobs:
       # clean checkout). -D warnings so a new lint can't slip in — the few intentional ones are #[allow]ed.
       - run: cargo clippy --all-targets -- -D warnings
 
+  # RustSec advisory scan of the (committed) Cargo.lock — surfaces CVEs in the 25+ transitive Bevy
+  # deps. Not a required check (advisories in deps we don't control shouldn't block a merge), but it
+  # annotates + flags them so they're visible.
+  audit:
+    name: cargo-audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      checks: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
