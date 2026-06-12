@@ -14,6 +14,13 @@ section breakdown 9 8 fill
 section climax 17 8,8 fill
 section outro 9 8 fill
 
+# this is a BEACH, not a battle: keep the party layers (wall/donk/house/shimmer) + the riser sweeps,
+# but opt OUT of the demoscene jets, the impact-booms and the final bang — tropical fades out gently.
+# (Without these lines the standard names drop/climax/outro would inherit all of that by default.)
+drop.fx: wall donk house riser
+climax.fx: wall donk house shimmer riser
+outro.fx: wall house casio shimmer
+
 # --- drums: four-on-floor kick, clap on 2&4, offbeat shaker hats, offbeat skank stabs ---
 intro.kick p0: x... .... x... ....
 intro.hat p0: ..x. ..x. ..x. ..x.

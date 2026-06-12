@@ -996,8 +996,11 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
     // sections (drop + climax + the OUTRO finale) so the dynamic range stays — quiet intro/breakdown →
     // wall in the drop. The outro carries the wall so the ending rings out as a full anthem, not a thin
     // lead over drums.
-    for name in ["drop", "climax", "outro"] {
-        if let Some((s0, s1)) = section_window(score, name) {
+    for sec in &score.sections {
+        if !sec.fx_on("wall") {
+            continue;
+        }
+        if let Some((s0, s1)) = section_window(score, &sec.name) {
             let mut b = (s0 / bar).ceil() as usize;
             while (b as f32) * bar < s1 {
                 let t = b as f32 * bar;
@@ -1025,8 +1028,11 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
     // (`set shimmer=0` off.)
     let shimmer = score.param("shimmer", 0.09);
     if shimmer > 0.001 {
-        for name in ["climax", "outro"] {
-            if let Some((s0, s1)) = section_window(score, name) {
+        for sec in &score.sections {
+            if !sec.fx_on("shimmer") {
+                continue;
+            }
+            if let Some((s0, s1)) = section_window(score, &sec.name) {
                 let mut b = (s0 / bar).ceil() as usize;
                 while (b as f32) * bar < s1 {
                     let t = b as f32 * bar;
@@ -1044,8 +1050,11 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
     // euphoric off-beat "DONK" stab — happy-hardcore / house party energy: a bright plucky chord
     // bounce on every up-beat (the "and") through the drop + climax, under the held wall.
     let hb = score.beat() / 2.0;
-    for name in ["drop", "climax"] {
-        if let Some((s0, s1)) = section_window(score, name) {
+    for sec in &score.sections {
+        if !sec.fx_on("donk") {
+            continue;
+        }
+        if let Some((s0, s1)) = section_window(score, &sec.name) {
             let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
             while t < s1 {
                 let m = score.levels(t).mids;
@@ -1067,8 +1076,11 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
     // organ chord bouncing on the off-beats through the euphoric majors + the finale. This is the "zaag
     // orgel house" the track was missing; it sits ON TOP of the (now quieter) donk pluck so the off-beat
     // reads as organ + bite, and it rides the minor/major chords so the dark edge survives the happiness.
-    for name in ["drop", "climax", "outro"] {
-        if let Some((s0, s1)) = section_window(score, name) {
+    for sec in &score.sections {
+        if !sec.fx_on("house") {
+            continue;
+        }
+        if let Some((s0, s1)) = section_window(score, &sec.name) {
             let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
             while t < s1 {
                 let m = score.levels(t).mids;
@@ -1089,8 +1101,11 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
     // CASIO comp: a cheesy off-beat chord "chnk" on every up-beat (the "and"), gated to the END of
     // the track (climax + outro) where the Ome-Henk electric piano creeps in.
     let half = score.beat() / 2.0;
-    for name in ["outro"] {
-        if let Some((s0, s1)) = section_window(score, name) {
+    for sec in &score.sections {
+        if !sec.fx_on("casio") {
+            continue;
+        }
+        if let Some((s0, s1)) = section_window(score, &sec.name) {
             let mut t = (s0 / score.beat()).ceil() * score.beat() + half; // first up-beat
             while t < s1 {
                 let m = score.levels(t).mids;
@@ -1116,22 +1131,41 @@ fn render_fx(bed: &mut [f32], score: &Score, total: usize) {
     use std::f32::consts::TAU;
     let sr = SAMPLE_RATE as f32;
     let bar = score.bar();
+    // Each transition accent is gated on the section's FX set (`riser`/`jet`/`impact`/`bang`) — by
+    // default the same sections the synth used to hard-code, but a `<section>.fx:` line overrides it
+    // (so e.g. a tropical drop can keep the wall but skip the demoscene jet).
     if let Some(t) = section_time(score, "build") {
-        render_riser(bed, t - 2.0 * bar, 2.0 * bar, 0.10, -0.25);
+        if score.fx_on("build", "riser") {
+            render_riser(bed, t - 2.0 * bar, 2.0 * bar, 0.10, -0.25);
+        }
     }
     if let Some(t) = section_time(score, "drop") {
-        render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.26, 0.15);
-        render_snare_roll(bed, t - 2.0 * bar, 2.0 * bar, score.beat()); // build-up roll
-        render_jet(bed, t - 3.0 * bar, 3.0 * bar, 0.32); // afterburner pass into the drop
-        render_impact(bed, t, 1.6, 0.62);
+        if score.fx_on("drop", "riser") {
+            render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.26, 0.15);
+            render_snare_roll(bed, t - 2.0 * bar, 2.0 * bar, score.beat()); // build-up roll
+        }
+        if score.fx_on("drop", "jet") {
+            render_jet(bed, t - 3.0 * bar, 3.0 * bar, 0.32); // afterburner pass into the drop
+        }
+        if score.fx_on("drop", "impact") {
+            render_impact(bed, t, 1.6, 0.62);
+        }
     }
     if let Some(t) = section_time(score, "breakdown") {
-        render_impact(bed, t, 2.2, 0.38);
+        if score.fx_on("breakdown", "impact") {
+            render_impact(bed, t, 2.2, 0.38);
+        }
     }
     if let Some(t) = section_time(score, "climax") {
-        render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
-        render_jet(bed, t - 4.0 * bar, 4.0 * bar, 0.5); // a screaming jet rips into the climax
-        render_impact(bed, t, 2.0, 0.72);
+        if score.fx_on("climax", "riser") {
+            render_riser(bed, t - 4.0 * bar, 4.0 * bar, 0.34, -0.15);
+        }
+        if score.fx_on("climax", "jet") {
+            render_jet(bed, t - 4.0 * bar, 4.0 * bar, 0.5); // a screaming jet rips into the climax
+        }
+        if score.fx_on("climax", "impact") {
+            render_impact(bed, t, 2.0, 0.72);
+        }
     }
     // EXPLOSIVE finale — but CLEAN. The outro is the anthem: the chorus melody + the full epic wall
     // (extended above) + the crescendo gain carry it, ringing out with power. The FX stay out of the
@@ -1143,18 +1177,24 @@ fn render_fx(bed: &mut [f32], score: &Score, total: usize) {
         // build OUT of the climax's final phase straight INTO the outro downbeat — a rising riser + roll
         // across the last bars of the climax so ~3:00→3:05 LIFTS into the finale instead of sagging
         // (the old dead "fake-out breather" sat right here). Pairs with the now-driving climax p3.
-        render_riser(bed, t0 - 3.0 * bar, 3.0 * bar, 0.30, 0.0);
-        render_snare_roll(bed, t0 - 2.0 * bar, 2.0 * bar, score.beat());
-        render_impact(bed, t0, 1.4, 0.5); // land the outro downbeat — then let the anthem ring
-        let build = (4.0 * bar).min(end - t0 - 0.1).max(0.5); // the final build window only
-        let bs = end - build;
-        render_snare_roll(bed, bs, build, score.beat()); // accelerating roll INTO the blast
-        render_riser(bed, bs, build, 0.42, 0.0); // a rising uplifter under the roll
-        render_jet(bed, end - 2.6, 2.0, 0.6); // jet screams down into the hit
-        render_impact(bed, end - 1.9, 2.2, 1.0); // THE blast lands + rings
-                                                 // a FINAL knal right at the very end: it's caught at its loud transient when the track stops,
-                                                 // so the demo ENDS ON A BANG (no gentle fade-out — see the declick-only fade in `master`).
-        render_impact(bed, end - 0.45, 1.0, 1.0);
+        if score.fx_on("outro", "riser") {
+            render_riser(bed, t0 - 3.0 * bar, 3.0 * bar, 0.30, 0.0);
+            render_snare_roll(bed, t0 - 2.0 * bar, 2.0 * bar, score.beat());
+        }
+        // the explosive finale: a downbeat hit, a final build, and the BANG. Gated on `bang` so a
+        // gentler genre (no `bang` in its outro fx) just lets the anthem ring out + fade.
+        if score.fx_on("outro", "bang") {
+            render_impact(bed, t0, 1.4, 0.5); // land the outro downbeat — then let the anthem ring
+            let build = (4.0 * bar).min(end - t0 - 0.1).max(0.5); // the final build window only
+            let bs = end - build;
+            render_snare_roll(bed, bs, build, score.beat()); // accelerating roll INTO the blast
+            render_riser(bed, bs, build, 0.42, 0.0); // a rising uplifter under the roll
+            render_jet(bed, end - 2.6, 2.0, 0.6); // jet screams down into the hit
+            render_impact(bed, end - 1.9, 2.2, 1.0); // THE blast lands + rings
+                                                     // a FINAL knal right at the very end: caught at its loud transient when the track stops,
+                                                     // so the demo ENDS ON A BANG (no gentle fade-out — see the declick-only fade in `master`).
+            render_impact(bed, end - 0.45, 1.0, 1.0);
+        }
     }
 
     // Continuous sub-bass (centre) into the bed so it pumps with the sidechain. It follows the

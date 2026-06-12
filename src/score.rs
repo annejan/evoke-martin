@@ -126,6 +126,26 @@ fn semis(n: f32) -> f32 {
     2f32.powf(n / 12.0)
 }
 
+/// The built-in, name-based FX/layer gating — the behaviour a section gets when it has NO explicit
+/// `<section>.fx:` line (so the shipped op-de-camping score, which has none, is unchanged). The layer
+/// names (`wall`/`shimmer`/`donk`/`house`/`casio`) and transition accents (`riser`/`jet`/`impact`/
+/// `bang`) each fire in the sections the synth used to hard-code.
+fn default_fx(name: &str, token: &str) -> bool {
+    let any = |names: &[&str]| names.contains(&name);
+    match token {
+        "wall" => any(&["drop", "climax", "outro"]),
+        "shimmer" => any(&["climax", "outro"]),
+        "donk" => any(&["drop", "climax"]),
+        "house" => any(&["drop", "climax", "outro"]),
+        "casio" => any(&["outro"]),
+        "riser" => any(&["build", "drop", "climax", "outro"]),
+        "jet" => any(&["drop", "climax"]),
+        "impact" => any(&["drop", "breakdown", "climax"]),
+        "bang" => any(&["outro"]),
+        _ => false,
+    }
+}
+
 /// One section of the arrangement: a span of `bars` divided into `phases` (bars per phase) with an
 /// optional fill bar, its dynamics curves, and its four drum lanes.
 #[derive(Clone)]
@@ -149,6 +169,10 @@ pub struct Section {
     /// these inside this section instead of the global `set` value — e.g. a louder house organ in the
     /// drop without touching the climax. Empty = use the global knob.
     pub params: std::collections::HashMap<String, f32>,
+    /// Per-section FX/layer selection (`<section>.fx: wall jet …`). `None` = use the built-in
+    /// name-based defaults (so the shipped demo is unchanged); `Some` = exactly these accents, letting
+    /// a different genre opt out of e.g. the demoscene jets without renaming its sections. See `fx_on`.
+    pub fx: Option<Vec<String>>,
     pub start_bar: u32, // computed by Score::new
 }
 
@@ -171,7 +195,18 @@ impl Section {
             bass: NoteLane::default(),
             chords: Vec::new(),
             params: std::collections::HashMap::new(),
+            fx: None,
             start_bar: 0,
+        }
+    }
+
+    /// Whether this section gets the FX/layer `token` (`wall`/`shimmer`/`donk`/`house`/`casio` layers,
+    /// `riser`/`jet`/`impact`/`bang` transitions). An explicit `<section>.fx:` list is authoritative;
+    /// otherwise the built-in name-based default fires (so a score with no `fx:` lines is unchanged).
+    pub fn fx_on(&self, token: &str) -> bool {
+        match &self.fx {
+            Some(list) => list.iter().any(|t| t == token),
+            None => default_fx(&self.name, token),
         }
     }
 
@@ -286,6 +321,15 @@ impl Score {
             .get(key)
             .copied()
             .unwrap_or_else(|| self.param(key, default))
+    }
+
+    /// Whether the section named `name` gets FX/layer `token` (see `Section::fx_on`). Unknown section
+    /// → false. The synth gates its accents on this so a section's FX live in the score, not in code.
+    pub fn fx_on(&self, name: &str, token: &str) -> bool {
+        self.sections
+            .iter()
+            .find(|s| s.name == name)
+            .is_some_and(|s| s.fx_on(token))
     }
 
     // --- grid ---------------------------------------------------------------------------------
@@ -585,6 +629,10 @@ impl Score {
                         );
                     }
                     sections[si].chords = cs;
+                } else if inst == "fx" {
+                    // per-section FX/layer selection: `<section>.fx: wall jet impact` (overrides the
+                    // built-in name-based defaults for that section). An empty list = no FX at all.
+                    sections[si].fx = Some(pat.split_whitespace().map(|s| s.to_string()).collect());
                 } else if inst == "lead" || inst == "arp" || inst == "bass" {
                     // pitched note lane: a phrase of 1+ bars (16 note tokens each, `A4`/`C#5`/`.`).
                     let grid = parse_notes(pat).ok_or_else(|| {
@@ -767,6 +815,11 @@ impl Score {
                         .collect::<Vec<_>>()
                         .join(" ")
                 ));
+            }
+        }
+        for s in &self.sections {
+            if let Some(fx) = &s.fx {
+                o.push_str(&format!("{}.fx: {}\n", s.name, fx.join(" ")));
             }
         }
         o.push_str(
@@ -1277,6 +1330,27 @@ mod tests {
             (s2.param_at(drop_t, "house", 0.0) - 0.3).abs() < 1e-6,
             "the per-section override round-trips through to_dsl"
         );
+    }
+
+    #[test]
+    fn per_section_fx_list_overrides_the_name_defaults_and_round_trips() {
+        // no `fx:` line → the built-in name-based defaults (a drop gets the wall + jet, not casio).
+        let plain = Score::from_str("bpm 120\nchords C\nsection drop 4 4\n").unwrap();
+        assert!(plain.fx_on("drop", "wall"));
+        assert!(plain.fx_on("drop", "jet"));
+        assert!(!plain.fx_on("drop", "casio"));
+        // an explicit `<section>.fx:` line is authoritative: keep the wall, drop the jet.
+        let custom =
+            Score::from_str("bpm 120\nchords C\nsection drop 4 4\ndrop.fx: wall house\n").unwrap();
+        assert!(custom.fx_on("drop", "wall"));
+        assert!(custom.fx_on("drop", "house"));
+        assert!(
+            !custom.fx_on("drop", "jet"),
+            "explicit fx list omits the jet"
+        );
+        // round-trips through to_dsl.
+        let s2 = Score::from_str(&custom.to_dsl()).unwrap();
+        assert!(s2.fx_on("drop", "wall") && !s2.fx_on("drop", "jet"));
     }
 
     #[test]
