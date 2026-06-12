@@ -9,8 +9,8 @@ use bevy::window::{MonitorSelection, WindowMode};
 use bevy_gaussian_splatting::GaussianCamera;
 
 use crate::capture::RecordState;
-use crate::scene::sequence::{active_part, show_end, SeqState, Sequence};
 use crate::scene::SeqClock;
+use crate::scene::sequence::{SeqState, Sequence, active_part, show_end};
 use crate::waypoints;
 
 pub(crate) const FRONT_YAW: f32 = 1.4; // camera faces the subject head-on (single-image splats have no back)
@@ -154,11 +154,7 @@ fn controls(
 
 /// Triangle wave 0→1→0 over the unit interval — a there-and-back ease for path playback.
 fn pingpong(x: f32) -> f32 {
-    if x < 0.5 {
-        x * 2.0
-    } else {
-        2.0 - x * 2.0
-    }
+    if x < 0.5 { x * 2.0 } else { 2.0 - x * 2.0 }
 }
 
 /// `MARTIN_FLY=<secs>`: fly the camera through the loaded waypoints (the M-key path). While

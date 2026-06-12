@@ -11,14 +11,14 @@ use bevy_gaussian_splatting::{
     CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle,
 };
 
-use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
+use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
 use crate::morph::{ball_of, disperse_of, evaporate_of, resample_morton, sink_of, wash_of};
-use crate::scene::content::{parse_source, part_gaussians, side_by_side, PartContent};
-use crate::scene::effects::{source_cloud, Deform, Departure, Transition, BALL_SHELL};
+use crate::scene::content::{PartContent, parse_source, part_gaussians, side_by_side};
+use crate::scene::effects::{BALL_SHELL, Deform, Departure, Transition, source_cloud};
 use crate::scene::gl_dissolve::{gl_mesh_alpha, spawn_gl_dissolve};
-use crate::scene::{cloud_base_rotation, file_name_of, parent_dir, AssetRoot, NORMALIZE_EXTENT};
+use crate::scene::{AssetRoot, NORMALIZE_EXTENT, cloud_base_rotation, file_name_of, parent_dir};
 use crate::score;
-use crate::text::{build_text_outline_gaussians, build_text_penwrite_gaussians, TEXT_RGB};
+use crate::text::{TEXT_RGB, build_text_outline_gaussians, build_text_penwrite_gaussians};
 
 const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t * this

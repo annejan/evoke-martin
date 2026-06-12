@@ -4,9 +4,9 @@
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings};
 use bevy::prelude::*;
 
+use crate::scene::SeqClock;
 use crate::scene::compose::Composition;
 use crate::scene::sequence::SeqState;
-use crate::scene::SeqClock;
 use crate::{audio, score};
 
 /// The loaded score (`MARTIN_SCORE` file or built-in), shared for live-audio rendering.

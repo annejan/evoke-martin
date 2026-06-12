@@ -2,7 +2,7 @@
 //! source. Built Y-DOWN so the entity's `cloud_base_rotation` flips it upright like the
 //! Y-down `.ply` splats. Pure (no Bevy/ECS) apart from the gaussian type.
 
-use ab_glyph::{point, Font, FontRef, OutlineCurve, PxScale, ScaleFont};
+use ab_glyph::{Font, FontRef, OutlineCurve, PxScale, ScaleFont, point};
 use bevy_gaussian_splatting::{Gaussian3d, SphericalHarmonicCoefficients};
 
 /// Bundled bold TTF (`include_bytes`, not the asset server — `AssetPlugin.file_path` points
@@ -422,9 +422,10 @@ mod tests {
     fn text_rasterizes_to_finite_coloured_gaussians() {
         let g = build_text_gaussians("AB", TEXT_RGB, 3.0, 2, 0.012);
         assert!(!g.is_empty(), "text should produce gaussians");
-        assert!(g
-            .iter()
-            .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) }));
+        assert!(
+            g.iter()
+                .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) })
+        );
         // spans roughly the requested world width, centred near the origin.
         let xs: Vec<f32> = g
             .iter()

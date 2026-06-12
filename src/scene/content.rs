@@ -11,7 +11,7 @@ use crate::mesh;
 use crate::scene::file_name_of;
 use crate::scene::sequence::SeqState;
 use crate::splat_image::{build_image_gaussians, build_svg_gaussians};
-use crate::text::{build_text_gaussians, TEXT_RGB};
+use crate::text::{TEXT_RGB, build_text_gaussians};
 
 const SIDE_SEP: f32 = 1.2; // half-spacing when a part places several splats side by side
 

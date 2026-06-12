@@ -129,11 +129,7 @@ where
     F: FnMut(usize, f32, f32, f32) -> SphericalHarmonicCoefficients,
 {
     let yd = |v: [f32; 3]| {
-        if flip_y {
-            [v[0], -v[1], v[2]]
-        } else {
-            v
-        }
+        if flip_y { [v[0], -v[1], v[2]] } else { v }
     };
     // Size every splat to the mean inter-sample SPACING (× `splat`, an overlap factor ≈1) so the disks
     // just cover the surface regardless of the mesh's size or polygon density. The old code used a
@@ -251,11 +247,7 @@ fn sample_tex(img: &image::RgbaImage, u: f32, v: f32) -> [f32; 3] {
     let (w, h) = img.dimensions();
     let wrap = |x: f32| {
         let f = x.fract();
-        if f < 0.0 {
-            f + 1.0
-        } else {
-            f
-        }
+        if f < 0.0 { f + 1.0 } else { f }
     };
     let x = ((wrap(u) * w as f32) as u32).min(w - 1);
     // image rows are top-down; UV origin is bottom-left → flip v.

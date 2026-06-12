@@ -11,13 +11,13 @@ use bevy_gaussian_splatting::{
     CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle,
 };
 
-use crate::camera::{OrbitCam, DEFAULT_PITCH, FRONT_YAW};
+use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
 use crate::capture::RecordState;
 use crate::morph::resample_morton;
-use crate::scene::content::{parse_source, part_gaussians, PartContent};
-use crate::scene::effects::{source_cloud, Deform, Transition};
+use crate::scene::content::{PartContent, parse_source, part_gaussians};
+use crate::scene::effects::{Deform, Transition, source_cloud};
 use crate::scene::sequence::{SeqState, Sequence};
-use crate::scene::{cloud_base_rotation, AssetRoot, SeqClock, NORMALIZE_EXTENT};
+use crate::scene::{AssetRoot, NORMALIZE_EXTENT, SeqClock, cloud_base_rotation};
 use crate::score;
 
 const COMPOSE_MORPH: f32 = 1.6; // how long a `~transition` compose object takes to assemble in (s)
@@ -449,7 +449,7 @@ pub(crate) fn animate_composition(
         let vis = fin.min(fout);
         let has_cs = cs.is_some();
         let scale_vis = if has_cs { 1.0 } else { vis }; // meshes carry the fade in their scale
-                                                        // kick thumps the scale (bulge is a no-op on a static cloud, so scale carries it too).
+        // kick thumps the scale (bulge is a no-op on a static cloud, so scale carries it too).
         tf.scale = Vec3::splat(a.base_scale * scale_vis * (1.0 + beat.kick * 0.06 * k));
         if let Some(mut cs) = cs {
             // a `~transition` object assembles via the morph (cs.time) — its IN-fade is the morph,

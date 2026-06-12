@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::ShaderRef;
 
-use crate::scene::beat::Beat;
 use crate::scene::SeqClock;
+use crate::scene::beat::Beat;
 
 /// Uniform block fed to `bg.wgsl` (std140-packed: a 16-byte scalar slot + a vec4).
 #[derive(ShaderType, Clone, Default)]
@@ -74,7 +74,7 @@ fn spawn_bg(
         .map(|s| mode_index(&s))
         .unwrap_or(0);
     let aspect = 16.0 / 9.0; // the 1280×720 record/window
-                             // fill the default perspective FOV (π/4) at distance d, with a little overscan.
+    // fill the default perspective FOV (π/4) at distance d, with a little overscan.
     let d = 90.0_f32;
     let h = 2.0 * d * (std::f32::consts::FRAC_PI_8).tan() * 1.06;
     let w = h * aspect;

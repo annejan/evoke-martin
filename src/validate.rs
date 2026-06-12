@@ -4,9 +4,9 @@
 //! check; pairs with the parse diagnostics (unknown transitions/heads warn on stderr).
 
 use crate::scene::compose::Composed;
-use crate::scene::sequence::{part_starts, show_end, Sequence};
+use crate::scene::sequence::{Sequence, part_starts, show_end};
 use crate::score::Score;
-use crate::waypoints::{is_track, Waypoints};
+use crate::waypoints::{Waypoints, is_track};
 
 /// Print the parsed show to stdout. Called from `main` before the app is built when MARTIN_VALIDATE
 /// is set; `main` then returns (no window, no render).

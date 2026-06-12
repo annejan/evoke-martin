@@ -668,9 +668,10 @@ mod tests {
         let b = ball_of(&src, 2.0);
         assert_eq!(b.len(), 200);
         // every point within the shell radius (0.45..1.0 of r=2 → ≤2).
-        assert!(b
-            .iter()
-            .all(|p| { Vec3::from_array(p.position_visibility.position).length() <= 2.01 }));
+        assert!(
+            b.iter()
+                .all(|p| { Vec3::from_array(p.position_visibility.position).length() <= 2.01 })
+        );
     }
 
     #[test]
@@ -713,9 +714,11 @@ mod tests {
         ] {
             assert_eq!(cloud.len(), src.len());
             assert!(cloud.iter().all(|g| g.scale_opacity.opacity == 0.0)); // all leaving
-            assert!(cloud
-                .iter()
-                .all(|g| { g.position_visibility.position.iter().all(|c| c.is_finite()) }));
+            assert!(
+                cloud
+                    .iter()
+                    .all(|g| { g.position_visibility.position.iter().all(|c| c.is_finite()) })
+            );
         }
     }
 }

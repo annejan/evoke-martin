@@ -133,9 +133,10 @@ mod tests {
         let g = sample_rgba(&img, 2.0, 1, 0.01, 0.5, 1.0);
         assert_eq!(g.len(), 3);
         assert!(g.iter().all(|x| x.scale_opacity.opacity == 1.0)); // alpha 255 → 1.0
-        assert!(g
-            .iter()
-            .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) }));
+        assert!(
+            g.iter()
+                .all(|x| { x.position_visibility.position.iter().all(|c| c.is_finite()) })
+        );
         // an all-transparent image yields nothing.
         let blank = image::RgbaImage::new(4, 4);
         assert!(sample_rgba(&blank, 2.0, 1, 0.5, 0.5, 1.0).is_empty());

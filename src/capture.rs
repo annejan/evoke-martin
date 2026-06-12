@@ -8,12 +8,12 @@ use bevy::asset::RenderAssetUsages;
 use bevy::camera::{ImageRenderTarget, RenderTarget};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 
-use crate::camera::{OrbitCam, FRONT_YAW, SWAY};
-use crate::scene::compose::Composition;
-use crate::scene::sequence::{show_end, SeqState, Sequence};
+use crate::camera::{FRONT_YAW, OrbitCam, SWAY};
 use crate::scene::SeqClock;
+use crate::scene::compose::Composition;
+use crate::scene::sequence::{SeqState, Sequence, show_end};
 
 /// Offscreen render target for recording: the camera renders the show into this image and the
 /// recorder screenshots *it* — so frames don't depend on the OS window being visible/focused

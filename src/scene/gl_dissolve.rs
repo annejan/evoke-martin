@@ -10,8 +10,8 @@ use bevy::prelude::*;
 use bevy_gaussian_splatting::PlanarGaussian3d;
 
 use crate::morph::resample_morton;
-use crate::scene::sequence::{Part, SeqState, Sequence};
 use crate::scene::NORMALIZE_EXTENT;
+use crate::scene::sequence::{Part, SeqState, Sequence};
 
 const MODEL_FADE: f32 = 0.6; // splats→mesh materialize time (s), after the part's splat-assemble
 const DISSOLVE_LEN: f32 = 1.2; // mesh→splats dissolve time (s) — its OWN step at the end of the hold

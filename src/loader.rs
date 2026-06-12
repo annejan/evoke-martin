@@ -10,9 +10,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy_gaussian_splatting::PlanarGaussian3d;
 
+use crate::scene::AssetRoot;
 use crate::scene::compose::Composition;
 use crate::scene::sequence::SeqState;
-use crate::scene::AssetRoot;
 
 #[derive(Component)]
 struct LoaderRoot;

@@ -67,11 +67,7 @@ fn stab(freq: f32) -> Box<dyn AudioUnit> {
         (saw_hz(freq) >> lowpass_hz(1600.0, 0.8) >> highpass_hz(180.0, 0.7))
             * envelope(|t: f32| {
                 let a = 0.01;
-                if t < a {
-                    t / a
-                } else {
-                    (-(t - a) * 7.0).exp()
-                }
+                if t < a { t / a } else { (-(t - a) * 7.0).exp() }
             })
             * 0.3,
     )
@@ -101,11 +97,7 @@ fn bass(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
         ((saws | cut) >> lowpass_q(1.4) >> shape_fn(move |x| (x * drive).tanh()))
             * envelope(|t: f32| {
                 let a = 0.005;
-                if t < a {
-                    t / a
-                } else {
-                    (-(t - a) * 4.0).exp()
-                }
+                if t < a { t / a } else { (-(t - a) * 4.0).exp() }
             })
             * 0.46
     };
@@ -208,11 +200,7 @@ fn arp(freq: f32, vel: f32) -> Box<dyn AudioUnit> {
         ((osc | cut) >> lowpass_q(0.9) >> shape(Atan(0.5)))
             * envelope(|t: f32| {
                 let a = 0.008;
-                if t < a {
-                    t / a
-                } else {
-                    (-(t - a) * 7.5).exp()
-                }
+                if t < a { t / a } else { (-(t - a) * 7.5).exp() }
             })
             * 0.24,
     )
@@ -231,7 +219,7 @@ fn supersaw(freq: f32) -> Box<dyn AudioUnit> {
             + saw_hz(freq * 0.980))
             * 0.13;
         let cut = envelope(|t: f32| 1300.0 + 3200.0 * (t * 1.0).min(1.0)); // filter swells open
-                                                                           // HP off the sub, then DRIVE it (rawstyle screech grit) — a hard wall, not a polite pad.
+        // HP off the sub, then DRIVE it (rawstyle screech grit) — a hard wall, not a polite pad.
         ((saws | cut) >> lowpass_q(0.7) >> highpass_hz(180.0, 0.7) >> shape(Tanh(1.8)))
             * envelope(|t: f32| (t * 3.0).min(1.0))
             * 0.42
@@ -549,7 +537,7 @@ fn render_hardkick(buf: &mut [f32], t: f32, root: f32, amp: f32) {
         let raw = ph_b.sin() + ((ph_b / TAU) * 2.0 - 1.0) * 0.5; // sine + saw partial (the "zaag")
         let driven = (raw * 5.0).tanh(); // overdrive
         let body = (driven * 1.6).clamp(-1.0, 1.0) * (-tt * 9.0).exp(); // + hard-clip edge, fast decay
-                                                                        // tonal tail: the pitched "piep", distorted, slower decay
+        // tonal tail: the pitched "piep", distorted, slower decay
         ph_t = (ph_t + TAU * tail_hz / sr) % TAU;
         let tail = (ph_t.sin() * 3.0).tanh() * (-tt * 5.0).exp();
         // click transient: bright noise blip for the attack snap
@@ -1053,9 +1041,9 @@ fn render_harmony(bed: &mut [f32], score: &Score) {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
                 let amp = score.param_at(t, "supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
-                                                                          // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
-                                                                          // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
-                                                                          // wall, not a centred pile.
+                // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
+                // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
+                // wall, not a centred pile.
                 for &f in score.chord_at(t).triad().iter() {
                     render_into(bed, t, bar, amp * 0.7, -0.95, supersaw(f));
                     render_into(bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
@@ -1238,8 +1226,8 @@ fn render_fx(bed: &mut [f32], score: &Score, total: usize) {
             render_riser(bed, bs, build, 0.42, 0.0); // a rising uplifter under the roll
             render_jet(bed, end - 2.6, 2.0, 0.6); // jet screams down into the hit
             render_impact(bed, end - 1.9, 2.2, 1.0); // THE blast lands + rings
-                                                     // a FINAL knal right at the very end: caught at its loud transient when the track stops,
-                                                     // so the demo ENDS ON A BANG (no gentle fade-out — see the declick-only fade in `master`).
+            // a FINAL knal right at the very end: caught at its loud transient when the track stops,
+            // so the demo ENDS ON A BANG (no gentle fade-out — see the declick-only fade in `master`).
             render_impact(bed, end - 0.45, 1.0, 1.0);
         }
     }
@@ -1357,7 +1345,7 @@ fn master(
         let m = 0.5 * (bed[2 * i] + bed[2 * i + 1]);
         hp += hp_a * (m - hp);
         let h = m - hp; // high-passed at 600
-                        // band-pass: one-pole low-pass at 6000 after the HP
+        // band-pass: one-pole low-pass at 6000 after the HP
         bp += lp_a * (h - bp);
         // write the band-passed signal into the delay line, read from it offset by haas_d
         let delayed = if i >= haas_d {

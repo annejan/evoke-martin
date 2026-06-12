@@ -9,10 +9,10 @@ use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::ShaderRef;
 
 use crate::background::mode_index;
+use crate::scene::SeqClock;
 use crate::scene::beat::Beat;
 use crate::scene::content::PartContent;
-use crate::scene::sequence::{show_end, SeqState, Sequence};
-use crate::scene::SeqClock;
+use crate::scene::sequence::{SeqState, Sequence, show_end};
 
 const FADE: f32 = 0.6; // interlude fade in/out time (s) at each edge of the part window
 
