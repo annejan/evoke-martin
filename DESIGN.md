@@ -8,13 +8,15 @@
 > not a verdict.**
 >
 > Where it cites the engine it means the engine as it stood when this draft was
-> written. **⚠️ The specific `main.rs:NNN` line references below are now stale:** the
-> engine has since been refactored out of one big `main.rs` into modules — the show
-> timeline is `src/scene/sequence.rs`, the effect vocabulary (transitions/deforms/
-> departures) is `src/scene/effects.rs`, the morph builders are `src/morph.rs`, the
-> glb dissolve is `src/scene/gl_dissolve.rs`, and `MARTIN_SHOW`/validate live in
-> `src/show.rs` / `src/validate.rs`. Read the references as *conceptual* pointers; the
-> ideas still hold. (Much of the "open" roadmap below has since shipped — see
+> written — as **one big `main.rs`**. **⚠️ It has since been refactored into modules,
+> so the `main.rs` citations below name the *original* location, not where the code
+> lives now** (the stale line numbers have been stripped — they meant nothing anymore).
+> The real homes today: the show timeline is `src/scene/sequence.rs`, the effect
+> vocabulary (transitions/deforms/departures) is `src/scene/effects.rs`, the morph
+> builders are `src/morph.rs`, the glb dissolve is `src/scene/gl_dissolve.rs`,
+> `MARTIN_SHOW`/validate live in `src/show.rs` / `src/validate.rs`, and the music engine
+> is `src/audio.rs` + `src/score.rs`. Read every code reference as a *conceptual*
+> pointer and find it by name. (Much of the "open" roadmap below has since shipped — see
 > `USAGE.md` for what exists.)
 >
 > Layers below this doc: `README.md` (what it is), `USAGE.md` (how to drive it),
@@ -44,20 +46,20 @@ A previous draft proposed a "named transition registry," a `~name` parser hook, 
 ~8 new `*_source` functions as *future work for tonight*. **Most of that already
 ships.** Verified in the live tree:
 
-- `Part` already carries `transition: Option<Transition>` (`main.rs:184`).
+- `Part` already carries `transition: Option<Transition>` (`main.rs`).
 - A `Transition` enum already exists — `Morph, Ball, Fade, Explode, Implode, Drop,
   Swirl` — with `Transition::parse` and a `MARTIN_TRANSITION` global env default
-  (`main.rs:151-175, 363`). **This enum *is* the "registry."** A new transition =
+  (`main.rs`). **This enum *is* the "registry."** A new transition =
   one enum variant + one `morph.rs` fn + one `build_sequence` match arm; no new
   abstraction is needed.
-- `parse_seq` already parses the trailing `~name` token (`main.rs:224-233`).
+- `parse_seq` already parses the trailing `~name` token (`main.rs`).
 - `SeqState` already has `sources: Vec<Option<Handle>>` and
-  `transitions: Vec<Transition>` (`main.rs:201-202`); `build_sequence` builds a
-  per-part source cloud per transition (`main.rs:377-388`); `part_director`
+  `transitions: Vec<Transition>` (`main.rs`); `build_sequence` builds a
+  per-part source cloud per transition (`main.rs`); `part_director`
   retargets `lhs` to that source and only pulses `bulge` for `Morph`
-  (`main.rs:480-494`).
+  (`main.rs`).
 - `morph.rs` already implements `ball_of, fade_of, explode_of, implode_of,
-  drop_of, swirl_of` (`morph.rs:54-165`) — the data-only transitions the old draft
+  drop_of, swirl_of` (`morph.rs`) — the data-only transitions the old draft
   wanted to "write tonight" exist, under `*_of` names.
 
 So the work split is **gap analysis, not greenfield.** §4 below is rewritten as
@@ -76,7 +78,7 @@ martin is a standalone Bevy 0.18 + `bevy_gaussian_splatting` 7.0.1 (vendored
 fork). CUDA-free: wgpu → Vulkan / Mesa RADV on AMD. It flies an orbit camera around
 3D Gaussian splats while they morph into one another.
 
-The whole thing is **one timeline of parts** (`main.rs:151-192`):
+The whole thing is **one timeline of parts** (`main.rs`):
 
 ```rust
 enum Transition { Morph, Ball, Fade, Explode, Implode, Drop, Swirl } // already shipped
@@ -86,7 +88,7 @@ struct Part   { content: PartContent, hold: f32, morph: f32, bulge: f32,
 struct Sequence { parts: Vec<Part>, count: usize } // count = the ONE shared budget N
 ```
 
-Authored via `parse_seq` (`main.rs:216`): a path-or-inline string, split on `;`/`\n`,
+Authored via `parse_seq` (`main.rs`): a path-or-inline string, split on `;`/`\n`,
 `#`-comments skipped, each part `head @ hold,morph,bulge` with an **optional trailing
 `~name`** transition token (already parsed). `head` is `text:...` or
 `splat:a.ply[+b.ply]`. Env shorthands (`MARTIN_PLY`, `MARTIN_TEXT`, `MARTIN_REFORM`,
@@ -95,12 +97,12 @@ Authored via `parse_seq` (`main.rs:216`): a path-or-inline string, split on `;`/
 At build, every part is resampled to **one shared count `N`** (`resample_morton`),
 part 0 assembles from a fuzzy ball (`ball_of`), and the show runs through **exactly
 one** `GaussianInterpolate<Gaussian3d>` entity whose `lhs`/`rhs` handles are
-retargeted per part by `part_director` (`main.rs:450`). Each non-`Morph` transition
+retargeted per part by `part_director` (`main.rs`). Each non-`Morph` transition
 builds its own *source cloud* (`fade_of`/`explode_of`/… in `build_sequence`,
-`main.rs:377-388`) that the morph flies in from; `Morph` flows from the previous
+`main.rs`) that the morph flies in from; `Morph` flows from the previous
 part's shape with the `sin(pi*t)` ball-pulse keyed off `cs.bulge`. The morph is the
 GPU compute blend `mix(lhs, rhs, t)`; `t` is a **single global** smoothstep-eased
-scalar (`CloudSettings.time`). Recording (`record_driver`, `main.rs:543`) is
+scalar (`CloudSettings.time`). Recording (`record_driver`, `main.rs`) is
 frame-indexed and deterministic.
 
 ### 1.2 The six hard constraints (carried verbatim — they shape everything)
@@ -184,10 +186,10 @@ Layer onto the current splitter so **old scripts parse byte-identically**:
 - **`key=value`** timing as an alternative to fragile positional floats: a token
   containing `=` → kv mode; else positional. Kills the `@,,1.2`-to-set-only-bulge
   footgun and the parse-default drift (positional defaults `1.5,3.0,0.9` at
-  `main.rs:238` vs the hand-built parts' own values). **This is genuinely new
+  `main.rs` vs the hand-built parts' own values). **This is genuinely new
   work** (~30 lines; the existing parser is a forgiving `filter_map` at
-  `main.rs:240`, so kv detection slots in cleanly).
-- The **`~name` transition token already exists** (`main.rs:224-233`). The open
+  `main.rs`, so kv detection slots in cleanly).
+- The **`~name` transition token already exists** (`main.rs`). The open
   spelling question is whether to keep bare `~name`, allow `~name(args)`, or move
   to a `kind=` kv field — the working spelling below is bare `~name` **pending
   OQ#2**; every §4 line uses it provisionally.
@@ -308,7 +310,7 @@ hand-wave. A Bevy `AssetLoader` for a `.ron`/`.seq` show would:
   `.ply` handles, so this is the same pattern).
 
 **The catch for hot-reload:** `build_sequence` has a one-shot `state.built` latch
-(`main.rs:306`) that never re-arms. Live editing the show requires detecting the
+(`main.rs`) that never re-arms. Live editing the show requires detecting the
 asset's `AssetEvent::Modified`, despawning the single interpolate entity, and
 clearing `built` so the next `build_sequence` rebuilds. That re-build path is real
 work, not free — list it as a RON-only nicety (→ OQ#1 colours how soon it's worth
@@ -353,7 +355,7 @@ time.* What to borrow precisely, and what to leave:
 **Borrow from Rocket:** (1) audio position as master clock; (2) author in BPM/rows
 but resolve to seconds at load; (3) the latency offset trick (Rocket's `+0.05`);
 (4) smoothstep interpolation between keyframes — which martin *already* uses
-(`factor*factor*(3-2*factor)`, `main.rs:490` = Rocket's "Smooth"). **Don't borrow:**
+(`factor*factor*(3-2*factor)`, `main.rs` = Rocket's "Smooth"). **Don't borrow:**
 the live socket editor (overkill; `parse_seq` hot-edits cheaply by re-running), and
 tracks-of-arbitrary-floats (constraints #3/#4 mean one entity, one global scalar —
 martin needs *named time markers* that parts anchor to, a degenerate single-axis
@@ -375,7 +377,7 @@ here):** `Cargo.toml` depends on `bevy = "0.18"` with default features, which
 of an existing switch. (If we ever want sample-accurate position we may add `rodio`
 directly; note it as a dep cost, like §2 does for serde/RON.)
 
-Today (`main.rs:498-510`) the live clock **accumulates delta-time**, which drifts
+Today (`main.rs`) the live clock **accumulates delta-time**, which drifts
 against the soundcard and never recovers from a stall:
 
 ```rust
@@ -462,7 +464,7 @@ fractional (`17.3` = bar 17, beat 3), so no separate rows-per-beat field is need
 
 Add an optional cue anchor to `Part`, resolve to absolute start seconds at build, and
 have `part_director` find the active part by absolute time (it currently walks parts
-summing `seg = morph + hold`, `main.rs:467-476`). New `parse_seq` syntax coexisting
+summing `seg = morph + hold`, `main.rs`). New `parse_seq` syntax coexisting
 with `@hold,morph,bulge`:
 
 - `@@drop` — this part **starts** at cue `drop`; morph uses its explicit/default
@@ -484,7 +486,7 @@ cue map is a single labeled "track," `part_director` the interpolating client.
 
 Constraint #5 is sacred. In record mode we **invert** the relationship: derive the
 audio position *from* the frame index, and mux audio offline. The current line
-(`main.rs:568`) is already correct:
+(`main.rs`) is already correct:
 
 ```rust
 clock.t = i as f32 * rec.dt;   // record: frame index IS the audio position; AV_OFFSET not applied
@@ -495,7 +497,7 @@ sheet's `audio` starting at video time 0 with the same `offset` baked in. Since 
 `i` shows music-time `i*dt` and audio starts at music-time 0, they are sample-locked
 **by construction** — no drift possible. One small change: extend `dur` so `total`
 covers the audio length (`dur = max(Σ part durations, audio_length) + tail`). The
-recorder never reads the live `MusicClock` (it already bails, `main.rs:552`). This is
+recorder never reads the live `MusicClock` (it already bails, `main.rs`). This is
 strictly better than live sync: the recorded video is the reference AV alignment,
 reproducible bit-for-bit. (→ OQ#6 confirms offline-mux vs any live capture.)
 
@@ -543,7 +545,7 @@ Field cheat-sheet (real, from `morph.rs`/`text.rs`):
 
 ### 4.1 Group A — DATA-ONLY: the shipped name map + the genuine gaps
 
-**Already shipped** (in `morph.rs`, wired in `build_sequence:377-388`). Do not
+**Already shipped** (in `morph.rs`, wired in `build_sequence`). Do not
 re-implement these:
 
 | Author name | Shipped variant | Shipped fn | Lever |
@@ -601,7 +603,7 @@ pub fn wipe_of(shape: &[Gaussian3d], span: f32) -> Vec<Gaussian3d> {
 ```
 
 Wiring it = add `Wipe` to the enum + a `Transition::Wipe => Some(wipe_of(&shaped, r))`
-arm next to the existing ones (`main.rs:381`). One representative sketch is enough to
+arm next to the existing ones (`main.rs`). One representative sketch is enough to
 decide the shape; the other gaps follow the same pattern and don't need finished
 bodies to argue about.
 
@@ -677,7 +679,7 @@ proven (`fade_of`). Needs a render check before promotion to "done."
 
 Both "spark out" and "explode away as a part leaves" are first-class asks, but the
 timeline model has **no leaving phase**: today a part *holds*, then the **next**
-part's morph-in begins (`part_director`, `main.rs:467-494`). There is no dedicated
+part's morph-in begins (`part_director`, `main.rs`). There is no dedicated
 out-transition slot. The shipped `*_of` sources are all *in*-transitions (they build
 the `lhs` the morph flies *from*). A true out-transition needs either (a) a
 displacement on the *outgoing* `rhs`/tail side, or (b) a synthetic zero-content part
@@ -714,22 +716,22 @@ lead-in). **Mode 0 reproduces today bit-for-bit** by never touching `local`.
 
 - **It mirrors the landed `bulge` feature exactly** — one helper fn + one gated
   branch + a one-line opacity multiply at `output.color` (verified live:
-  `opacity * gaussian_uniforms.global_opacity` at `gaussian.wgsl:480-482`; the
+  `opacity * gaussian_uniforms.global_opacity` at `gaussian.wgsl`; the
   `* tx_reveal` edit is algebraically identical when `tx_reveal == 1.0`).
 - **One uniform group plumbed in the same 4 spots** as `bulge`
   (`bindings.wgsl`, `render/mod.rs` struct, `render/mod.rs` construction,
   `settings.rs`). Default-off (`transition_mode: 0`) + append-only ⇒ cannot regress
   existing users.
 - **CRITICAL append location.** The **verified** live layout
-  (`bindings.wgsl:13-27`) ends:
+  (`bindings.wgsl`) ends:
   `… time_start, time_stop, bulge, num_classes: u32, color_space: u32, min: vec4,
   max: vec4`. So the new fields must be **appended after `max: vec4` (the true
   struct end)** — **NOT** after `bulge`, which would shift `num_classes`,
   `color_space`, `min`, `max` and corrupt every offset (`CloudUniform` mirrors this
-  order at `mod.rs:970-983`, constructed at `mod.rs:1031-1048`). This one location is
+  order at `mod.rs`, constructed at `mod.rs`). This one location is
   the difference between a clean PR
   and silently garbage uniforms. (Note `CloudSettings` is *richer* than the uniform
-  — it also has `time_scale`/`num_classes`/`color_space`, `gaussian/settings.rs:71-76`
+  — it also has `time_scale`/`num_classes`/`color_space`, `gaussian/settings.rs`
   (struct 60-81) — so
   "identical footprint as `bulge`" is true of the *uniform*, not the whole settings
   struct.)
@@ -741,7 +743,7 @@ lead-in). **Mode 0 reproduces today bit-for-bit** by never touching `local`.
   whole shader story and it carries over verbatim from the bulge work.
 
 **App side:** set the new fields next to `cs.bulge =` in `part_director`
-(`main.rs:494`), keyed off the part's transition. `time` is already the eased,
+(`main.rs`), keyed off the part's transition. `time` is already the eased,
 frame-indexed blend factor, so the sweep is automatically deterministic in record
 mode (#5 holds: phase uses only `splat_index` + position + uniforms — never
 wall-clock, never RNG state). Bulge and the transition are orthogonal and composable.
@@ -766,7 +768,7 @@ relax to multiple entities (Option B, pay at runtime)? The honest leaning is a
 ### 6.1 Option A — compose into ONE merged cloud per part (the constraint-honoring default)
 
 The minimal, constraint-honoring evolution. `part_gaussians` already does a baby
-version (load several splats, offset each, concat, `main.rs:272-294`); generalize
+version (load several splats, offset each, concat, `main.rs`); generalize
 "offset" → "full affine transform + per-element normalize," and add element kinds:
 
 ```
@@ -785,7 +787,7 @@ is still a flat `Vec<Gaussian3d>`. **Stays inside all six constraints.**
 into a splat — they're one buffer; the whole reason the engine exists). One radix sort
 = correct depth order, no inter-element transparency artifacts. Best perf. **Cost:**
 per-element normalize must be *opt-out, not global* — today `MARTIN_NORMALIZE`
-normalizes the whole part (`build_sequence:323-332`); normalizing the union after
+normalizes the whole part (`build_sequence`); normalizing the union after
 merging destroys the relative sizing transforms set, so normalize moves *inside* the
 element loop. Count budget is shared (a 5-pixel logo and a 1M-splat object both
 resample to `N`). **Limitation:** cannot host a non-gaussian `Mesh3d` — that forces
@@ -943,19 +945,19 @@ compose: splat:doggo.ply        @@pos=0,0,0
 ```
 
 Unknown `@@` tokens are ignored (same forgiving `filter_map` spirit as the current
-parser, `main.rs:240`).
+parser, `main.rs`).
 
 ### 6.7 Determinism of multi-entity / mesh tracks (not yet shown — flag it)
 
 §6.2/§6.5 *assert* that per-track `time` and mesh material-alpha tweens "stay a pure
 function of frame-indexed `clock.t`." That has to be **demonstrated**, not asserted,
 because `record_driver` today drives exactly **one** clock and **one** entity
-(`state.entity: Option<Entity>`, `main.rs:204`; retarget at `main.rs:480-489`). For N
+(`state.entity: Option<Entity>`, `main.rs`; retarget at `main.rs`). For N
 deterministic entities + mesh tracks in record mode you must: (a) generalize
 `state.entity` to a `Vec<TrackState>`; (b) have a single `part_director` set every
 track's `time`/`Transform`/material-alpha from the one frame-indexed `clock.t`;
 (c) ensure any new system replicates the `controls`/`advance_seq_clock` record-mode
-bail (`main.rs:99-101, 504-506`). Until that path exists, multi-track determinism is a
+bail (`main.rs`). Until that path exists, multi-track determinism is a
 plan, not a fact — say so.
 
 ### 6.8 What changes in code — and it is NOT "surgical"
@@ -964,7 +966,7 @@ plan, not a fact — say so.
 (positions, gaussian scale, SH rotation; `normalize_to` exists); `main.rs`:
 `Compose(Vec<Element>)` added (Text/Splats desugar so existing loaders iterate
 elements), `build_sequence` groups by track. **The big one:** `part_director` is
-hard-wired to a *single* `state.entity` (`main.rs:460-461, 480-489`); track-based
+hard-wired to a *single* `state.entity` (`main.rs`); track-based
 composition requires generalizing it (and `state.entity`, and the record path, §6.7)
 to a `Vec<TrackState>`. **This is the largest structural change proposed in this whole
 document — label it HARD, not surgical.** Option A (one merged cloud) avoids all of it
@@ -1001,7 +1003,7 @@ gaussians (§6.4, or a baked `defeest.ply` from `defeest.dae`). A true scrolling
 isn't possible (per-particle motion needs §5), so the end-scroller is a few held text
 parts.
 
-**Parser caveat:** the `@hold,morph,bulge` tail splits on commas (`main.rs:240`), and
+**Parser caveat:** the `@hold,morph,bulge` tail splits on commas (`main.rs`), and
 the head is split off by `@` first — so the comma hazard bites only when a `text:` line
 *also* carries an `@` tail. Safest rule: **keep commas out of `text:` payloads** — use
 `·`, `/`, or `\n`. The credit line stacked:
@@ -1093,7 +1095,7 @@ So "single binary" honestly means: **binary + script + font (+ small logo) embed
   default the asset root to `assets/` on fallback.
 - A loader-screen state covers the wait while `.ply` load (the slow part). Reuse the
   existing build-phase wait (`build_sequence` already gates on splats being loaded,
-  `main.rs:309`) — show a "deFEEST" splash until `state.built` (→ OQ#14).
+  `main.rs`) — show a "deFEEST" splash until `state.built` (→ OQ#14).
 - For a real packer, compress the binary with a standard tool — the demoscene
   canonical here is **kkrunchy** (64k) / **Crinkler** (4k) for executable packing;
   `upx` is the plain alternative. Accept `.ply` stays external on disk (still
