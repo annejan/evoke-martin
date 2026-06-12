@@ -67,8 +67,8 @@ assets/badge-front.png
 assets/badge-back.png
 assets/greetings-logos
 
-# Local preview renders (not committed)
-/*.mp4
+# Local preview renders (not committed) — keep them out of the repo root, in /renders/
+/renders/
 *.mp3
 /intro-preview.show
 

@@ -578,7 +578,11 @@ impl Score {
                 continue;
             }
             let ln = n + 1;
-            let first = line.split_whitespace().next().unwrap();
+            // never `.unwrap()` on parsed input: a non-empty trimmed line has a token, but stay
+            // defensive so a weird line skips rather than panics.
+            let Some(first) = line.split_whitespace().next() else {
+                continue;
+            };
 
             // pattern line: `<section>.<inst> p<N>|fill: <16 steps>`
             if first.contains('.') {
@@ -602,7 +606,11 @@ impl Score {
                     .split_once(':')
                     .ok_or_else(|| format!("line {ln}: pattern needs a ':'"))?;
                 let mut h = head.split_whitespace();
-                let target = h.next().unwrap();
+                // a line like `: x...` has an empty target before the ':' — a real malformed-input
+                // case that used to panic; report it instead.
+                let target = h
+                    .next()
+                    .ok_or_else(|| format!("line {ln}: empty `section.inst` before ':'"))?;
                 let phase_tok = h.next().unwrap_or("p0");
                 let (sec, inst) = target
                     .split_once('.')
@@ -672,7 +680,9 @@ impl Score {
             }
 
             let mut it = line.split_whitespace();
-            let kw = it.next().unwrap();
+            let Some(kw) = it.next() else {
+                continue; // unreachable (line is non-empty), but never unwrap on parsed input
+            };
             match kw {
                 "bpm" => {
                     bpm = it
@@ -1351,6 +1361,18 @@ mod tests {
         // round-trips through to_dsl.
         let s2 = Score::from_str(&custom.to_dsl()).unwrap();
         assert!(s2.fx_on("drop", "wall") && !s2.fx_on("drop", "jet"));
+    }
+
+    #[test]
+    fn malformed_pattern_line_errors_instead_of_panicking() {
+        // a line starting with ':' that still looks like a pattern (contains '.') leaves an empty
+        // target before the ':' — that used to `.unwrap()`-panic; now it's a clean parse error.
+        assert!(
+            Score::from_str("bpm 120\nchords C\nsection a 4 4\n:a.b x...\n").is_err(),
+            "malformed pattern line should Err, not panic"
+        );
+        // a bare keyword-less colon line is just an unknown keyword (also a clean Err).
+        assert!(Score::from_str("bpm 120\nchords C\nsection a 4 4\n: nope\n").is_err());
     }
 
     #[test]
