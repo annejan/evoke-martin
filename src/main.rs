@@ -116,7 +116,8 @@ fn main() {
     ]
     .iter()
     .any(|k| std::env::var(k).is_ok());
-    let glb_alone = (std::env::var("MARTIN_GLB").is_ok() || std::env::var("MARTIN_4D_TEST").is_ok())
+    let glb_alone = (std::env::var("MARTIN_GLB").is_ok()
+        || std::env::var("MARTIN_4D_TEST").is_ok())
         && !explicit_seq
         && composition.is_none();
     let (sequence, asset_root) = if glb_alone {
