@@ -1,0 +1,45 @@
+# MOODY TRAGIC RAIN — the opposite of the tropical track, score-file only (no recompile). Slow,
+# A-minor, the woozy dark bass, soft halftime kit like rain on a tent, heavy reverb + the atmosphere
+# floor. Uses CUSTOM section names (intro/verse/rain/calm — NOT drop/climax) so the party layers
+# (wall/house/donk/casio/shimmer) and the demoscene jets/impacts/bang stay OFF: a clean, sad slate.
+bpm 72
+chords Am F C E
+
+# dark + spacious: woozbass ON, lots of reverb, no party stabs, soft kit, gentle pump.
+set lead=0.7 sub=0.5 supersaw=0 choir=0.3 donk=0 house=0 reverb=0.6 sidechain=0.3 widen=1.5 makeup=1.05 ceiling=0.95 woozbass=1 shimmer=0 reverbauto=1 hats=0.15 snares=0.3 atmosphere=1.3
+
+section intro 8 8
+section verse 16 8,8
+section rain 16 8,8
+section calm 8 8
+
+# --- drums: soft, sparse, halftime (snare on beat 3) — rain ticking on a tent, not a dancefloor ---
+intro.hat p0: ..x. .... ..x. ....
+verse.kick p0: x... .... .... ....
+verse.kick p1: x... .... .... x...
+verse.snare p1: .... .... x... ....
+verse.hat p0: ..x. ..x. ..x. ..x.
+verse.hat p1: x.x. x.x. x.x. x.x.
+rain.kick p0: x... .... x... ....
+rain.kick p1: x... .... x... ....
+rain.snare p0: .... .... x... ....
+rain.snare p1: .... .... x... ....
+rain.hat p0: x.x. x.x. x.x. x.x.
+rain.hat p1: xxxx xxxx xxxx xxxx
+calm.kick p0: x... .... .... ....
+calm.hat p0: ..x. .... ..x. ....
+
+# --- melody: a slow, sad A-minor line (4-bar over Am F C E; the G#4 over E is the tragic pull) ---
+verse.lead p0: A4 . . .  C5 . . .  B4 . . .  A4 . . .   . . . .  A4 . . .  G4 . . .  F4 . . .   E4 . . .  G4 . . .  C5 . . .  B4 . . .   . . . .  B4 . . .  G#4 . . .  E4 . . .
+rain.lead p0: A4 . . .  C5 . . .  B4 . . .  A4 . . .   . . . .  A4 . . .  G4 . . .  F4 . . .   E4 . . .  G4 . . .  C5 . . .  B4 . . .   . . . .  B4 . . .  G#4 . . .  E4 . . .
+calm.lead p0: A4 . . .  C5 . . .  B4 . . .  A4 . . .   . . . .  A4 . . .  G4 . . .  F4 . . .   E4 . . .  G4 . . .  C5 . . .  B4 . . .   . . . .  B4 . . .  G#4 . . .  E4 . . .
+
+# --- bass: the woozy dark sub on the chord roots (deep, held; woozbass=1 makes it bloom + drift) ---
+verse.bass p0: A1 . . .  . . . .  A1 . . .  . . . .   F1 . . .  . . . .  F1 . . .  . . . .   C2 . . .  . . . .  C2 . . .  . . . .   E1 . . .  . . . .  E1 . . .  . . . .
+rain.bass p0: A1 . . .  . . . .  A1 . . .  . . . .   F1 . . .  . . . .  F1 . . .  . . . .   C2 . . .  . . . .  C2 . . .  . . . .   E1 . . .  . . . .  E1 . . .  . . . .
+calm.bass p0: A1 . . .  . . . .  A1 . . .  . . . .   F1 . . .  . . . .  F1 . . .  . . . .   C2 . . .  . . . .  C2 . . .  . . . .   E1 . . .  . . . .  E1 . . .  . . . .
+
+# dynamics: low + swelling, fading to almost nothing — it just dissolves into the rain, no bang.
+gain intro 0.15>0.3 verse 0.4 rain 0.5>0.6 calm 0.4>0.08
+sub intro 0.3 verse 0.5 rain 0.6 calm 0.4>0.1
+mids intro 0.15>0.3 verse 0.4 rain 0.5 calm 0.3>0.08

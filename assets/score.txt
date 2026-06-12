@@ -22,6 +22,7 @@ chords G Am G D  G Am G D  Em C G D  Em C D D
 #   shimmer = airy octave-up choir bloom over the climax+outro   reverbauto = section reverb-depth
 #     automation (space in intro/breakdown/outro, dry/punchy in the drop; 0 = flat send)
 #   hats = hi-hat level   snares = snare level (the rhythm section — push them up to sit forward)
+#   atmosphere = dusty noise-floor / vinyl-crackle bed level (0 = off, for a clean/chiptune feel)
 # A knob can be OVERRIDDEN per section with `<section>.set key=value …` — the synth honours it inside
 # that section only (for the per-onset knobs: lead/supersaw/choir/donk/house). E.g. `drop.set house=0.18`
 # for a louder organ in the drop without touching the climax. (Master-bus knobs stay global; reverb

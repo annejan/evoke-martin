@@ -455,8 +455,11 @@ fn render_riser(buf: &mut [f32], start_t: f32, dur: f32, amp: f32, pan: f32) {
 /// crackle. Game/chiptune music is dead-silent between notes; produced trip-hop/downtempo records
 /// (Massive Attack / Portishead) always sit on a dusty textured floor — that bed is a big part of
 /// what reads as "a record" instead of "a bright synth preset". Kept low + slightly decorrelated L/R.
-fn render_atmosphere(bed: &mut [f32], sr: f32, start_t: f32) {
+fn render_atmosphere(bed: &mut [f32], sr: f32, start_t: f32, amt: f32) {
     use std::f32::consts::TAU;
+    if amt <= 0.0 {
+        return; // `set atmosphere=0` → no floor (e.g. a clean chiptune or a different genre)
+    }
     let total = bed.len() / 2;
     let start = (start_t.max(0.0) * sr) as usize;
     let fade = (1.5 * sr) as usize; // ease the floor in over ~1.5 s so it doesn't just switch on
@@ -474,7 +477,7 @@ fn render_atmosphere(bed: &mut [f32], sr: f32, start_t: f32) {
         } else {
             0.0
         };
-        let v = (floor + crackle) * g;
+        let v = (floor + crackle) * g * amt;
         bed[2 * i] += v;
         bed[2 * i + 1] += v * 0.92;
     }
@@ -1177,7 +1180,12 @@ fn render_fx(bed: &mut [f32], score: &Score, total: usize) {
     // atmosphere: a dusty noise floor + sparse crackle — but ONLY from the build onward (it fades in
     // as the demo kicks off). The intro stays CLEAN sub-bass only; the floor would just read as crowd
     // "juich" noise over the bare intro.
-    render_atmosphere(bed, sr, section_time(score, "build").unwrap_or(0.0));
+    render_atmosphere(
+        bed,
+        sr,
+        section_time(score, "build").unwrap_or(0.0),
+        score.param("atmosphere", 1.0), // `set atmosphere=` — dusty noise-floor level (0 = off)
+    );
 }
 
 /// The master chain: build the sidechain duck (from `kicks`), the spread reverb send + its per-section
