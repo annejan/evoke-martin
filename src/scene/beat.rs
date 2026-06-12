@@ -28,6 +28,14 @@ pub(crate) struct Beat {
     pub intensity: f32, // MARTIN_BEAT scale (0 = off)
 }
 
+impl Beat {
+    /// Pack the per-lane pulses for a fullscreen-effect uniform: `x=kick y=snare z=hat w=intensity`
+    /// (the layout `bg.wgsl` / `shader_part.wgsl` expect). Shared by the background + interlude layers.
+    pub(crate) fn as_vec4(&self) -> Vec4 {
+        Vec4::new(self.kick, self.snare, self.hat, self.intensity)
+    }
+}
+
 /// Decaying envelope: 1.0 at a hit, `exp(-dt/tau)` after — `tau` sets the snap.
 fn pulse(times: &[f32], t: f32, tau: f32) -> f32 {
     let i = times.partition_point(|&x| x <= t);

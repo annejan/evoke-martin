@@ -5,10 +5,10 @@
 
 use bevy::pbr::{Material, MaterialPlugin};
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, ShaderType};
+use bevy::render::render_resource::AsBindGroup;
 use bevy::shader::ShaderRef;
 
-use crate::background::mode_index;
+use crate::background::{ASPECT, FxUniform, camera_fill_quad, mode_index};
 use crate::scene::SeqClock;
 use crate::scene::beat::Beat;
 use crate::scene::content::PartContent;
@@ -16,20 +16,10 @@ use crate::scene::sequence::{SeqState, Sequence, show_end};
 
 const FADE: f32 = 0.6; // interlude fade in/out time (s) at each edge of the part window
 
-/// Uniform fed to `shader_part.wgsl` (std140: a 16-byte scalar slot + a vec4).
-#[derive(ShaderType, Clone, Default)]
-struct FxData {
-    time: f32,
-    mode: u32,
-    aspect: f32,
-    alpha: f32, // fade across the part window (0 at edges, 1 while held)
-    beat: Vec4, // x=kick y=snare z=hat w=intensity
-}
-
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 struct ShaderPartMaterial {
     #[uniform(0)]
-    data: FxData,
+    data: FxUniform, // shared with the background layer; `level` = this part's fade alpha
 }
 
 impl Material for ShaderPartMaterial {
@@ -76,24 +66,21 @@ fn spawn_shader_parts(
     if !state.built {
         return;
     }
-    let aspect = 16.0 / 9.0;
     let d = 88.0_f32; // far plane, just in front of the background layer (90) so it wins when active
-    let h = 2.0 * d * (std::f32::consts::FRAC_PI_8).tan() * 1.06;
-    let w = h * aspect;
     for (part, p) in seq.parts.iter().enumerate() {
         let PartContent::Shader(name) = &p.content else {
             continue;
         };
         let mat = mats.add(ShaderPartMaterial {
-            data: FxData {
+            data: FxUniform {
                 mode: mode_index(name),
-                aspect,
+                aspect: ASPECT,
                 ..default()
             },
         });
         let quad = commands
             .spawn((
-                Mesh3d(meshes.add(Rectangle::new(w, h))),
+                Mesh3d(meshes.add(camera_fill_quad(d))),
                 MeshMaterial3d(mat),
                 Transform::from_xyz(0.0, 0.0, -d),
                 Visibility::Hidden,
@@ -138,8 +125,8 @@ fn update_shader_parts(
         };
         if let Some(m) = mats.get_mut(&h.0) {
             m.data.time = clock.t;
-            m.data.alpha = alpha;
-            m.data.beat = Vec4::new(beat.kick, beat.snare, beat.hat, beat.intensity);
+            m.data.level = alpha;
+            m.data.beat = beat.as_vec4();
         }
     }
 }

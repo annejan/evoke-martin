@@ -12,20 +12,34 @@ use bevy::shader::ShaderRef;
 use crate::scene::SeqClock;
 use crate::scene::beat::Beat;
 
-/// Uniform block fed to `bg.wgsl` (std140-packed: a 16-byte scalar slot + a vec4).
+/// The 16:9 record/window aspect — fed to the effect uniform and used to size the fullscreen quad.
+pub(crate) const ASPECT: f32 = 16.0 / 9.0;
+
+/// Uniform block for a fullscreen WGSL effect, shared by the background layer (`bg.wgsl`) and the
+/// `shader:` interlude (`scene::shader_part`, `shader_part.wgsl`) — both feed the same std140 layout
+/// (a 16-byte scalar slot + a vec4). ONE type so the Rust and WGSL sides can't drift out of sync.
 #[derive(ShaderType, Clone, Default)]
-struct BgData {
-    time: f32,
-    mode: u32,
-    aspect: f32,
-    dim: f32, // MARTIN_BG_DIM — scales brightness so foreground content reads (default 1.0)
-    beat: Vec4, // x=kick y=snare z=hat w=intensity
+pub(crate) struct FxUniform {
+    pub time: f32,
+    pub mode: u32,
+    pub aspect: f32,
+    /// Output multiplier the shader applies to its colour: the background uses it as `MARTIN_BG_DIM`
+    /// brightness (default 1.0), the interlude as its fade-to-black alpha (0 at the edges of the part).
+    pub level: f32,
+    pub beat: Vec4, // x=kick y=snare z=hat w=intensity
+}
+
+/// The fullscreen quad that fills the default-FOV (π/4) frustum at distance `d`, with a little
+/// overscan. Both effect layers parent one of these (opaque, at the far plane) to the camera.
+pub(crate) fn camera_fill_quad(d: f32) -> Rectangle {
+    let h = 2.0 * d * std::f32::consts::FRAC_PI_8.tan() * 1.06;
+    Rectangle::new(h * ASPECT, h)
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 struct BgMaterial {
     #[uniform(0)]
-    data: BgData,
+    data: FxUniform,
 }
 
 impl Material for BgMaterial {
@@ -73,26 +87,22 @@ fn spawn_bg(
         .ok()
         .map(|s| mode_index(&s))
         .unwrap_or(0);
-    let aspect = 16.0 / 9.0; // the 1280×720 record/window
-    // fill the default perspective FOV (π/4) at distance d, with a little overscan.
-    let d = 90.0_f32;
-    let h = 2.0 * d * (std::f32::consts::FRAC_PI_8).tan() * 1.06;
-    let w = h * aspect;
+    let d = 90.0_f32; // far plane, behind the interlude layer (88) so the interlude wins when active
     let dim = std::env::var("MARTIN_BG_DIM")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(1.0);
     let mat = mats.add(BgMaterial {
-        data: BgData {
+        data: FxUniform {
             mode,
-            aspect,
-            dim,
+            aspect: ASPECT,
+            level: dim,
             ..default()
         },
     });
     let quad = commands
         .spawn((
-            Mesh3d(meshes.add(Rectangle::new(w, h))),
+            Mesh3d(meshes.add(camera_fill_quad(d))),
             MeshMaterial3d(mat),
             Transform::from_xyz(0.0, 0.0, -d), // local -Z = in front of the camera, facing it
             BgQuad,
@@ -113,7 +123,7 @@ fn update_bg(
     for h in &q {
         if let Some(m) = mats.get_mut(&h.0) {
             m.data.time = clock.t;
-            m.data.beat = Vec4::new(beat.kick, beat.snare, beat.hat, beat.intensity);
+            m.data.beat = beat.as_vec4();
         }
     }
 }
