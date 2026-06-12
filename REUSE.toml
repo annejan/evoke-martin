@@ -53,17 +53,6 @@ SPDX-FileCopyrightText = [
 ]
 SPDX-License-Identifier = "MIT"
 
-# op-de-camping.mid is the score exported to MIDI (pipeline/score_to_midi.py) to share with
-# composers/arrangers — same derivation + source credits as the score it came from.
-[[annotations]]
-path = "op-de-camping.mid"
-SPDX-FileCopyrightText = [
-    "2026 Anne Jan Brouwer <brouwer@annejan.com>",
-    "1995 Ome Henk — Op de Camping",
-    "1979 Village People — In the Navy",
-]
-SPDX-License-Identifier = "MIT"
-
 [[annotations]]
 path = "assets/font.ttf"
 SPDX-FileCopyrightText = "2003 Bitstream, Inc."
@@ -116,6 +105,7 @@ path = [
     "pipeline/bundle.sh",
     "pipeline/release.sh",
     ".gitignore",
+    ".gitattributes",
     ".github/dependabot.yml",
     ".github/workflows/build.yml",
     ".github/workflows/codeql.yml",

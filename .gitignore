@@ -72,7 +72,9 @@ assets/greetings-logos
 *.mp3
 /intro-preview.show
 
-# copyright reference MIDIs (transcription only, not shipped)
+# MIDIs are generated, not shipped: score exports (pipeline/score_to_midi.py, e.g. op-de-camping.mid
+# in the root) + copyright transcription refs under assets/. Regenerate on demand.
+/*.mid
 /assets/*.mid
 
 # local mesh->splat A/B render artifacts (not assets)
