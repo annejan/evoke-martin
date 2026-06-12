@@ -820,6 +820,14 @@ fn reverb_send(bed: &[f32], sr: f32) -> Vec<f32> {
 /// Render the whole score to an interleaved-stereo buffer: voices panned into a "bed" (everything
 /// but the kick), an arp counter-line in the energetic sections, sidechain pump under the kick, a
 /// spread reverb send, the continuous sub, per-section fades × gain, soft clip.
+///
+/// This is a WHOLE-TRACK, in-memory render (a handful of `demo_len`-sized buffers, ~tens of MB each),
+/// not a streaming/block one — on purpose. The spread reverb runs global feedback combs over the
+/// entire bed, and the master's glue/limiter want the whole signal, so a block engine would be a big
+/// rewrite. It isn't needed: the only two callers are offline one-shots — `MARTIN_SYNTH_WAV` writes a
+/// WAV and exits, and live playback either renders this once on a background thread or plays a
+/// pre-rendered WAV (`MARTIN_MUSIC`, what the bundle ships). Peak memory (a few hundred MB for a ~4 min
+/// track) is fine for a batch render; if this ever drove real-time low-memory synthesis, THEN stream.
 pub fn synth_track(score: &Score) -> Track {
     OVERSAMPLE.with(|c| c.set(score.param("oversample", 0.0) > 0.5)); // `set oversample=1` — anti-alias
     let sr = SAMPLE_RATE as f32;
