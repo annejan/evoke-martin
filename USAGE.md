@@ -287,6 +287,7 @@ following part then assembles fresh (a Morph/Swarm arrival after a departure bec
 | `out:disperse` (`out:dust`) | scatters outward in all directions and fades — blown to dust |
 | `out:evaporate` (`out:rise`) | drifts upward and fades — rises away |
 | `out:sink` (`out:fall`) | falls straight down and fades — drops out the bottom |
+| `out:explode` (`out:burst`) | flung ballistically outward from the centre and fades — a burst (punchier than `disperse`'s wash) |
 
 Example: `splat:dog.ply out:wash ; text:HELLO ~rain out:disperse ; splat:dog.ply ~ball` → the dog
 washes away → text rains in then blows to dust → the dog re-forms from the void.

@@ -178,6 +178,7 @@ pub(crate) enum Departure {
     Disperse,  // scatters outward in all directions and fades — blown to dust
     Evaporate, // drifts upward and fades — rises away
     Sink,      // falls straight down and fades — drops out the bottom
+    Explode,   // flung ballistically outward from the centre and fades — a burst (vs Disperse's softer wash)
 }
 
 impl Departure {
@@ -187,6 +188,7 @@ impl Departure {
             "disperse" | "dust" | "dissolve" => Departure::Disperse,
             "evaporate" | "rise" => Departure::Evaporate,
             "sink" | "fall" => Departure::Sink,
+            "explode" | "burst" => Departure::Explode,
             _ => return None,
         })
     }
@@ -220,6 +222,8 @@ mod tests {
         assert_eq!(Deform::parse("xxx"), None);
         assert_eq!(Departure::parse("dust"), Some(Departure::Disperse));
         assert_eq!(Departure::parse("fall"), Some(Departure::Sink));
+        assert_eq!(Departure::parse("burst"), Some(Departure::Explode)); // alias
+        assert_eq!(Departure::parse("EXPLODE"), Some(Departure::Explode));
         assert_eq!(Departure::parse("gone"), None);
     }
 

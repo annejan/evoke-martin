@@ -12,7 +12,9 @@ use bevy_gaussian_splatting::{
 };
 
 use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
-use crate::morph::{ball_of, disperse_of, evaporate_of, resample_morton, sink_of, wash_of};
+use crate::morph::{
+    ball_of, disperse_of, evaporate_of, explode_of, resample_morton, sink_of, wash_of,
+};
 use crate::scene::content::{PartContent, parse_source, part_gaussians, side_by_side};
 use crate::scene::effects::{BALL_SHELL, Deform, Departure, Transition, source_cloud};
 use crate::scene::gl_dissolve::{gl_mesh_alpha, spawn_gl_dissolve};
@@ -515,6 +517,7 @@ pub(crate) fn build_sequence(
             Departure::Disperse => disperse_of(&shaped, r * 1.8),
             Departure::Evaporate => evaporate_of(&shaped, r * 3.0),
             Departure::Sink => sink_of(&shaped, r * 3.0),
+            Departure::Explode => explode_of(&shaped, r * 2.0),
         });
         sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
         out_clouds.push(out.map(|o| assets.add(PlanarGaussian3d::from(o))));

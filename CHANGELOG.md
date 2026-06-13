@@ -23,6 +23,9 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
   the `glb:`/`model:` *mesh* paths. `MARTIN_GLB_SCALE` / `MARTIN_GLB_DIST` size + frame it.
 - Per-part backgrounds: the `bg:<name>` seq token switches the fullscreen background shader from
   that part on (sticky; `bg:off` = pure black) — the background becomes a second energy curve.
+- `out:explode` (`out:burst`) departure: a part is flung ballistically outward from its centre and
+  fades — a real burst, punchier than `out:disperse`'s wash. Pairs with a `glb:` dissolve for a
+  mesh → blob → explode exit.
 - SH build profiles: `sh0` (default, flat colour) and `sh3` (degree-3 view-dependent glint, for real
   captures) — `cargo b-sh3` builds into a separate target dir so both binaries coexist.
 - `MARTIN_PREVIEW_FPS=<n>`: render the timeline at n fps instead of 60 — far fewer frames for a fast
