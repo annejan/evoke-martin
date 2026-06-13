@@ -275,6 +275,7 @@ mod tests {
             rot: None,
             cluster: None,
             bg: None,
+            raster: None,
         }
     }
 

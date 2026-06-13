@@ -219,8 +219,16 @@ shader:warp                      # a fullscreen WGSL effect as an INTERLUDE: the
                                  #   in/out across the part — a demoscene effect between scenes
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   cluster:N   @@anchor   bg:name
+…any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   cluster:N   @@anchor   bg:name   raster:mode
 ```
+
+**Per-part raster mode** (`raster:<mode>`): the fork's debug-shading views, colour each gaussian by a
+channel instead of its RGB. `color` (default, normal render) · `depth` · `normal` · `position`
+(colour by XYZ → a rainbow gradient) · `classification` · `flow` (optical-flow) · `velocity`. Set
+the whole show's default with **`MARTIN_RASTER=<mode>`**; a part's `raster:` token overrides it.
+`depth`/`normal` need geometry to read (great on captures/`mesh:`/`glb:`, flat on a synthetic cloud);
+`position` looks great on anything — e.g. `text:deFEEST ~outline raster:position` = outline-revealed
+letters in a position-colour rainbow.
 
 **Per-part background** (`bg:<name>`): switches the fullscreen background shader **from that part
 on** (sticky until the next `bg:` token): `plasma` / `tunnel` / `stars` / `warp` / `rings` / `grid` /

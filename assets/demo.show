@@ -23,7 +23,7 @@ text:320x200 VGA · MOD MUSIC    @3,2    ~typewriter             # the classic f
 text:2020s                      @2,2    ~fade                   # fast-forward
 mesh:aegg.dae                   @5,3.5  ~rain ^wind             # modern hardware badge rains in, gusting
 mesh:bitterbal.obj cluster:9    @5,3    ~drop ^wind  out:evaporate # bitterballen — deFEEST catering
-text:THE SCENE LIVES            @3,2.5  ~outline ^wave          # proclamation
+text:THE SCENE LIVES            @3,2.5  ~outline ^wave raster:position # proclamation — outline reveal in rainbow position-colour
 wall:CODE · MUSIC · GFX · TEXT  @4,3    ~fade ^wave             # the four pillars
 wall:DEMOSCENE · DEMOPARTY · DEMO @4,3  ~swarm ^wind            # what we do
 image:defeest-logo.png          @4,3    ~sparkle                 # logo sparkles in

@@ -26,6 +26,10 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
 - `out:explode` (`out:burst`) departure: a part is flung ballistically outward from its centre and
   fades — a real burst, punchier than `out:disperse`'s wash. Pairs with a `glb:` dissolve for a
   mesh → blob → explode exit.
+- Raster modes (`raster:<mode>` per-part token + `MARTIN_RASTER` global default): expose the fork's
+  RasterizeMode debug-shading views — `color`/`depth`/`normal`/`position`/`classification`/`flow`/
+  `velocity`. `position` colours each gaussian by XYZ (a rainbow gradient) — e.g.
+  `text:deFEEST ~outline raster:position` reveals the letters in a position-colour rainbow.
 - SH build profiles: `sh0` (default, flat colour) and `sh3` (degree-3 view-dependent glint, for real
   captures) — `cargo b-sh3` builds into a separate target dir so both binaries coexist.
 - `MARTIN_PREVIEW_FPS=<n>`: render the timeline at n fps instead of 60 — far fewer frames for a fast

@@ -131,6 +131,7 @@ fn load_splats(
         out_clouds: Vec::new(),
         transitions: Vec::new(),
         deforms: Vec::new(),
+        rasters: Vec::new(),
         starts: Vec::new(),
         built: false,
         entity: None,

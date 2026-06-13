@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy_gaussian_splatting::morph::interpolate::GaussianInterpolate;
 use bevy_gaussian_splatting::sort::SortMode;
 use bevy_gaussian_splatting::{
-    CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle,
+    CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle, RasterizeMode,
 };
 
 use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
@@ -26,6 +26,35 @@ const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t * this
 const DEPART_LEN: f32 = 1.5; // `out:` departure time (s) — carved from the end of a part's hold
 
+/// `raster:<mode>` / `MARTIN_RASTER=<mode>` → the fork's RasterizeMode (the debug-shading views from
+/// the upstream viewer: colour is the normal render, the rest visualise a channel). None on a bad name.
+pub(crate) fn parse_raster(s: &str) -> Option<RasterizeMode> {
+    Some(match s.trim().to_ascii_lowercase().as_str() {
+        "color" | "colour" | "rgb" => RasterizeMode::Color,
+        "depth" => RasterizeMode::Depth,
+        "normal" | "normals" => RasterizeMode::Normal,
+        "position" | "pos" => RasterizeMode::Position,
+        "classification" | "class" => RasterizeMode::Classification,
+        "opticalflow" | "optical-flow" | "flow" => RasterizeMode::OpticalFlow,
+        "velocity" | "vel" => RasterizeMode::Velocity,
+        _ => return None,
+    })
+}
+
+/// The global default raster mode (`MARTIN_RASTER`), applied to any part without its own `raster:`.
+fn global_raster() -> RasterizeMode {
+    std::env::var("MARTIN_RASTER")
+        .ok()
+        .and_then(|s| {
+            let m = parse_raster(&s);
+            if m.is_none() {
+                eprintln!("MARTIN_RASTER: unknown mode '{s}' — using color");
+            }
+            m
+        })
+        .unwrap_or(RasterizeMode::Color)
+}
+
 /// One part morphs in from the previous (or, for part 0, from a ball), then holds.
 #[derive(Clone)]
 pub(crate) struct Part {
@@ -40,6 +69,7 @@ pub(crate) struct Part {
     pub rot: Option<Quat>,      // per-part orientation (`rot:rx,ry,rz` deg), baked into the shape
     pub cluster: Option<usize>, // `cluster:N` → N scattered, randomly-rotated copies (a "serving")
     pub bg: Option<u32>,        // `bg:<name>` → background mode from this part on (BG_OFF hides)
+    pub raster: Option<RasterizeMode>, // `raster:<mode>` → debug shading for this part (None = MARTIN_RASTER)
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -64,6 +94,7 @@ pub(crate) struct SeqState {
     pub out_clouds: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part `out:` departure cloud (None = none)
     pub transitions: Vec<Transition>,                      // resolved transition per part
     pub deforms: Vec<Option<Deform>>,                      // resolved persistent deform per part
+    pub rasters: Vec<RasterizeMode>,                       // resolved raster mode per part (raster:/MARTIN_RASTER)
     pub starts: Vec<f32>,                                  // absolute start time (s) of each part
     pub built: bool,
     pub entity: Option<Entity>,
@@ -123,6 +154,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
         let mut rot = None;
         let mut cluster = None;
         let mut bg = None;
+        let mut raster = None;
         // Pull each modifier token out of the line by its sigil/prefix. A token carrying a known
         // prefix is ALWAYS consumed (never leaks into the head/text) — if it fails to parse we warn,
         // so a typo (`~explod`, `^wave2`) is a visible error, not a silently-dropped effect.
@@ -153,6 +185,11 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
                     }
                 } else if let Some(b) = tok.strip_prefix("bg:") {
                     bg = Some(crate::background::bg_token(b)); // warns + falls back inside
+                } else if let Some(r) = tok.strip_prefix("raster:") {
+                    match parse_raster(r) {
+                        Some(m) => raster = Some(m),
+                        None => eprintln!("seq: unknown raster mode 'raster:{r}' — ignored"),
+                    }
                 } else if let Some(d) = tok.strip_prefix('^') {
                     match Deform::parse(d) {
                         Some(de) => deform = Some(de),
@@ -206,6 +243,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
             rot,
             cluster,
             bg,
+            raster,
         });
     }
     parts
@@ -264,6 +302,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             rot: None,
             cluster: None,
             bg: None,
+            raster: None,
         };
         return (
             Sequence {
@@ -301,6 +340,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
         rot: None,
         cluster: None,
         bg: None,
+        raster: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -315,6 +355,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             rot: None,
             cluster: None,
             bg: None,
+            raster: None,
         });
     }
     (Sequence { parts, count }, root)
@@ -356,6 +397,12 @@ pub(crate) fn build_sequence(
         .parts
         .iter()
         .map(|p| p.deform.or(global_deform))
+        .collect();
+    let global_raster = global_raster();
+    let rasters: Vec<RasterizeMode> = seq
+        .parts
+        .iter()
+        .map(|p| p.raster.unwrap_or(global_raster))
         .collect();
     let transitions: Vec<Transition> = seq
         .parts
@@ -633,6 +680,7 @@ pub(crate) fn build_sequence(
     state.out_clouds = out_clouds;
     state.transitions = transitions;
     state.deforms = deforms;
+    state.rasters = rasters;
     state.starts = starts;
     state.entity = Some(entity);
     state.built = true;
@@ -750,6 +798,11 @@ pub(crate) fn part_director(
     let morphing = arriving || departing;
     let eased = factor * factor * (3.0 - 2.0 * factor);
     cs.time = eased;
+    // per-part raster mode (raster:/MARTIN_RASTER): the active part's debug shading (colour = normal).
+    let want_raster = state.rasters[idx];
+    if cs.rasterize_mode != want_raster {
+        cs.rasterize_mode = want_raster;
+    }
     // the ball-pulse shader effect belongs to the plain Morph transition (prev → next through a
     // ball); source-based transitions carry their own motion, so they don't pulse.
     cs.bulge = if arriving && state.transitions[idx] == Transition::Morph {
@@ -883,6 +936,17 @@ mod tests {
         assert_eq!(p[0].out, Some(Departure::Sink));
         assert_eq!(p[0].cluster, Some(3));
         assert!(p[0].rot.is_some());
+    }
+
+    #[test]
+    fn parse_seq_reads_raster_token() {
+        let p = parts("text:HI ~outline raster:position");
+        assert_eq!(p[0].raster, Some(RasterizeMode::Position));
+        assert_eq!(parse_raster("normals"), Some(RasterizeMode::Normal)); // alias
+        assert_eq!(parse_raster("DEPTH"), Some(RasterizeMode::Depth)); // case
+        assert_eq!(parse_raster("nope"), None);
+        // a bad raster: token leaves the part with no override (falls back to MARTIN_RASTER/color)
+        assert_eq!(parts("text:HI raster:bogus")[0].raster, None);
     }
 
     #[test]
