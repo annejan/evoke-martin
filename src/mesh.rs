@@ -268,13 +268,17 @@ fn sample_tex(img: &image::RgbaImage, u: f32, v: f32) -> [f32; 3] {
 /// graph accumulating world transforms, pull each primitive's positions/indices/normals/vertex
 /// colours, and surface-sample the triangles exactly like the .obj/.dae path. No textures (vertex
 /// colours when present, else the caller's flat `rgb`).
+/// Pale default colour for a sampled mesh with no vertex colours, no material, and no explicit
+/// MARTIN_MESH_RGB. Single source of truth for the .obj/.dae and glTF paths.
+pub const MESH_FALLBACK_RGB: [f32; 3] = [0.80, 0.85, 0.95];
+
 fn build_gltf_gaussians(
     path: &Path,
     target_count: usize,
     splat: f32,
     thin: f32,
     alpha: f32,
-    rgb: [f32; 3],
+    rgb: Option<[f32; 3]>,
 ) -> Vec<Gaussian3d> {
     let (doc, buffers, _) = match gltf::import(path) {
         Ok(x) => x,
@@ -313,6 +317,10 @@ fn build_gltf_gaussians(
     let mut tris: Vec<[[f32; 3]; 3]> = Vec::new();
     let mut tri_norms: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
     let mut tri_cols: Vec<Option<[[f32; 3]; 3]>> = Vec::new();
+    // per-triangle flat fallback (used when the primitive has no vertex colours): the primitive's
+    // own material `baseColorFactor` — so a multi-material glb keeps each part's colour (e.g.
+    // defeest.glb's blue body + yellow text). Explicit MARTIN_MESH_RGB (`rgb`) overrides it.
+    let mut tri_base: Vec<[f32; 3]> = Vec::new();
     let id: M = [
         [1., 0., 0., 0.],
         [0., 1., 0., 0.],
@@ -328,6 +336,14 @@ fn build_gltf_gaussians(
         let world = mul(&parent, &node.transform().matrix());
         if let Some(mesh) = node.mesh() {
             for prim in mesh.primitives() {
+                // The primitive's authored material colour (None = the glTF default material → no
+                // authored colour). Explicit `rgb` (MARTIN_MESH_RGB) wins; else the material; else pale.
+                let mat = prim.material();
+                let mat_col = mat.index().map(|_| {
+                    let b = mat.pbr_metallic_roughness().base_color_factor();
+                    [b[0], b[1], b[2]]
+                });
+                let base = rgb.or(mat_col).unwrap_or(MESH_FALLBACK_RGB);
                 let reader = prim.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
                 let Some(pos) = reader.read_positions() else {
                     continue;
@@ -356,6 +372,7 @@ fn build_gltf_gaussians(
                         ]
                     }));
                     tri_cols.push(colors.as_ref().map(|cc| [cc[a], cc[b], cc[c]]));
+                    tri_base.push(base);
                 }
             }
         }
@@ -365,7 +382,6 @@ fn build_gltf_gaussians(
         eprintln!("mesh {}: no triangles (glTF)", path.display());
         return Vec::new();
     }
-    let flat = sh_of(rgb);
     sample_surface_disks(
         &tris,
         &tri_norms,
@@ -380,7 +396,7 @@ fn build_gltf_gaussians(
                 c[0][1] * bw + c[1][1] * bu + c[2][1] * bv,
                 c[0][2] * bw + c[1][2] * bu + c[2][2] * bv,
             ]),
-            None => flat,
+            None => sh_of(tri_base[ti]),
         },
     )
 }
@@ -391,7 +407,7 @@ pub fn build_mesh_gaussians(
     splat: f32,
     thin: f32,
     alpha: f32,
-    rgb: [f32; 3],
+    rgb: Option<[f32; 3]>,
 ) -> Vec<Gaussian3d> {
     // mesh-loader handles .obj/.stl/.dae/.ply but NOT glTF — route .glb/.gltf to a dedicated path.
     let ext = path
@@ -463,12 +479,16 @@ pub fn build_mesh_gaussians(
         .collect();
     let mesh_sh: Vec<SphericalHarmonicCoefficients> = (0..scene.meshes.len())
         .map(|mi| {
-            let c = scene
-                .materials
-                .get(mi)
-                .and_then(|m| m.color.diffuse)
-                .map(|d| [d[0], d[1], d[2]])
-                .unwrap_or(rgb);
+            // explicit MARTIN_MESH_RGB (`rgb`) wins; else the material diffuse; else the pale default.
+            let c = rgb
+                .or_else(|| {
+                    scene
+                        .materials
+                        .get(mi)
+                        .and_then(|m| m.color.diffuse)
+                        .map(|d| [d[0], d[1], d[2]])
+                })
+                .unwrap_or(MESH_FALLBACK_RGB);
             sh_of(c)
         })
         .collect();
@@ -517,7 +537,7 @@ mod tests {
             eprintln!("skip dae_surface_samples: {} not present", p.display());
             return;
         }
-        let g = build_mesh_gaussians(&p, 10_000, 1.2, 0.2, 1.0, [0.8, 0.85, 0.95]);
+        let g = build_mesh_gaussians(&p, 10_000, 1.2, 0.2, 1.0, Some([0.8, 0.85, 0.95]));
         assert!(!g.is_empty(), "defeest.dae produced no gaussians");
         let finite = g.iter().all(|gg| {
             gg.position_visibility
@@ -555,7 +575,7 @@ mod tests {
             return;
         }
         let fallback = [0.8_f32, 0.85, 0.95];
-        let g = build_mesh_gaussians(&p, 60_000, 1.2, 0.2, 1.0, fallback);
+        let g = build_mesh_gaussians(&p, 60_000, 1.2, 0.2, 1.0, Some(fallback));
         let grey = sh_of(fallback);
         let n_grey = g
             .iter()

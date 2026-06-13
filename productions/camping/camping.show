@@ -26,9 +26,10 @@ pw_splat = 0.004                      # crisp pen-write strokes
 # ==== 1 · INTRO (0–14) · deFEEST mesh floats in, dissolves to blobs ====
 glb:defeest.glb               @@intro    @11,3                               bg:off     # deFEEST mesh ⇄ splats opener
 # ==== 2 · BUILD (14–43) · the deFEEST village builds on the camp (props build in) ====
-splat:aegg.ply                @@build    @8,2.5,1.2 ~morph     ^twist        bg:stars   # STAND-IN prop (real: tent/krat)
-mesh:bitterbal.glb cluster:5   @7,2      ~morph     ^wind                    bg:grid    # STAND-IN food/BBQ
-text:OP DE CAMPING             @9,2      ~typewriter ^wave                   bg:grid    # the title lands
+glb:bornhack.glb              @@build    @5,2                                bg:stars   # the HOST camp: BornHack, mesh ⇄ splats
+splat:aegg.ply                           @5,2,1.2 ~morph       ^twist        bg:stars   # STAND-IN prop (real: tent/krat)
+mesh:bitterbal.glb cluster:5   @5,2      ~morph     ^wind                    bg:grid    # STAND-IN food/BBQ
+text:OP DE CAMPING             @7,2      ~typewriter ^wave                   bg:grid    # the title lands
 # ==== 3 · DROP (43–99) · the party bursts: splats waving, rainbow bg, food + cheering crew ====
 splat:doggo.ply               @@drop     @8,1.4,1.5 ~morph     ^wave         bg:plasma  # STAND-IN cheering crew (real: members)
 splat:supershape.ply          @@bar:34   @8,1.4,1.5 ~morph     ^wave         bg:kaleido # rainbow party morph
@@ -43,10 +44,11 @@ text:MET deFEEST             @@bar:84     @7,1.5    ~explode    ^wave         bg
 splat:galaxy.ply             @@bar:93     @8,1.4,1.4 ~morph    ^turbulence    bg:plasma  # euphoria spins out
 mesh:bitterbal.glb cluster:9 @@bar:101    @8,1.6    ~morph     ^wind          bg:kaleido # bitterballen rain
 # ==== 6 · OUTRO (185–228) · greetings + credits ====
-wall:GREETINGS|TO ALL|SCENE & CAMP @@outro @8,3     ~morph      ^wave         bg:stars   # PLACEHOLDER greet — fill real group names
-wall:ANUS|KLOOT|CINDER         @9,3      ~morph     ^wave                    bg:stars   # the crew
-text:deFEEST                   @9,4      ~pen-write ^wave                    bg:stars   # signature
-text:a deFEEST production      @8,3      ~fade      ^wave  out:evaporate     bg:off      # …fades to black
+wall:GREETINGS|TO ALL|SCENE & CAMP @@outro @6,2.5   ~morph      ^wave         bg:stars   # PLACEHOLDER greet — fill real group names
+svg:bornhack.svg               @5,2      ~morph     ^wave                    bg:stars   # …esp. our hosts: BornHack
+wall:ANUS|KLOOT|CINDER         @6,2.5    ~morph     ^wave                    bg:stars   # the crew
+text:deFEEST                   @7,3      ~pen-write ^wave                    bg:stars   # signature
+text:a deFEEST production      @5,2.5    ~fade      ^wave  out:evaporate     bg:off      # …fades to black
 
 # --- camera: FRONT-FACING (yaw ~1.1–1.7, text/credits read head-on); per-scene regime — float-in
 #     (intro), push (build), energetic push-ins (drop), sink/drift (breakdown), in-tight (climax),

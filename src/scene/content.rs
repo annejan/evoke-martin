@@ -171,13 +171,13 @@ pub(crate) fn part_gaussians(
             // spacing: ~1.0 = disks just touch (crispest), >1 = more overlap (softer/smoother),
             // <1 = gaps. Density-adaptive, so it's right for any mesh size or polygon count.
             let splat = crate::envvar::or("MARTIN_MESH_SPLAT", 1.2);
-            let rgb = std::env::var("MARTIN_MESH_RGB")
-                .ok()
-                .and_then(|s| {
-                    let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-                    (n.len() == 3).then(|| [n[0], n[1], n[2]])
-                })
-                .unwrap_or([0.80, 0.85, 0.95]);
+            // None when unset → the loader falls back to the mesh's own material colour (a glTF
+            // `baseColorFactor`, e.g. defeest.glb's blue+yellow), then to a pale default. An explicit
+            // MARTIN_MESH_RGB is a deliberate flat recolour and wins over the material.
+            let rgb = std::env::var("MARTIN_MESH_RGB").ok().and_then(|s| {
+                let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (n.len() == 3).then(|| [n[0], n[1], n[2]])
+            });
             // MARTIN_MESH_THIN: disk thickness as a fraction of the in-plane radius (flatness).
             // Default 0.3 — slightly rounded, so disks read less razor-flat at grazing angles.
             let thin = crate::envvar::or("MARTIN_MESH_THIN", 0.3);
