@@ -27,11 +27,11 @@ pw_step = 0.42                       # denser stroke sampling → a smoother lin
 #     pen-write) for the text. Deforms are rotational (twist/turbulence/spiral), not bob (no pulse/
 #     drop/rain). The glb: dissolve carries NO deform (it would wave the splats through the mesh). ---
 [seq]
-# ---- INTRO (0–7.7) · the deFEEST logo gathers out of a ball cloud on black (no rain-fall)
-image:defeest-logo.png        @@intro    @6,2.5     ~ball                    bg:off     # particles gather into the logo
-# ---- BUILD (7.7–19.4) · the flat logo morphs into its OWN 3D mesh → disperses+reassembles a galaxy
-glb:defeest.glb               @@build    @5.5,2.5   ~morph                   bg:stars   # 2D logo → 3D deFEEST mesh → its splats
-splat:galaxy.ply               @4.5,2.5,1.4 ~morph   ^twist                  bg:grid    # ball-pulse morph into a galaxy
+# ---- INTRO (0–7.7) · OPEN on the deFEEST mesh dissolving: splats → crisp 3D mesh → its splats. The
+#      sexy mesh↔splat choreography IS the opener (glb: part-0; no PNG logo first). On black.
+glb:defeest.glb               @@intro    @8,3                                bg:off     # the deFEEST mesh ⇄ splats dissolve
+# ---- BUILD (7.7–19.4) · those deFEEST splats ball-pulse morph into a galaxy
+splat:galaxy.ply              @@build    @5,2.5,1.4 ~morph     ^twist         bg:stars   # ball-pulse morph into a galaxy; stars wake
 # ---- DROP (19.4–42.6) · the party: big ball-pulse morphs between shapes on the phrase grid
 splat:knot.ply                @@drop     @5.5,1.4,1.6 ~morph   ^turbulence   bg:bolt    # SEXY: explodes to a ball, reforms as the knot
 splat:supershape.ply          @@bar:14   @5,1.4,1.6 ~morph     ^turbulence   bg:warp    # the rainbow bloom
