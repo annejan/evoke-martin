@@ -118,6 +118,7 @@ particles in the *same* system, so any of these morphs into any other. Full refe
 | `MARTIN_FLY=2` | Fly the camera through the marked waypoints. Recording: the path fills each part (longer hold = slower flyby), flowing through the morph. Live: `<secs>` = pace. |
 | `MARTIN_FPS=1` | Log frame time / FPS. |
 | `MARTIN_RECORD=/dir` | Dump one PNG per frame (used by `record.sh`). |
+| `MARTIN_PREVIEW_FPS=8` | Render the timeline at N fps instead of 60 — far fewer frames for a fast preview (rendering frames is the slow part). Timing + audio sync stay correct; `record.sh` muxes at the same fps. |
 | `MARTIN_SHOT=/x.png` `MARTIN_SHOT_AT=<s>` | Headless screenshot at time `s`, then exit. |
 | `MARTIN_FULLSCREEN=1` | Start borderless-fullscreen; toggle live with **F11 / F**. |
 | `MARTIN_FLASH=0.6` | Over-bright bloom flash on each part cut (0 = off). |

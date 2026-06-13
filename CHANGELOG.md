@@ -25,8 +25,11 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
   that part on (sticky; `bg:off` = pure black) — the background becomes a second energy curve.
 - SH build profiles: `sh0` (default, flat colour) and `sh3` (degree-3 view-dependent glint, for real
   captures) — `cargo b-sh3` builds into a separate target dir so both binaries coexist.
+- `MARTIN_PREVIEW_FPS=<n>`: render the timeline at n fps instead of 60 — far fewer frames for a fast
+  preview (rendering frames is the slow part, not the mux). Frame `dt` + camera sway scale with it so
+  timing/motion stay constant; `record.sh` muxes at the same fps so duration + audio sync hold.
 
-### Music (data-driven — `assets/score.txt`, no recompile)
+### Music (data-driven score files, no recompile)
 - **Streaming synth**: the track renders in time-ordered segments on a background thread, so live
   playback + the show start together ~1 s after launch (the producer races ahead at ≈7× realtime)
   instead of waiting for the whole render — no more dead black screen, and `@@` anchors stay
@@ -43,6 +46,18 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
   automation), Haas widening, sidechain, atmosphere bed; optional 2× oversampling (`set oversample=1`).
 - Structural lint of the score with `MARTIN_SCORE_STRICT=1` to make warnings fatal.
 - Example scores showing the range: `assets/tropical.txt`, `assets/rain.txt`.
+- Score split: the engine ships a **neutral** tropical-house builtin (`assets/score.txt`); each
+  production owns its own arrangement (e.g. `productions/camping/score.txt`, the "Op de Camping" track).
+
+### Content & productions
+- `productions/` — one folder per demo (showbook + `.show` + bundle recipe). **intro**: the
+  licence-cleared, repo-only showcase CI bakes into the single-binary. **camping**: the full-fat
+  "Op de Camping" demo (designed showbook-first; uses the big local captures, stand-ins until shot).
+- BornHack host-camp logo (`assets/bornhack.{svg,glb,dae}`): wordmark from the bornhack-website repo,
+  extruded via `pipeline/svg_import.py`; used in the camping show as a `glb:` venue dissolve + an
+  `svg:` outro greeting. **BSD-3-Clause © BornHack.**
+- `bitterbal.glb` — the Maali bitterbal as glTF (`pipeline/bitterbal_glb.py`): 5 MB vs 19 MB obj,
+  carries vertex colours; the shows sample it instead of the .obj.
 
 ### Tooling / CI
 - CI: rustfmt, clippy (`-D warnings`), cross-platform build+test, REUSE, advanced CodeQL, cargo-audit.
