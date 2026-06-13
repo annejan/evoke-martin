@@ -26,6 +26,12 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
 - `out:explode` (`out:burst`) departure: a part is flung ballistically outward from its centre and
   fades — a real burst, punchier than `out:disperse`'s wash. Pairs with a `glb:` dissolve for a
   mesh → blob → explode exit.
+- **Domain-driven authoring** (see `DOMAIN.md`): the `.show` DSL now speaks the domain vocabulary —
+  `[reel]` (was `[seq]`), `[stage]` (was `[compose]`), `~entrance`, `exit:` (was `out:`), `flock:`
+  (was `cluster:`), `backdrop:` (was `bg:`), `budget=` (was `morph_count=`). All old spellings keep
+  parsing as aliases. Plus a production **kind**: `kind = intro|demo`. An `intro` is self-contained +
+  asset-budgeted (bundles into the single binary); `MARTIN_VALIDATE` reports its asset budget and
+  warns on heavy / missing / capture-only assets. A `demo` is full-fat (local captures allowed).
 - Raster modes (`raster:<mode>` per-part token + `MARTIN_RASTER` global default): expose the fork's
   RasterizeMode debug-shading views — `color`/`depth`/`normal`/`position`/`classification`/`flow`/
   `velocity`. `position` colours each gaussian by XYZ (a rainbow gradient) — e.g.

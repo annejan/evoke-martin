@@ -59,6 +59,20 @@ impl PartContent {
                 .join("+"),
         }
     }
+
+    /// The asset filenames this content loads from the asset folder (empty for text/wall/shader,
+    /// which carry no file). Used by the `intro` production-kind budget check (see `validate`).
+    pub(crate) fn asset_files(&self) -> Vec<&str> {
+        match self {
+            PartContent::Image(n)
+            | PartContent::Svg(n)
+            | PartContent::Mesh(n)
+            | PartContent::Model(n)
+            | PartContent::GlMesh(n) => vec![n.as_str()],
+            PartContent::Splats(list) => list.iter().map(|(n, _)| n.as_str()).collect(),
+            PartContent::Text(_) | PartContent::Shader(_) => Vec::new(),
+        }
+    }
 }
 
 /// Parse a source head (`text:` / `wall:` / `image:` / `mesh:` / `splat:`) into a `PartContent`.

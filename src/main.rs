@@ -173,6 +173,7 @@ fn main() {
             composition.as_deref().unwrap_or(&[]),
             &waypoints,
             &score,
+            asset_root.as_deref(),
         );
         return;
     }

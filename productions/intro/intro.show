@@ -13,6 +13,7 @@
 # Section starts (s): intro 0 · build 7.7 · drop 19.4 · breakdown 42.6 · climax 50.3 · outro 73.5.
 
 # --- settings (each → MARTIN_<KEY>) ---
+kind = intro                         # self-contained, asset-budgeted; bundles into the single binary
 budget       = 120000
 ply = assets/galaxy.ply              # .ply root = assets/ so the generated `splat:` shapes resolve
 score = productions/intro/score.txt

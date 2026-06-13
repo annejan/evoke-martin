@@ -12,6 +12,7 @@
 # placeholders so the whole 228s show plays end-to-end. Swap the real captures in when they land.
 
 # --- settings (each → MARTIN_<KEY>) ---
+kind = demo                          # full-fat production; heavy local captures allowed
 budget       = 160000
 ply = assets/aegg-baked.ply          # .ply root = assets/ so `splat:` filenames resolve
 score = productions/camping/score.txt # the Op de Camping arrangement (this production owns it)
