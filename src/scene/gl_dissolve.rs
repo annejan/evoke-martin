@@ -274,6 +274,7 @@ mod tests {
             out: None,
             rot: None,
             cluster: None,
+            bg: None,
         }
     }
 

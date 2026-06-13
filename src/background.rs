@@ -11,6 +11,7 @@ use bevy::shader::ShaderRef;
 
 use crate::scene::SeqClock;
 use crate::scene::beat::Beat;
+use crate::scene::sequence::{SeqState, Sequence, active_part};
 
 /// The 16:9 record/window aspect — fed to the effect uniform and used to size the fullscreen quad.
 pub(crate) const ASPECT: f32 = 16.0 / 9.0;
@@ -51,8 +52,24 @@ impl Material for BgMaterial {
 #[derive(Component)]
 struct BgQuad;
 
+/// The show-wide default mode: `MARTIN_BG` if set, else hidden until a part's `bg:` token speaks.
+#[derive(Resource)]
+struct BgDefault(Option<u32>);
+
+/// Sentinel for `bg:off` — hide the background layer entirely (a part on pure black).
+pub(crate) const BG_OFF: u32 = u32::MAX;
+
 /// Named modes → the `mode` uniform `bg.wgsl` switches on (a number also works: `MARTIN_BG=2`).
-/// Shared with the shader-part interlude (`scene::shader_part`), which uses the same effect set.
+/// Shared with the shader-part interlude (`scene::shader_part`), which uses the same effect set,
+/// and with the per-part `bg:<name>` seq token (`bg:off` → `BG_OFF`).
+pub(crate) fn bg_token(name: &str) -> u32 {
+    if name.eq_ignore_ascii_case("off") {
+        BG_OFF
+    } else {
+        mode_index(name)
+    }
+}
+
 pub(crate) fn mode_index(name: &str) -> u32 {
     match name.trim().to_ascii_lowercase().as_str() {
         "plasma" => 0,
@@ -71,22 +88,28 @@ pub(crate) fn mode_index(name: &str) -> u32 {
 }
 
 /// Spawn the background quad once, as a child of the camera so it tracks the view. Sized to fill the
-/// default-FOV frustum at a far distance (opaque → the splats render over it).
+/// default-FOV frustum at a far distance (opaque → the splats render over it). Spawned when
+/// `MARTIN_BG` is set OR any seq part carries a `bg:` token; starts hidden without a default mode.
 fn spawn_bg(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<BgMaterial>>,
     cam: Query<Entity, With<Camera3d>>,
+    seq: Option<Res<Sequence>>,
     mut done: Local<bool>,
 ) {
     if *done {
         return;
     }
+    let env_mode = std::env::var("MARTIN_BG").ok().map(|s| mode_index(&s));
+    let seq_uses_bg = seq
+        .map(|s| s.parts.iter().any(|p| p.bg.is_some()))
+        .unwrap_or(false);
+    if env_mode.is_none() && !seq_uses_bg {
+        *done = true; // no background anywhere in this show — nothing to spawn
+        return;
+    }
     let Ok(cam) = cam.single() else { return };
-    let mode = std::env::var("MARTIN_BG")
-        .ok()
-        .map(|s| mode_index(&s))
-        .unwrap_or(0);
     let d = 90.0_f32; // far plane, behind the interlude layer (88) so the interlude wins when active
     let dim = std::env::var("MARTIN_BG_DIM")
         .ok()
@@ -94,7 +117,7 @@ fn spawn_bg(
         .unwrap_or(1.0);
     let mat = mats.add(BgMaterial {
         data: FxUniform {
-            mode,
+            mode: env_mode.unwrap_or(0),
             aspect: ASPECT,
             level: dim,
             ..default()
@@ -105,38 +128,71 @@ fn spawn_bg(
             Mesh3d(meshes.add(camera_fill_quad(d))),
             MeshMaterial3d(mat),
             Transform::from_xyz(0.0, 0.0, -d), // local -Z = in front of the camera, facing it
+            if env_mode.is_some() {
+                Visibility::Visible
+            } else {
+                Visibility::Hidden // wait for the first part with a bg: token
+            },
             BgQuad,
         ))
         .id();
     commands.entity(cam).add_child(quad);
+    commands.insert_resource(BgDefault(env_mode));
     *done = true;
-    info!("background: shader layer (mode {mode}) behind the splats");
+    info!(
+        "background: shader layer behind the splats (default mode {env_mode:?}, per-part bg: overrides)"
+    );
 }
 
-/// Feed the show clock + beat into the background material each frame.
+/// Feed the show clock + beat into the background material each frame, and resolve the ACTIVE
+/// mode: the last `bg:` token at-or-before the active part wins (sticky), else the `MARTIN_BG`
+/// default, else hidden. `bg:off` hides the layer for that stretch.
 fn update_bg(
     clock: Res<SeqClock>,
     beat: Res<Beat>,
+    default_mode: Option<Res<BgDefault>>,
+    seq: Option<Res<Sequence>>,
+    state: Option<Res<SeqState>>,
     mut mats: ResMut<Assets<BgMaterial>>,
-    q: Query<&MeshMaterial3d<BgMaterial>, With<BgQuad>>,
+    mut q: Query<(&MeshMaterial3d<BgMaterial>, &mut Visibility), With<BgQuad>>,
 ) {
-    for h in &q {
+    let mut mode = default_mode.and_then(|d| d.0);
+    if let (Some(seq), Some(state)) = (seq, state)
+        && state.built
+    {
+        let active = active_part(&state.starts, clock.t);
+        if let Some(m) = seq.parts[..=active.min(seq.parts.len().saturating_sub(1))]
+            .iter()
+            .rev()
+            .find_map(|p| p.bg)
+        {
+            mode = Some(m);
+        }
+    }
+    for (h, mut vis) in &mut q {
+        *vis = match mode {
+            Some(m) if m != BG_OFF => Visibility::Visible,
+            _ => Visibility::Hidden,
+        };
         if let Some(m) = mats.get_mut(&h.0) {
+            if let Some(md) = mode
+                && md != BG_OFF
+            {
+                m.data.mode = md;
+            }
             m.data.time = clock.t;
             m.data.beat = beat.as_vec4();
         }
     }
 }
 
-/// The background shader layer — only active when `MARTIN_BG` is set.
+/// The background shader layer — active when `MARTIN_BG` is set or a seq part uses `bg:<name>`.
 pub(crate) struct BackgroundPlugin;
 
 impl Plugin for BackgroundPlugin {
     fn build(&self, app: &mut App) {
-        if std::env::var_os("MARTIN_BG").is_some() {
-            app.add_plugins(MaterialPlugin::<BgMaterial>::default())
-                .add_systems(Update, (spawn_bg, update_bg));
-        }
+        app.add_plugins(MaterialPlugin::<BgMaterial>::default())
+            .add_systems(Update, (spawn_bg, update_bg));
     }
 }
 

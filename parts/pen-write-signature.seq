@@ -1,0 +1,11 @@
+# part: pen-write-signature — a word writes itself in true pen order (single-stroke font),
+# like a glowing hand signing the screen.
+#
+# Use:    text:<word>  @<hold>,<write-seconds>  ~pen-write  ^wave
+# KNOB:   the MORPH duration IS the writing time — the per-particle reveal runs over the morph
+#         window, so a short morph pops the unwritten rest of the word in at once ("explosion
+#         mid-word"). ~5s writes a 7-glyph word cleanly; scale with word length.
+# Tuning: MARTIN_PW_SPLAT (stroke weight) / MARTIN_PW_STEP (sample spacing).
+# Proven: productions/intro (2026-06-13) — frame-verified: completes exactly at morph end.
+
+text:deFEEST @6,5 ~pen-write ^wave

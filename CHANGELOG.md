@@ -21,6 +21,8 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
 - `KHR_gaussian_splatting` glTF loading (`MARTIN_GLB=<file.glb>`): render a standard-container splat
   scene (e.g. a TRELLIS single-image→3DGS export) through the normal bloom pipeline — distinct from
   the `glb:`/`model:` *mesh* paths. `MARTIN_GLB_SCALE` / `MARTIN_GLB_DIST` size + frame it.
+- Per-part backgrounds: the `bg:<name>` seq token switches the fullscreen background shader from
+  that part on (sticky; `bg:off` = pure black) — the background becomes a second energy curve.
 - SH build profiles: `sh0` (default, flat colour) and `sh3` (degree-3 view-dependent glint, for real
   captures) — `cargo b-sh3` builds into a separate target dir so both binaries coexist.
 

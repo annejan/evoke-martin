@@ -37,6 +37,7 @@ pub(crate) struct Part {
     pub out: Option<Departure>, // how the part LEAVES (`out:name`); None = cross-morph to the next
     pub rot: Option<Quat>,      // per-part orientation (`rot:rx,ry,rz` deg), baked into the shape
     pub cluster: Option<usize>, // `cluster:N` → N scattered, randomly-rotated copies (a "serving")
+    pub bg: Option<u32>,        // `bg:<name>` → background mode from this part on (BG_OFF hides)
 }
 
 /// The whole show: a list of parts + the gaussian budget every part is resampled to.
@@ -119,6 +120,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
         let mut out = None;
         let mut rot = None;
         let mut cluster = None;
+        let mut bg = None;
         // Pull each modifier token out of the line by its sigil/prefix. A token carrying a known
         // prefix is ALWAYS consumed (never leaks into the head/text) — if it fails to parse we warn,
         // so a typo (`~explod`, `^wave2`) is a visible error, not a silently-dropped effect.
@@ -147,6 +149,8 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
                         Ok(n) => cluster = Some(n),
                         Err(_) => eprintln!("seq: bad 'cluster:{c}' (need an integer) — ignored"),
                     }
+                } else if let Some(b) = tok.strip_prefix("bg:") {
+                    bg = Some(crate::background::bg_token(b)); // warns + falls back inside
                 } else if let Some(d) = tok.strip_prefix('^') {
                     match Deform::parse(d) {
                         Some(de) => deform = Some(de),
@@ -199,6 +203,7 @@ fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
             out,
             rot,
             cluster,
+            bg,
         });
     }
     parts
@@ -256,6 +261,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             out: None,
             rot: None,
             cluster: None,
+            bg: None,
         };
         return (
             Sequence {
@@ -292,6 +298,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
         out: None,
         rot: None,
         cluster: None,
+        bg: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Part {
@@ -305,6 +312,7 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             out: None,
             rot: None,
             cluster: None,
+            bg: None,
         });
     }
     (Sequence { parts, count }, root)

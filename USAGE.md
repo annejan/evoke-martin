@@ -217,8 +217,14 @@ shader:warp                      # a fullscreen WGSL effect as an INTERLUDE: the
                                  #   in/out across the part — a demoscene effect between scenes
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   cluster:N   @@anchor
+…any of the above… @hold,morph,bulge   ~transition   ^deform   out:departure   rot:rx,ry,rz   cluster:N   @@anchor   bg:name
 ```
+
+**Per-part background** (`bg:<name>`): switches the fullscreen background shader **from that part
+on** (sticky until the next `bg:` token): `plasma` / `tunnel` / `stars` / `warp` / `rings` / `grid` /
+`kaleido` / `bolt`, or **`bg:off`** for pure black. This makes the background a second energy curve
+across the show — e.g. `bg:off` for the intro, `bg:bolt` on the drop, back to `bg:stars` for the
+outro. `MARTIN_BG` (if set) is the default before the first token; `MARTIN_BG_DIM` stays global.
 
 `image:`/`svg:` parts share the crispness knobs **`MARTIN_IMG_STRIDE`** (pixel subsample, default
 `2`) and **`MARTIN_IMG_SPLAT`** (gaussian size, `0.012`); an `svg:` also takes **`MARTIN_SVG_PX`**
