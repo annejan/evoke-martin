@@ -33,6 +33,12 @@ pub(super) fn oversampling() -> bool {
     OVERSAMPLE.with(|c| c.get())
 }
 
+/// Seed a worker thread's `OVERSAMPLE` thread_local (the parallel render passes spawn threads;
+/// each must carry the flag over or an `oversample=1` score would lose its anti-alias path there).
+pub(super) fn set_oversampling(v: bool) {
+    OVERSAMPLE.with(|c| c.set(v));
+}
+
 #[derive(Clone)]
 pub struct Track {
     samples: Arc<Vec<f32>>, // interleaved stereo: L, R, L, R, …
@@ -193,29 +199,49 @@ pub(super) fn section_window(score: &Score, name: &str) -> Option<(f32, f32)> {
 /// but the kick), an arp counter-line in the energetic sections, sidechain pump under the kick, a
 /// spread reverb send, the continuous sub, per-section fades × gain, soft clip.
 ///
-/// This is a WHOLE-TRACK, in-memory render (a handful of `demo_len`-sized buffers, ~tens of MB each),
-/// not a streaming/block one — on purpose. The spread reverb runs global feedback combs over the
-/// entire bed, and the master's glue/limiter want the whole signal, so a block engine would be a big
-/// rewrite. It isn't needed: the only two callers are offline one-shots — `MARTIN_SYNTH_WAV` writes a
-/// WAV and exits, and live playback either renders this once on a background thread or plays a
-/// pre-rendered WAV (`MARTIN_MUSIC`, what the bundle ships). Peak memory (a few hundred MB for a ~4 min
-/// track) is fine for a batch render; if this ever drove real-time low-memory synthesis, THEN stream.
+/// This is a WHOLE-TRACK, in-memory render (a handful of `demo_len`-sized buffers, ~tens of MB
+/// each), not a streaming/block one — the spread reverb runs global feedback combs over the entire
+/// bed and the master wants the whole signal. But it is a **multi-core** render: the four content
+/// passes (drums / voices / harmony / fx) are independent write-only accumulators, so they render
+/// concurrently into their own buffers and are summed afterwards **in the original pass order**,
+/// which keeps the floating-point result bit-for-bit identical to the old sequential accumulation
+/// (`(((drums+voices)+harmony)+fx)` per sample — exactly what the ordered `bed[i] += …` produced).
+/// Only the master pass (sidechain/reverb/limiter, cheap O(n) filters) stays serial. Live playback
+/// holds the show clock until this finishes (`music.rs` AudioGate), so picture + music start
+/// sample-locked at t=0; `MARTIN_MUSIC` (the bundle's pre-rendered WAV) skips the wait entirely.
 pub fn synth_track(score: &Score) -> Track {
-    OVERSAMPLE.with(|c| c.set(score.param("oversample", 0.0) > 0.5)); // `set oversample=1` — anti-alias
+    let oversample = score.param("oversample", 0.0) > 0.5; // `set oversample=1` — anti-alias
+    OVERSAMPLE.with(|c| c.set(oversample));
     let sr = SAMPLE_RATE as f32;
     let total = (score.demo_len() * sr).ceil() as usize;
     let stereo = total * 2;
     let mut kickbuf = vec![0f32; stereo]; // sidechain source (never ducked)
-    let mut bed = vec![0f32; stereo]; // everything else (pumped + reverbed)
+    let mut bed = vec![0f32; stereo]; // drums land here — the first accumulator (0 + drums ≡ drums)
+    let mut bed_voices = vec![0f32; stereo];
+    let mut bed_harmony = vec![0f32; stereo];
+    let mut bed_fx = vec![0f32; stereo];
 
-    // The render is split into ordered passes — drums → voices → harmony → fx → master. The order is
-    // load-bearing: every pass ACCUMULATES into `bed[i] += …`, so keeping the passes in this exact
-    // sequence keeps the floating-point sum bit-for-bit identical to the old monolithic function.
     let kicks = score.hits(Inst::Kick);
-    render::render_drums(&mut kickbuf, &mut bed, score, &kicks);
-    render::render_voices(&mut bed, score, stereo);
-    render::render_harmony(&mut bed, score);
-    render::render_fx(&mut bed, score, total);
+    // OVERSAMPLE is a thread_local — each worker must set it itself, or an `oversample=1` score
+    // would silently lose its anti-alias path on the threaded passes.
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            OVERSAMPLE.with(|c| c.set(oversample));
+            render::render_voices(&mut bed_voices, score, stereo);
+        });
+        s.spawn(|| {
+            OVERSAMPLE.with(|c| c.set(oversample));
+            render::render_harmony(&mut bed_harmony, score);
+        });
+        s.spawn(|| {
+            OVERSAMPLE.with(|c| c.set(oversample));
+            render::render_fx(&mut bed_fx, score, total);
+        });
+        render::render_drums(&mut kickbuf, &mut bed, score, &kicks);
+    });
+    for i in 0..stereo {
+        bed[i] = ((bed[i] + bed_voices[i]) + bed_harmony[i]) + bed_fx[i];
+    }
     let buf = render::master(&kickbuf, &mut bed, score, &kicks, total, stereo);
     Track {
         samples: Arc::new(buf),

@@ -1,5 +1,8 @@
 //! Live audio: monitor Cinder's synth while flying (the recorder muxes the WAV instead).
-//! `MusicPlugin` renders the synth on a background thread at startup and plays it in sync.
+//! `MusicPlugin` renders the synth on a background thread at startup (multi-core, see
+//! `audio::synth_track`) and **holds the show clock** (`AudioGate`) until the track is ready, so
+//! picture and music always start together at t=0 — the score's `@@` anchors stay sample-locked.
+//! `MARTIN_MUSIC=<wav>` (what the bundle ships) skips the render → no wait at all.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings};
 use bevy::prelude::*;
@@ -12,6 +15,14 @@ use crate::{audio, score};
 /// The loaded score (`MARTIN_SCORE` file or built-in), shared for live-audio rendering.
 #[derive(Resource, Clone)]
 pub(crate) struct ScoreRes(pub std::sync::Arc<score::Score>);
+
+/// Sync gate: while live audio is wanted but the synth render hasn't finished, the show clock
+/// (`advance_seq_clock`) holds at 0 — starting the picture without the music would put every
+/// `@@` anchor out of sync by the render time. Not inserted when muted/recording (no gate).
+#[derive(Resource, Default)]
+pub(crate) struct AudioGate {
+    pub ready: bool,
+}
 
 /// Cinder's synth, rendered on a **background thread** (the render takes seconds; blocking startup
 /// stalls the first frame long enough to lose the Vulkan swapchain → crash). `music_director` picks
@@ -56,7 +67,11 @@ fn spawn_synth(mut commands: Commands, score_res: Res<ScoreRes>) {
         entity: None,
         prev_t: 0.0,
     });
-    info!("live audio: rendering Cinder's synth in the background (MARTIN_MUTE=1 to silence)");
+    commands.insert_resource(AudioGate::default());
+    info!(
+        "live audio: rendering Cinder's synth in the background — the show holds until it's ready \
+         (MARTIN_MUTE=1 to skip, MARTIN_MUSIC=<wav> for an instant pre-rendered start)"
+    );
 }
 
 /// Live playback: turn the background-rendered WAV bytes into an `AudioSource` when ready, spawn it
@@ -65,20 +80,25 @@ fn spawn_synth(mut commands: Commands, score_res: Res<ScoreRes>) {
 fn music_director(
     mut commands: Commands,
     music: Option<ResMut<Music>>,
+    gate: Option<ResMut<AudioGate>>,
     state: Option<Res<SeqState>>,
     comp: Option<Res<Composition>>,
     clock: Res<SeqClock>,
     mut audio_assets: ResMut<Assets<AudioSource>>,
 ) {
     let Some(mut music) = music else { return };
-    // background render finished → make an AudioSource from its WAV bytes (once).
+    // background render finished → make an AudioSource from its WAV bytes (once) + open the gate
+    // so the show clock starts: picture and music leave together from t=0.
     if music.handle.is_none() {
         let received = music.rx.lock().unwrap().try_recv().ok();
         if let Some(bytes) = received {
             music.handle = Some(audio_assets.add(AudioSource {
                 bytes: bytes.into(),
             }));
-            info!("live audio: synth ready");
+            if let Some(mut gate) = gate {
+                gate.ready = true;
+            }
+            info!("live audio: synth ready — show starts");
         }
     }
     // clock jumped backwards (Space restart) → despawn so it respawns from the top, resynced.

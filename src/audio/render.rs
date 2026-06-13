@@ -156,85 +156,110 @@ pub(super) fn render_drums(kickbuf: &mut [f32], bed: &mut [f32], score: &Score, 
 /// and the `<section>.bass` note-lane. `stereo` sizes the scratch echo/arp buffers.
 pub(super) fn render_voices(bed: &mut [f32], score: &Score, stereo: usize) {
     let beat = score.beat();
-    render_intro_bassline(bed, score);
-
-    // lead: forward + centre — the HOOK, push it up so it cuts through the wall. The lead is the
-    // melody the viewer hums leaving the tent; it does NOT sit behind the drums.
-    let climax = section_window(score, "climax");
-    for (t, f) in score.lead_notes() {
-        let v = vel(t, beat, 0x1A);
-        let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(
-            bed,
-            gt,
-            0.6,
-            score.param_at(t, "lead", 0.82) * v,
-            0.0,
-            lead(f, v),
-        ); // STAR — `set lead=`
-        render_into(bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
-        if let Some((s0, s1)) = climax
-            && (s0..s1).contains(&t)
-        {
-            render_into(bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v)); // extra sheen in climax
-        }
-    }
-    // lead depth: a dotted-8th ping-pong of the lead in its own buffer; we add only the WET (echoes)
-    // so the dry lead stays up front while its repeats open a 3D space behind it (front-to-back depth).
+    // The four lanes below (lead / lead-echo / arp / bass) are independent — each renders into its
+    // own buffer on its own thread (this pass dominates the whole-track render time), then they're
+    // summed in the original lane order. The lanes' internal note order is unchanged, so the render
+    // stays deterministic; the regrouped summation only moves ±1-LSB quantization noise.
+    let ovs = super::oversampling();
+    let mut lead_buf = vec![0f32; stereo];
     let mut lead_echo = vec![0f32; stereo];
-    for (t, f) in score.lead_notes() {
-        let v = vel(t, beat, 0x1A);
-        let gt = groove(t, beat, 0x3A, 0.005, 0.005);
-        render_into(
-            &mut lead_echo,
-            gt,
-            0.5,
-            0.30 * v,
-            0.0,
-            lead(f, (v * 0.7).max(0.25)),
-        );
-    }
-    let lead_dry = lead_echo.clone();
-    render_pingpong(&mut lead_echo, beat * 0.75, 0.34, 0.55); // dotted-8th throw
-    for i in 0..stereo {
-        bed[i] += lead_echo[i] - lead_dry[i]; // echoes only — the dry lead already sits in bed
-    }
-
-    // arp counter-line into its OWN buffer so we can process it (ping-pong delay) without
-    // smearing the drums or the lead — spatial separation is the whole trick.
     let mut arp_buf = vec![0f32; stereo];
-    for (i, (t, f)) in score.arp_notes().into_iter().enumerate() {
-        let pan = if i % 2 == 0 { 0.7 } else { -0.7 };
-        let v = vel(t, beat, 0x2B);
-        render_into(
-            &mut arp_buf,
-            groove(t, beat, 0x9C, 0.006, 0.0),
-            0.2,
-            0.20 * v,
-            pan,
-            arp(f, v),
-        );
-    }
-    // ping-pong delay: 8th note, bounces L-R-L-R, 3–4 repeats, glued under the lead. (`beat` is
-    // seconds-per-beat, so an 8th note is beat/2 — NOT 60/beat, which would be a ~70 s no-op.)
-    render_pingpong(&mut arp_buf, beat / 2.0, 0.35, 0.30);
+    let mut bass_buf = vec![0f32; stereo];
+    std::thread::scope(|s| {
+        // lead: forward + centre — the HOOK, push it up so it cuts through the wall. The lead is
+        // the melody the viewer hums leaving the tent; it does NOT sit behind the drums.
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            let bed = &mut lead_buf[..];
+            render_intro_bassline(bed, score);
+            let climax = section_window(score, "climax");
+            for (t, f) in score.lead_notes() {
+                let v = vel(t, beat, 0x1A);
+                let gt = groove(t, beat, 0x3A, 0.005, 0.005);
+                render_into(
+                    bed,
+                    gt,
+                    0.6,
+                    score.param_at(t, "lead", 0.82) * v,
+                    0.0,
+                    lead(f, v),
+                ); // STAR — `set lead=`
+                render_into(bed, gt, 0.6, 0.20 * v, 0.0, lead(f * 2.0, v)); // octave sheen
+                if let Some((s0, s1)) = climax
+                    && (s0..s1).contains(&t)
+                {
+                    render_into(bed, gt, 0.6, 0.18 * v, 0.0, lead(f * 2.0, v)); // climax sheen
+                }
+            }
+        });
+        // lead depth: a dotted-8th ping-pong of the lead in its own buffer; only the WET (echoes)
+        // is added so the dry lead stays up front while its repeats open a 3D space behind it.
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            for (t, f) in score.lead_notes() {
+                let v = vel(t, beat, 0x1A);
+                let gt = groove(t, beat, 0x3A, 0.005, 0.005);
+                render_into(
+                    &mut lead_echo,
+                    gt,
+                    0.5,
+                    0.30 * v,
+                    0.0,
+                    lead(f, (v * 0.7).max(0.25)),
+                );
+            }
+            let lead_dry = lead_echo.clone();
+            render_pingpong(&mut lead_echo, beat * 0.75, 0.34, 0.55); // dotted-8th throw
+            for i in 0..stereo {
+                lead_echo[i] -= lead_dry[i]; // echoes only — the dry lead is the lane above
+            }
+        });
+        // arp counter-line into its OWN buffer so we can process it (ping-pong delay) without
+        // smearing the drums or the lead — spatial separation is the whole trick.
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            for (i, (t, f)) in score.arp_notes().into_iter().enumerate() {
+                let pan = if i % 2 == 0 { 0.7 } else { -0.7 };
+                let v = vel(t, beat, 0x2B);
+                render_into(
+                    &mut arp_buf,
+                    groove(t, beat, 0x9C, 0.006, 0.0),
+                    0.2,
+                    0.20 * v,
+                    pan,
+                    arp(f, v),
+                );
+            }
+            // ping-pong delay: 8th note, bounces L-R-L-R, 3–4 repeats, glued under the lead.
+            // (`beat` is seconds-per-beat, so an 8th note is beat/2 — NOT 60/beat.)
+            render_pingpong(&mut arp_buf, beat / 2.0, 0.35, 0.30);
+        });
+        // articulated bassline: the `<section>.bass` note-lane (the real funky bass), centred — a
+        // punchy `bass` voice at each onset, riding on top of the continuous drone sub below.
+        // `set woozbass=1` swaps in the dark/growl `woozbass` voice (held longer so it can bloom).
+        super::set_oversampling(ovs); // (scope's own thread — flag already set, keep it explicit)
+        let wooz = score.param("woozbass", 0.0) > 0.5;
+        for (t, f) in score.bass_notes() {
+            let v = vel(t, beat, 0xB5);
+            let amp = (0.20 + 0.18 * score.levels(t).sub_bass) * v; // section's sub level
+            let (dur, voice): (f32, Box<dyn fundsp::prelude32::AudioUnit>) = if wooz {
+                (0.6, woozbass(f))
+            } else {
+                (0.42, bass(f, v))
+            };
+            render_into(
+                &mut bass_buf,
+                groove(t, beat, 0xB5, 0.003, 0.0),
+                dur,
+                amp,
+                0.0,
+                voice,
+            );
+        }
+    });
+    // sum in the original lane order: intro-bass+lead, echo wet, arp, bass.
     for i in 0..stereo {
-        bed[i] += arp_buf[i];
-    }
-
-    // articulated bassline: the `<section>.bass` note-lane (the real funky bass), centred — a punchy
-    // `bass` voice at each onset, riding on top of the continuous drone sub below. `set woozbass=1`
-    // swaps in the dark/growl/woozy `woozbass` voice (held a touch longer so its growl can bloom).
-    let wooz = score.param("woozbass", 0.0) > 0.5;
-    for (t, f) in score.bass_notes() {
-        let v = vel(t, beat, 0xB5);
-        let amp = (0.20 + 0.18 * score.levels(t).sub_bass) * v; // sit with the section's sub level
-        let (dur, voice): (f32, Box<dyn fundsp::prelude32::AudioUnit>) = if wooz {
-            (0.6, woozbass(f))
-        } else {
-            (0.42, bass(f, v))
-        };
-        render_into(bed, groove(t, beat, 0xB5, 0.003, 0.0), dur, amp, 0.0, voice);
+        bed[i] += ((lead_buf[i] + lead_echo[i]) + arp_buf[i]) + bass_buf[i];
     }
 }
 
@@ -245,153 +270,208 @@ pub(super) fn render_harmony(bed: &mut [f32], score: &Score) {
     use std::f32::consts::TAU;
     let beat = score.beat();
     let bar = score.bar();
-    // sustained pad: one chord per bar, spread wide (warmth/body) with a SLOW auto-pan LFO so the
-    // pad breathes and rotates across the stereo field — a static pad reads as wallpaper, a
-    // moving one as atmosphere.
-    let nbars = (score.demo_len() / bar).ceil() as usize;
-    for b in 0..nbars {
-        let t = b as f32 * bar;
-        let m = score.levels(t).mids;
-        let intro_pad = ((t - 6.0 * bar) / (2.0 * bar)).clamp(0.0, 1.0);
-        let pan_spread = 0.5 + 0.25 * (t * 0.4 / bar * TAU).sin();
-        chord_spread(
-            bed,
-            t,
-            bar,
-            (0.06 + 0.10 * m) * intro_pad,
-            pan_spread,
-            score.chord_at(t).triad(),
-            pad,
-        );
-    }
-
-    // epic supersaw chord wall: wide detuned saws on the chords, one per bar, in the sections whose
-    // fx include `wall` (the big drop/climax + the OUTRO finale by default), so the dynamic range
-    // stays — quiet intro/breakdown → wall in the drop, ringing out as a full anthem in the outro.
-    for sec in &score.sections {
-        if !sec.fx_on("wall") {
-            continue;
-        }
-        if let Some((s0, s1)) = section_window(score, &sec.name) {
-            let mut b = (s0 / bar).ceil() as usize;
-            while (b as f32) * bar < s1 {
+    // Like `render_voices`: the six layers (pad / wall / shimmer / donk / house / casio) are
+    // independent, so the heavy ones get their own thread + buffer and are summed in the original
+    // layer order afterwards (the wall — 12 supersaw/choir voices per bar — dominates this pass).
+    let stereo = bed.len();
+    let ovs = super::oversampling();
+    let mut pad_buf = vec![0f32; stereo];
+    let mut wall_buf = vec![0f32; stereo];
+    let mut shim_buf = vec![0f32; stereo];
+    std::thread::scope(|s| {
+        // sustained pad: one chord per bar, spread wide (warmth/body) with a SLOW auto-pan LFO so
+        // the pad breathes and rotates across the stereo field — a static pad reads as wallpaper,
+        // a moving one as atmosphere.
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            let nbars = (score.demo_len() / bar).ceil() as usize;
+            for b in 0..nbars {
                 let t = b as f32 * bar;
                 let m = score.levels(t).mids;
-                let amp = score.param_at(t, "supersaw", 0.07) + 0.07 * m; // `set supersaw=` — wall level
-                // Width = the big cheap-vs-produced tell: render each triad note as a decorrelated
-                // hard-L / hard-R pair (the R voice detuned +0.4%) instead of one mono chord — a wide
-                // wall, not a centred pile.
-                for &f in score.chord_at(t).triad().iter() {
-                    render_into(bed, t, bar, amp * 0.7, -0.95, supersaw(f));
-                    render_into(bed, t, bar, amp * 0.7, 0.95, supersaw(f * 1.004));
-                    // lush choir bed an octave below the wall — grandeur/warmth under the bright saws
-                    let ch = score.param_at(t, "choir", 0.5); // `set choir=` — grandeur bed level
-                    render_into(bed, t, bar, amp * ch, -0.6, choir(f * 0.5));
-                    render_into(bed, t, bar, amp * ch, 0.6, choir(f * 0.5 * 1.003));
-                }
-                b += 1;
+                let intro_pad = ((t - 6.0 * bar) / (2.0 * bar)).clamp(0.0, 1.0);
+                let pan_spread = 0.5 + 0.25 * (t * 0.4 / bar * TAU).sin();
+                chord_spread(
+                    &mut pad_buf,
+                    t,
+                    bar,
+                    (0.06 + 0.10 * m) * intro_pad,
+                    pan_spread,
+                    score.chord_at(t).triad(),
+                    pad,
+                );
             }
-        }
-    }
+        });
+        // epic supersaw chord wall: wide detuned saws on the chords, one per bar, in the sections
+        // whose fx include `wall` (the big drop/climax + the OUTRO finale by default), so the
+        // dynamic range stays — quiet intro/breakdown → wall in the drop, anthem in the outro.
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            for sec in &score.sections {
+                if !sec.fx_on("wall") {
+                    continue;
+                }
+                if let Some((s0, s1)) = section_window(score, &sec.name) {
+                    let mut b = (s0 / bar).ceil() as usize;
+                    while (b as f32) * bar < s1 {
+                        let t = b as f32 * bar;
+                        let m = score.levels(t).mids;
+                        let amp = score.param_at(t, "supersaw", 0.07) + 0.07 * m; // `set supersaw=`
+                        // Width = the big cheap-vs-produced tell: render each triad note as a
+                        // decorrelated hard-L / hard-R pair (the R voice detuned +0.4%) instead of
+                        // one mono chord — a wide wall, not a centred pile.
+                        for &f in score.chord_at(t).triad().iter() {
+                            render_into(&mut wall_buf, t, bar, amp * 0.7, -0.95, supersaw(f));
+                            render_into(
+                                &mut wall_buf,
+                                t,
+                                bar,
+                                amp * 0.7,
+                                0.95,
+                                supersaw(f * 1.004),
+                            );
+                            // lush choir bed an octave below the wall — grandeur under the saws
+                            let ch = score.param_at(t, "choir", 0.5); // `set choir=` — bed level
+                            render_into(&mut wall_buf, t, bar, amp * ch, -0.6, choir(f * 0.5));
+                            render_into(
+                                &mut wall_buf,
+                                t,
+                                bar,
+                                amp * ch,
+                                0.6,
+                                choir(f * 0.5 * 1.003),
+                            );
+                        }
+                        b += 1;
+                    }
+                }
+            }
+        });
+        // SHIMMER: an airy octave-UP choir pad that eases in across the sections whose fx include
+        // `shimmer` (climax + outro by default) — the euphoric top that lifts the payoff sections
+        // (they read as weak/thin without an opening "bloom"). (`set shimmer=0` off.)
+        s.spawn(|| {
+            super::set_oversampling(ovs);
+            let shimmer = score.param("shimmer", 0.09);
+            if shimmer <= 0.001 {
+                return;
+            }
+            for sec in &score.sections {
+                if !sec.fx_on("shimmer") {
+                    continue;
+                }
+                if let Some((s0, s1)) = section_window(score, &sec.name) {
+                    let mut b = (s0 / bar).ceil() as usize;
+                    while (b as f32) * bar < s1 {
+                        let t = b as f32 * bar;
+                        let ramp = ((t - s0) / ((s1 - s0) * 0.6)).clamp(0.0, 1.0); // 60% swell
+                        for &f in score.chord_at(t).triad().iter() {
+                            render_into(
+                                &mut shim_buf,
+                                t,
+                                bar,
+                                shimmer * ramp,
+                                -0.85,
+                                choir(f * 2.0),
+                            );
+                            render_into(
+                                &mut shim_buf,
+                                t,
+                                bar,
+                                shimmer * ramp,
+                                0.85,
+                                choir(f * 2.0 * 1.004),
+                            );
+                        }
+                        b += 1;
+                    }
+                }
+            }
+        });
 
-    // SHIMMER: an airy octave-UP choir pad that eases in across the sections whose fx include
-    // `shimmer` (climax + outro by default) — the euphoric, almost-angelic top that lifts the final
-    // sections into the payoff (they read as weak/thin without an opening "bloom"). (`set shimmer=0` off.)
-    let shimmer = score.param("shimmer", 0.09);
-    if shimmer > 0.001 {
+        // the off-beat stab layers (light) stay on this thread, straight into `bed` — they're the
+        // LAST layers in the original order, so summing the threaded buffers in front keeps the
+        // per-sample addition order intact.
+        super::set_oversampling(ovs);
+        // euphoric off-beat "DONK" stab — happy-hardcore party energy: a bright plucky chord bounce
+        // on every up-beat (the "and"), in the sections whose fx include `donk`, under the wall.
+        let hb = score.beat() / 2.0;
         for sec in &score.sections {
-            if !sec.fx_on("shimmer") {
+            if !sec.fx_on("donk") {
                 continue;
             }
             if let Some((s0, s1)) = section_window(score, &sec.name) {
-                let mut b = (s0 / bar).ceil() as usize;
-                while (b as f32) * bar < s1 {
-                    let t = b as f32 * bar;
-                    let ramp = ((t - s0) / ((s1 - s0) * 0.6)).clamp(0.0, 1.0); // swells in over the first 60%
-                    for &f in score.chord_at(t).triad().iter() {
-                        render_into(bed, t, bar, shimmer * ramp, -0.85, choir(f * 2.0));
-                        render_into(bed, t, bar, shimmer * ramp, 0.85, choir(f * 2.0 * 1.004));
-                    }
-                    b += 1;
+                let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
+                while t < s1 {
+                    let m = score.levels(t).mids;
+                    chord_spread(
+                        bed,
+                        groove(t, beat, 0xD0, 0.004, 0.0),
+                        hb * 0.9,
+                        (score.param_at(t, "donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
+                        0.55,
+                        score.chord_at(t).triad(),
+                        donk,
+                    );
+                    t += score.beat();
                 }
             }
         }
-    }
-
-    // euphoric off-beat "DONK" stab — happy-hardcore / house party energy: a bright plucky chord
-    // bounce on every up-beat (the "and"), in the sections whose fx include `donk`, under the wall.
-    let hb = score.beat() / 2.0;
-    for sec in &score.sections {
-        if !sec.fx_on("donk") {
-            continue;
-        }
-        if let Some((s0, s1)) = section_window(score, &sec.name) {
-            let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
-            while t < s1 {
-                let m = score.levels(t).mids;
-                chord_spread(
-                    bed,
-                    groove(t, beat, 0xD0, 0.004, 0.0),
-                    hb * 0.9,
-                    (score.param_at(t, "donk", 0.055) + 0.05 * m) * vel(t, beat, 0xD0), // `set donk=`
-                    0.55,
-                    score.chord_at(t).triad(),
-                    donk,
-                );
-                t += score.beat();
+        // CLASSIC HOUSE ORGAN STAB — the early-90s "M1 organ" rave/house sound (Haddaway / Snap!):
+        // a wide organ chord bouncing on the off-beats in the sections whose fx include `house`.
+        // It sits ON TOP of the (quieter) donk pluck so the off-beat reads as organ + bite, and it
+        // rides the minor/major chords so the dark edge survives the happiness.
+        for sec in &score.sections {
+            if !sec.fx_on("house") {
+                continue;
+            }
+            if let Some((s0, s1)) = section_window(score, &sec.name) {
+                let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
+                while t < s1 {
+                    let m = score.levels(t).mids;
+                    chord_spread(
+                        bed,
+                        groove(t, beat, 0x40, 0.004, 0.0),
+                        hb * 0.95,
+                        (score.param_at(t, "house", 0.12) + 0.06 * m) * vel(t, beat, 0x40), // `set house=`
+                        0.7,
+                        score.chord_at(t).triad(),
+                        houseorg,
+                    );
+                    t += score.beat();
+                }
             }
         }
-    }
-
-    // CLASSIC HOUSE ORGAN STAB — the early-90s "M1 organ" rave/house sound (Haddaway / Snap!): a wide
-    // organ chord bouncing on the off-beats in the sections whose fx include `house`. This is the "zaag
-    // orgel house" the track was missing; it sits ON TOP of the (quieter) donk pluck so the off-beat
-    // reads as organ + bite, and it rides the minor/major chords so the dark edge survives the happiness.
-    for sec in &score.sections {
-        if !sec.fx_on("house") {
-            continue;
-        }
-        if let Some((s0, s1)) = section_window(score, &sec.name) {
-            let mut t = (s0 / score.beat()).ceil() * score.beat() + hb; // first up-beat
-            while t < s1 {
-                let m = score.levels(t).mids;
-                chord_spread(
-                    bed,
-                    groove(t, beat, 0x40, 0.004, 0.0),
-                    hb * 0.95,
-                    (score.param_at(t, "house", 0.12) + 0.06 * m) * vel(t, beat, 0x40), // `set house=`
-                    0.7,
-                    score.chord_at(t).triad(),
-                    houseorg,
-                );
-                t += score.beat();
+        // CASIO comp: a cheesy off-beat chord "chnk" on every up-beat, in the sections whose fx
+        // include `casio` (the outro by default) where the Ome-Henk electric piano creeps in.
+        let half = score.beat() / 2.0;
+        for sec in &score.sections {
+            if !sec.fx_on("casio") {
+                continue;
+            }
+            if let Some((s0, s1)) = section_window(score, &sec.name) {
+                let mut t = (s0 / score.beat()).ceil() * score.beat() + half; // first up-beat
+                while t < s1 {
+                    let m = score.levels(t).mids;
+                    chord_spread(
+                        bed,
+                        groove(t, beat, 0x4C, 0.005, 0.0),
+                        half * 0.95,
+                        (0.05 + 0.06 * m) * vel(t, beat, 0x4C),
+                        0.5,
+                        score.chord_at(t).triad(),
+                        casio,
+                    );
+                    t += score.beat();
+                }
             }
         }
-    }
-
-    // CASIO comp: a cheesy off-beat chord "chnk" on every up-beat (the "and"), in the sections whose
-    // fx include `casio` (the outro by default) where the Ome-Henk electric piano creeps in.
-    let half = score.beat() / 2.0;
-    for sec in &score.sections {
-        if !sec.fx_on("casio") {
-            continue;
-        }
-        if let Some((s0, s1)) = section_window(score, &sec.name) {
-            let mut t = (s0 / score.beat()).ceil() * score.beat() + half; // first up-beat
-            while t < s1 {
-                let m = score.levels(t).mids;
-                chord_spread(
-                    bed,
-                    groove(t, beat, 0x4C, 0.005, 0.0),
-                    half * 0.95,
-                    (0.05 + 0.06 * m) * vel(t, beat, 0x4C),
-                    0.5,
-                    score.chord_at(t).triad(),
-                    casio,
-                );
-                t += score.beat();
-            }
-        }
+    });
+    // Sum the threaded layers. Note the regrouping: the stabs accumulated into `bed` during the
+    // scope, so per-sample this adds (pad+wall+shimmer) AFTER them instead of before — float
+    // addition isn't associative, so this moves ±1-LSB quantization noise vs the old sequential
+    // layer order (same accepted trade-off as the pass-level parallelism in `synth_track`).
+    for i in 0..stereo {
+        bed[i] += (pad_buf[i] + wall_buf[i]) + shim_buf[i];
     }
 }
 

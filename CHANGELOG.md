@@ -25,6 +25,10 @@ the project has no tagged releases yet, so everything lives under **Unreleased**
   captures) — `cargo b-sh3` builds into a separate target dir so both binaries coexist.
 
 ### Music (data-driven — `assets/score.txt`, no recompile)
+- Multi-core synth render (~2.3× faster: passes + heavy lanes render concurrently, deterministic)
+  and **sample-locked live start**: the show clock holds until the track is ready, so picture and
+  music always leave together at t=0 — no more music joining late and desynced. `MARTIN_MUSIC=<wav>`
+  (pre-rendered, what the bundle ships) skips the wait entirely.
 - Tracker DSL: sections/phases, per-section chords, multi-bar melody/arp/bass note-lanes, drum
   patterns, dynamics ramps, and free-form mix/fx `set` knobs.
 - Per-section overrides: `<section>.set key=value` (knobs) and `<section>.fx: …` (which layers /

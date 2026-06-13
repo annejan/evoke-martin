@@ -76,9 +76,15 @@ fn advance_seq_clock(
     rec: Res<RecordState>,
     state: Option<Res<SeqState>>,
     comp: Option<Res<Composition>>,
+    gate: Option<Res<crate::music::AudioGate>>,
     mut clock: ResMut<SeqClock>,
 ) {
     if rec.dir.is_some() {
+        return;
+    }
+    // hold for the live synth render (when audio is wanted): picture + music must leave together
+    // from t=0 or every @@ anchor lands out of sync. No gate when muted/recording/pre-rendered.
+    if gate.map(|g| !g.ready).unwrap_or(false) {
         return;
     }
     // advance once the show is up — the morph sequence OR the composition stage.
