@@ -46,7 +46,7 @@ splat:torus.ply rot:62,0,18   @@bar:31   @6,1.3,1.6 ~morph     ^spiral       bg:
 splat:galaxy.ply              @@bar:35   @5.5,1.6,1.4 ~morph   ^turbulence   bg:stars   # collapses back into the galaxy
 # ---- OUTRO (73.5–89) · the signature + credits, READ HEAD-ON, then evaporate to black
 text:deFEEST                  @@outro    @5,4       ~pen-write ^wave         bg:stars   # the handwriting signature
-wall:Anus|Kloot|Cinder         @4.5,2.5  ~morph     ^wave  out:evaporate     bg:off     # crew reassembles, then rises away into black
+wall:Anus|Bevy|Mosure         @4.5,2.5  ~morph     ^wave  out:evaporate     bg:off     # crew reassembles, then rises away into black
 
 # --- the camera: FRONT-FACING throughout (yaw ~1.05–1.75 — text always faces us). Energy from
 #     push-ins (drop/climax) + pull-backs (breakdown/outro); the climax helix/torus get a pulled-back
