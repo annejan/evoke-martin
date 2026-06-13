@@ -1,69 +1,69 @@
-# martin — the "OP DE CAMPING" demo, in the unified .show format. A text/branding morph ride synced
-# to the Op de Camping score (Ome Henk-flavoured DnB): the parody tagline OP VAKANTIE / MET deFEEST
-# builds over the couplets, and the hook OP DE CAMPING lands on every chorus drop. The full-fat demo:
-# uses the big local .ply captures (the real Ægg gem, the dog, the Martins) — NOT CI-safe (the
-# CI/bundle showcase is its own production: productions/intro/).
+# martin — the "OP DE CAMPING" demo. The full-fat local demo (uses the big gitignored captures);
+# the CI/bundle showcase is its own production (productions/intro/). Synced to the Op de Camping
+# track (140 BPM, ~228s). The 6 scenes follow the SHOWBOOK arc: deFEEST drijft in → het dorp bouwt
+# op → het feest barst los → zonder deFEEST is het kut → met deFEEST = het ultieme genot → greetings.
 #
 #   MARTIN_SHOW=productions/camping/camping.show cargo +nightly run --release
 #   MARTIN_SHOW=productions/camping/camping.show ./record.sh op-de-camping.mp4
 #
-# (No song lyrics on screen — just the title hook, the deFEEST parody tagline and the credits.)
+# STAND-IN STATUS: scenes 2/3/5 want REAL camping captures (tent / krat / club-mate / BBQ / food
+# table / cheering deFEEST members — see the SHOWBOOK capture list). Until those are shot, the lines
+# marked `# STAND-IN` use existing local clouds (Ægg / dog / Martin / galaxy / bitterbal) as
+# placeholders so the whole 228s show plays end-to-end. Swap the real captures in when they land.
 
 # --- settings (each → MARTIN_<KEY>) ---
 morph_count = 160000
-# sets the .ply root to assets/ so `splat:` filenames resolve (badge.team Ægg, the dog, the Martins).
-ply = assets/aegg-baked.ply
-# the camping arrangement (Op de Camping parody) — this production's OWN track, not the engine builtin.
-score = productions/camping/score.txt
-# camping at NIGHT: a starfield behind the whole show (beat-reactive — the kick brightens it),
-# dimmed low so the glowing text/splats stay the hero.
-bg = stars
+ply = assets/aegg-baked.ply          # .ply root = assets/ so `splat:` filenames resolve
+score = productions/camping/score.txt # the Op de Camping arrangement (this production owns it)
 bg_dim = 0.35
-# over-bright bloom flash on each part cut, riding the @@anchored beats.
-flash = 0.45
+flash = 0.45                          # bloom flash on the @@anchored cuts
+beat = 0.3                            # subtle beat-reaction (no thump/bounce on every kick)
+pw_splat = 0.004                      # crisp pen-write strokes
 
-# --- the show: text parts @@anchored to the score's sections so the WORDS MATCH THE EMOTION. The
-#     narrative: op de camping MET deFEEST = the ultimate joy; ZONDER deFEEST = kut. So the euphoric
-#     major chorus/climax carry "MET deFEEST", and the TRAGIC minor breakdown carries "ZONDER... kut".
+# --- the show. BACKBONE = the sexy ball-pulse ~morph (disperse-to-ball → reassemble; bulge = 3rd @).
+#     Deforms rotational/lively (twist/turbulence/wind/wave), not bob. glb: dissolve carries no deform. ---
 [seq]
-mesh:defeest.dae rot:180,0,0 @@intro      @8,3    ~sparkle                # the 3D deFEEST logo opens the show (rot:180,0,0 faces it front, upright)
-mesh:evoke-23.dae              @6,3                ~swarm      ^wave        # at EVOKE — the demoparty
-splat:aegg.ply               @@build      @14,3   ~swarm      ^twist       # the REAL badge.team Ægg — the glowing photogrammetry gem swarms in
-text:OP DE CAMPING            @15,3,1.2           ~typewriter ^wave        # the dream builds over the couplet
-splat:doggo.ply              @@drop       @14,4   ~ball       ^wave        # the DOG — pure joy on the chorus
-text:MET deFEEST              @12,4               ~explode    ^wave        # op de camping MET deFEEST
-splat:supershape.ply          @13,3              ~vortex      ^turbulence  # euphoric party morph spins out
-mesh:bitterbal.obj cluster:7  @14,3              ~drop        ^wind        # deFEEST catering — bitterballen rain
-text:ZONDER deFEEST          @@breakdown  @14,3   ~swirl                   # the tragic turn (minor breakdown)...
-text:IS HET KUT               @14,3              ~fade        ^wave        # ...is kut
-splat:martin-peace.ply       @@climax     @13,4   ~swarm      ^wave        # Martin ✌ — the euphoric reprise
-text:MET deFEEST              @12,4              ~explode     ^wave        # the ultimate joy
-splat:galaxy.ply              @13,3             ~vortex       ^turbulence  # the energy peak spins out
-splat:doggo.ply               @14,4             ~ball         ^wave        # the dog returns, jubilant
-text:HET ULTIEME GENOT       @@outro      @11,4   ~pen-write  ^wave        # the payoff lands on the outro
-mesh:defeest.dae rot:180,0,0         @11,3             ~sparkle      ^wave        # the deFEEST 3D logo blooms (real 3D mesh, morphs + deforms)
-wall:ANUS|KLOOT|CINDER        @10,4             ~fade                      # the crew, as the blast hits
+# ==== 1 · INTRO (0–14) · deFEEST mesh floats in, dissolves to blobs ====
+glb:defeest.glb               @@intro    @11,3                               bg:off     # deFEEST mesh ⇄ splats opener
+# ==== 2 · BUILD (14–43) · the deFEEST village builds on the camp (props build in) ====
+splat:aegg.ply                @@build    @8,2.5,1.2 ~morph     ^twist        bg:stars   # STAND-IN prop (real: tent/krat)
+mesh:bitterbal.obj cluster:5   @7,2      ~morph     ^wind                    bg:grid    # STAND-IN food/BBQ
+text:OP DE CAMPING             @9,2      ~typewriter ^wave                   bg:grid    # the title lands
+# ==== 3 · DROP (43–99) · the party bursts: splats waving, rainbow bg, food + cheering crew ====
+splat:doggo.ply               @@drop     @8,1.4,1.5 ~morph     ^wave         bg:plasma  # STAND-IN cheering crew (real: members)
+splat:supershape.ply          @@bar:34   @8,1.4,1.5 ~morph     ^wave         bg:kaleido # rainbow party morph
+text:MET deFEEST              @@bar:43    @7,1.4    ~explode    ^wave         bg:plasma  # the hook
+mesh:bitterbal.obj cluster:7  @@bar:51    @8,1.6    ~morph     ^wind  out:evaporate bg:kaleido # bitterballen
+# ==== 4 · BREAKDOWN (99–129) · night, starfield, sad: zonder deFEEST is het kut ====
+text:ZONDER deFEEST          @@breakdown  @12,3     ~morph      ^ripple       bg:stars   # the tragic turn (night)
+text:IS HET KUT               @12,3      ~fade      ^wave                    bg:stars   # …is kut
+# ==== 5 · CLIMAX (129–185) · peak party: crew, rainbows, ball-pulse bursts, bitterballen rain ====
+splat:martin-peace.ply        @@climax   @9,1.4,1.6 ~morph     ^wave         bg:plasma  # STAND-IN crew (real: cheering members)
+text:MET deFEEST             @@bar:84     @7,1.5    ~explode    ^wave         bg:kaleido # the ultimate joy
+splat:galaxy.ply             @@bar:93     @8,1.4,1.4 ~morph    ^turbulence    bg:plasma  # euphoria spins out
+mesh:bitterbal.obj cluster:9 @@bar:101    @8,1.6    ~morph     ^wind          bg:kaleido # bitterballen rain
+# ==== 6 · OUTRO (185–228) · greetings + credits ====
+wall:GREETINGS|TO ALL|SCENE & CAMP @@outro @8,3     ~morph      ^wave         bg:stars   # PLACEHOLDER greet — fill real group names
+wall:ANUS|KLOOT|CINDER         @9,3      ~morph     ^wave                    bg:stars   # the crew
+text:deFEEST                   @9,4      ~pen-write ^wave                    bg:stars   # signature
+text:a deFEEST production      @8,3      ~fade      ^wave  out:evaporate     bg:off      # …fades to black
 
-# --- the camera: a directed track (t = show-time seconds), tuned to the ~228s score timeline:
-#     intro 0 · build 14 · drop 43 · breakdown 99 · climax 129 · outro 185 · end 228.
-#     The camera NOW MOVES in 3D — arcs, flybys, push-ins, a blast-back — so the viewer rides
-#     a spatial journey, not a static swivel. Each hook gets a kinetic accent. ---
+# --- camera: FRONT-FACING (yaw ~1.1–1.7, text/credits read head-on); per-scene regime — float-in
+#     (intro), push (build), energetic push-ins (drop), sink/drift (breakdown), in-tight (climax),
+#     pull-back (outro). No back-of-subject orbit. ---
 [camera]
-t=0.0     pos=-0.8,-0.3,0  dist=2.9   yaw=1.50   pitch=0.10   # logo enters from the left
-t=11.0    pos=0,0,0         dist=2.6   yaw=1.35   pitch=0.14   # settle centre as intro peaks
-t=14.0    pos=0,0,0         dist=2.0   yaw=1.45   pitch=0.34   # the Ægg GEM — push in, above-front
-t=22.0    pos=0,0,0         dist=1.65  yaw=1.42   pitch=0.44   # closest, schuin van boven voren (the capture angle)
-t=28.0    pos=0.5,-0.1,0.25 dist=2.3   yaw=1.18   pitch=0.20   # ease out + arc right for OP DE CAMPING
-t=42.0    pos=0,0,0         dist=2.2   yaw=1.50   pitch=0.20   # snap back centre, tense before drop
-t=43.0    pos=0,0,0         dist=1.8   yaw=1.50   pitch=0.22   # PUSH IN HARD on the drop
-t=60.0    pos=-0.4,0.2,0.2  dist=2.0   yaw=1.62   pitch=0.16   # drift left, ride the chorus
-t=80.0    pos=0.5,0,0       dist=2.3   yaw=1.42   pitch=0.14   # arc back right through the drop
-t=99.0    pos=0.8,0.3,0.4   dist=2.8   yaw=1.20   pitch=0.12   # pull back + drift right for breakdown
-t=114.0   pos=0.2,-0.2,0    dist=3.0   yaw=1.30   pitch=0.10   # sag — the "kut" moment
-t=128.0   pos=0,0,0         dist=2.5   yaw=1.45   pitch=0.16   # recentre for the climax
-t=129.0   pos=0,0,0         dist=1.8   yaw=1.55   pitch=0.24   # CLIMAX — in tight, looking up
-t=150.0   pos=-0.6,-0.1,0   dist=2.0   yaw=1.70   pitch=0.20   # intense left orbit
-t=170.0   pos=0.5,0.2,0     dist=2.2   yaw=1.35   pitch=0.18   # swing right, ride the high
-t=185.0   pos=0,0,0         dist=2.5   yaw=1.50   pitch=0.14   # outro — credits centre
-t=210.0   pos=0,0,0         dist=2.0   yaw=1.58   pitch=0.18   # lean in for the blast
-t=225.0   pos=0,0,-1.2      dist=3.5   yaw=1.40   pitch=0.08   # BLOWN BACK — the final hit kicks you out
+t=0.0     pos=0,0,0   dist=3.0   yaw=1.45   pitch=0.10   # intro: deFEEST mesh floats in
+t=11.0    pos=0,0,0   dist=2.6   yaw=1.38   pitch=0.14   # settle as it dissolves to blobs
+t=14.0    pos=0,0,0   dist=2.7   yaw=1.55   pitch=0.16   # build: orbit-ish drift as the camp builds
+t=30.0    pos=0,0,0   dist=2.5   yaw=1.25   pitch=0.18   # slow push toward the title
+t=43.0    pos=0,0,0   dist=1.95  yaw=1.45   pitch=0.20   # DROP: push in hard, head-on
+t=60.0    pos=0.3,0,0 dist=2.2   yaw=1.62   pitch=0.18   # arc right across the party (frontal)
+t=80.0    pos=-0.3,0,0 dist=2.2  yaw=1.28   pitch=0.18   # counter-arc left, ride the hook
+t=99.0    pos=0,0,0   dist=3.1   yaw=1.40   pitch=0.08   # breakdown: fall back, sink for the sad turn
+t=120.0   pos=0,0,0   dist=3.2   yaw=1.45   pitch=0.06   # drift, lowest energy
+t=129.0   pos=0,0,0   dist=1.9   yaw=1.50   pitch=0.20   # CLIMAX: slam in
+t=150.0   pos=0.3,0.1,0 dist=2.1 yaw=1.64   pitch=0.22   # arc through the peak (frontal)
+t=170.0   pos=-0.3,0,0 dist=2.1  yaw=1.26   pitch=0.20   # counter-arc, ride the high
+t=185.0   pos=0,0,0   dist=3.0   yaw=1.42   pitch=0.06   # outro: pull back + level for the greetings/credits
+t=210.0   pos=0,0,0   dist=3.1   yaw=1.45   pitch=0.05   # hold frontal for the credits
+t=227.0   pos=0,0,0   dist=3.5   yaw=1.45   pitch=0.05   # gentle pull-back, evaporate to black

@@ -270,10 +270,18 @@ pub(crate) struct CapturePlugin;
 
 impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
+        // MARTIN_PREVIEW_FPS=<n>: render at n fps instead of 60 — fewer frames for a FAST preview
+        // (n=6 → 1/10 the frames, full-length but choppy). Timing + sway period stay constant (both
+        // dt and yaw_step scale with fps). record.sh muxes at the same fps. Default 60 (full quality).
+        let fps: f32 = std::env::var("MARTIN_PREVIEW_FPS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .filter(|&f: &f32| f >= 1.0)
+            .unwrap_or(60.0);
         app.insert_resource(RecordState {
             dir: std::env::var("MARTIN_RECORD").ok(),
-            dt: 1.0 / 60.0,
-            yaw_step: 2.0 * PI / 480.0, // ~8s gentle sway period
+            dt: 1.0 / fps,
+            yaw_step: 2.0 * PI / (8.0 * fps), // ~8s gentle sway period at any fps
             // a pinned yaw, a parked capture pose, or a flown waypoint path → hold/drive it, no sway
             sway: std::env::var("MARTIN_YAW").is_err()
                 && std::env::var("MARTIN_CAMERAS").is_err()

@@ -5,8 +5,8 @@
 > Engine-werk hoort niet hier — als een scène iets van de engine vraagt dat nog niet kan, komt het in
 > *Engine-vragen* onderaan en blijft de scène gewoon beschreven zoals bedoeld.
 
-**Muziek:** Op de Camping (Ome Henk-flavoured DnB, Gm, 125 BPM) — `assets/score.txt` (engine-embedded;
-verhuist naar deze map zodra er een tweede productie met eigen muziek is).
+**Muziek:** Op de Camping (Ome Henk-flavoured DnB, Gm, 140 BPM, ~228s) — `productions/camping/score.txt`
+(deze productie heeft z'n eigen arrangement; de engine-builtin is neutraal tropical-house).
 **Secties:** intro 0 · build 14 · drop 43 · breakdown 99 · climax 129 · outro 185 · einde 228.
 **Show-file:** `camping.show` (full-fat, lokale captures; de CI/bundle-etalage is `productions/intro/`).
 
