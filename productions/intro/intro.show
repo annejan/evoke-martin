@@ -30,20 +30,20 @@ image:defeest-logo.png        @@intro    @6,2.5     ~rain                    bg:
 glb:defeest.glb               @@build    @5.5,2.5   ~morph                   bg:stars   # 2D logo → 3D deFEEST mesh → its splats
 splat:galaxy.ply               @4.5,2    ~swirl     ^twist                   bg:grid    # …which SWIRL into a galaxy; grid wakes up
 # ---- DROP (19.4–42.6) · the party: shape morphs on the phrase grid, the bitterballen gag, stage empties
-splat:knot.ply                @@drop     @5.5,0.6   ~shatter   ^turbulence   bg:bolt    # lands in one beat — flash + bg jump
-splat:supershape.ply          @@bar:14   @5,0.8     ~explode   ^pulse        bg:warp    # the rainbow bloom
+splat:knot.ply                @@drop     @5.5,1.0   ~shatter   ^turbulence   bg:bolt    # shards in — flash + bg jump
+splat:supershape.ply          @@bar:14   @5,1.1     ~explode   ^pulse        bg:warp    # the rainbow bloom bursts
 text:splats that morph        @@bar:18   @4,1       ~typewriter ^wave        bg:grid    # the one-line explainer
 mesh:bitterbal.obj cluster:7   @5,1.2    ~drop      ^wind  out:evaporate     bg:warp    # deFEEST catering, then the stage dies
 # ---- BREAKDOWN (42.6–50.3) · calm on black, buys the climax its headroom
 text:code · splats · music    @@breakdown @6,2      ~condense  ^ripple       bg:off     # words resolve out of fog
 # ---- CLIMAX (50.3–73.5) · the big finish. Helix + torus pulled back + the camera arcs → they rotate.
 shader:bolt                   @@climax   @1.4,0.3                                       # 1-bar fullscreen blinder
-splat:helix.ply               @@bar:27   @6.5,0.7   ~swarm     ^spiral       bg:warp    # a slowly-turning double helix
-splat:torus.ply rot:62,0,18   @@bar:31   @6,0.7,1.3 ~explode   ^spiral       bg:kaleido # a tilted donut that tumbles
+splat:helix.ply               @@bar:27   @6.5,1.0   ~vortex    ^spiral       bg:warp    # double helix spins UP in (turntable, not a scatter)
+splat:torus.ply rot:62,0,18   @@bar:31   @6,1.0,1.3 ~explode   ^spiral       bg:kaleido # a tilted donut that tumbles
 splat:galaxy.ply              @@bar:35   @5.5,1.5   ~swirl     ^turbulence   bg:stars   # chaos swirls back into the galaxy
 # ---- OUTRO (73.5–89) · the signature + credits, READ HEAD-ON, then evaporate to black
 text:deFEEST                  @@outro    @5,4       ~pen-write ^wave         bg:stars   # ^wave earned: tender, once
-wall:Anus|Kloot|Cinder         @4.5,2    ~fade      ^wave  out:evaporate     bg:off     # crew rises away into black
+wall:Anus|Kloot|Cinder         @4.5,2    ~wipe      ^wave  out:evaporate     bg:off     # crew wipes in, then rises away into black
 
 # --- the camera: FRONT-FACING throughout (yaw ~1.05–1.75 — text always faces us). Energy from
 #     push-ins (drop/climax) + pull-backs (breakdown/outro); the climax helix/torus get a pulled-back
@@ -61,6 +61,6 @@ t=58.5    pos=0,0,0   dist=2.75  yaw=1.66   pitch=0.30   # …camera arcs over i
 t=60.0    pos=0,0,0   dist=3.1   yaw=1.22   pitch=0.10   # torus: wide + low, room around the donut…
 t=66.0    pos=0,0,0   dist=3.1   yaw=1.62   pitch=0.34   # …arc up-and-over → the donut tumbles/spins
 t=67.7    pos=0,0,0   dist=2.6   yaw=1.45   pitch=0.16   # recentre as the galaxy reforms
-t=73.5    pos=0,0,0   dist=2.5   yaw=1.42   pitch=0.13   # settle DEAD-ON for the pen-write signature
-t=82.0    pos=0,0,0   dist=2.6   yaw=1.45   pitch=0.12   # hold frontal for the credits
-t=88.5    pos=0,0,0   dist=3.1   yaw=1.45   pitch=0.10   # one gentle pull-back as it evaporates to black
+t=73.5    pos=0,0,0   dist=3.0   yaw=1.42   pitch=0.06   # settle DEAD-ON for the pen-write (pulled back + level so the word has margin)
+t=82.0    pos=0,0,0   dist=3.2   yaw=1.45   pitch=0.05   # the 3-line credits wall — wide enough that all 3 lines clear the frame
+t=88.5    pos=0,0,0   dist=3.5   yaw=1.45   pitch=0.05   # one gentle pull-back as it evaporates to black
