@@ -93,3 +93,8 @@ greetings.seq
 # Production captures: real splats are large + personal — track the manifest, not the data
 productions/*/captures/*.ply
 productions/*/captures/*.glb
+
+# Stray agent-tooling scaffolding (not part of the martin project) — keep local, never commit
+/.agents/
+/.openhands/
+/skills-lock.json
