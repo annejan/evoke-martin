@@ -156,6 +156,11 @@ These map onto §2–§8; §9 collects the genuine forks.
 
 ## 2. The sequencing language / the script
 
+> **See also [`DOMAIN.md`](DOMAIN.md)** — the domain model + naming proposal: it formalises the
+> vocabulary used loosely here (Part→Shot, the entrance/morph/exit/deform lifecycle, anchor vs cue,
+> the Showbook dope-sheet), measured against film grammar / dope sheets / GNU Rocket, with a staged
+> rename roadmap. This §2 is the *format* discussion; DOMAIN.md is the *naming* one.
+
 The data model is dead simple (`Vec<Part>` + one `count`). A format only has to
 *produce that*. Don't out-build the model. Two facts constrain every option:
 
