@@ -1,9 +1,10 @@
 # martin — the INTRO production: a short, sunny engine showcase built ONLY from repo-tracked,
-# licence-cleared assets + the procedural splats `pipeline/gen-demo-splats.py` generates fresh.
-# This is what CI bakes into the downloadable single-binary (productions/intro/bundle.toml).
+# licence-cleared assets + procedural splats. This is the DEFAULT show (a bare `cargo run` plays it)
+# AND what CI bakes into the downloadable single-binary (productions/intro/bundle.toml). Its
+# procedural splats (galaxy/knot/supershape/helix/torus) are synthesized by build.rs if missing —
+# the Rust port of pipeline/gen-demo-splats.py — so a fresh clone needs no python/numpy step.
 #
-#   python3 pipeline/gen-demo-splats.py assets
-#   MARTIN_SHOW=productions/intro/intro.show cargo +nightly run --release
+#   cargo +nightly run --release                  # nothing set → plays this show
 #   MARTIN_BUNDLE=productions/intro/bundle.toml cargo build --release --features bundle
 #
 # V4 — ~90s, 124 BPM. Opening reworked (deFEEST logo RAINS in → morphs into its own 3D mesh →

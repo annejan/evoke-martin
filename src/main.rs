@@ -60,11 +60,13 @@ fn main() {
     #[cfg(feature = "bundle")]
     bundle::apply();
 
-    // With nothing requested, play the bundled flagship show (assets/demo.show) — a fresh `cargo run`
-    // is a working demo. Set it as MARTIN_SHOW so it flows through the one unified-show path below.
+    // With nothing requested, play the INTRO production — the same show CI bundles into the single
+    // binary, so a fresh `git clone && cargo run` plays exactly the showcase the download does. Its
+    // procedural splats are synthesized by build.rs if absent (see DEFAULT_SHOW there), so the clone
+    // needs no python/numpy step. Set it as MARTIN_SHOW so it flows through the unified-show path below.
     if std::env::var("MARTIN_SHOW").is_err() && scene::no_content_requested() {
         // SAFETY: top of main(), single-threaded, before the Bevy app (and its threads) start.
-        unsafe { std::env::set_var("MARTIN_SHOW", "assets/demo.show") };
+        unsafe { std::env::set_var("MARTIN_SHOW", "productions/intro/intro.show") };
     }
 
     // MARTIN_SHOW=<file>.show: a unified scene file — expand it INTO the env (settings → MARTIN_*,

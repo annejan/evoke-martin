@@ -67,9 +67,12 @@ single-image TRELLIS export (flat SH, so `sh0` loses nothing). See [build profil
 
 ## Running the demo
 
-With nothing set, `cargo +nightly run --release` plays the **flagship demo** — the unified scene
-file [`assets/demo.show`](assets/demo.show): a demoscene-flashback morph timeline driven by a
-directed camera track, built only from licence-cleared shipped assets (no `.ply` needed). Point it
+With nothing set, `cargo +nightly run --release` plays the **intro production**
+([`productions/intro/intro.show`](productions/intro/intro.show)) — the very same showcase CI bakes
+into the downloadable single binary, so a fresh `git clone` runs exactly what the download shows. Its
+procedural splats are synthesized by `build.rs` on first build (no python/numpy), so the clone needs
+no extra step. (The older effect-catalogue demo still lives at [`assets/demo.show`](assets/demo.show),
+built only from shipped assets — `MARTIN_SHOW=assets/demo.show cargo run --release`.) Point it
 at your own splat with `MARTIN_PLY=assets/your.ply cargo run --release`. Add `MARTIN_PLY2=second.ply` (same folder)
 for a **second splat beside it**, and `MARTIN_REFORM=dog.ply` so the source splat(s) **morph
 into that one** — a per-Gaussian `GaussianInterpolate` blend where each source is paired to the

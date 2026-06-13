@@ -42,8 +42,9 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      # Default features (the bundle feature's build.rs needs gitignored .ply assets, not present on a
-      # clean checkout). -D warnings so a new lint can't slip in — the few intentional ones are #[allow]ed.
+      # Default features (clippy the normal build, not the bundle path). build.rs synthesizes the
+      # default show's gitignored .ply on the fly, so a clean checkout builds with no extra step.
+      # -D warnings so a new lint can't slip in — the few intentional ones are #[allow]ed.
       - run: cargo clippy --all-targets -- -D warnings
 
   # RustSec advisory scan of the (committed) Cargo.lock — surfaces CVEs in the 25+ transitive Bevy
@@ -137,20 +138,9 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
-      # Consistent `python` across Linux/Windows/macOS runners (Windows has no `python3`).
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.x"
-
-      # The show's procedural splats (galaxy/supershape/knot/helix/…) aren't in the repo (.ply is
-      # gitignored) — generate them fresh so build.rs can bake them in. (numpy isn't preinstalled
-      # on the runners.)
-      - name: Generate procedural splats
-        shell: bash
-        run: |
-          python -m pip install --quiet numpy
-          python pipeline/gen-demo-splats.py assets
+      # The show's procedural splats (galaxy/supershape/knot/helix/torus) aren't in the repo (.ply is
+      # gitignored) — build.rs synthesizes any that are missing (the Rust port of gen-demo-splats.py),
+      # so no python/numpy step is needed: the bundle build below generates + bakes them in.
 
       # Pre-render the track to a WAV and bake it into the bundle, so the demo plays the music
       # INSTANTLY + in sync (the live synth render takes ~30s — too slow for a one-click demo).
