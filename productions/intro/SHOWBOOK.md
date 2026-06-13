@@ -15,6 +15,6 @@ achtergrond (demoscene-knipoog), flash op de section-cuts.
 Dit boek blijft bewust dun: de intro is etalage, geen verhaal. Grote ideeën horen in de
 camping-productie; bouwstenen die hier bevallen verhuizen naar `parts/`.
 
-## Logboek
+## Logboek (status: V1 — nog geen lekkere showcase, itereren)
 - 2026-06-13 — productie opgezet als vervanger van camping-ci.show, zodat de camping-show één
   full-fat bron heeft en CI een eigen simpele productie met eigen muziek bakt.

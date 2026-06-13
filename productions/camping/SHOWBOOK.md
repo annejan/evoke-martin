@@ -70,6 +70,8 @@ mesh-route (`model:`/`glb:`) of accepteer de zachtheid.
 - **Dichtheids-dramaturgie** — van ~200 deeltjes (vuurvliegjes) naar 160k en terug. → scène 1/6.
 - **Camera-regimes** — een echte flythrough (pad + kijk-langs-pad) naast orbit. → scène 2/5.
 - **Harde cuts** — instant part-wissel op de beat (morph ≈ 0 + flash). → scène 3.
+- **Beat-reactie-variatie** — nu bounced álles altijd op de kick (MARTIN_BEAT is globaal); per scène
+  moet de reactie kunnen wisselen (thump / flare / shimmer / niets). → alle scènes.
 
 ## Logboek
 

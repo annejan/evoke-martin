@@ -77,6 +77,6 @@ climax.bass p0: C2 . . .  C3 . C2 .  . . C3 .  C2 . . .   A1 . . .  A2 . A1 .  .
 outro.bass p0: C2 . . .  C3 . C2 .  . . C3 .  C2 . . .   A1 . . .  A2 . A1 .  . . A2 .  A1 . . .   F2 . . .  F3 . F2 .  . . F3 .  F2 . . .   G2 . . .  G3 . G2 .  . . G3 .  G2 . . .
 
 # dynamics: sunny + bouncy, gentle wind-down (no explosive ending — it's a beach, not a battle).
-gain intro 0.3>0.5 build 0.45>0.8 drop 0.95 breakdown 0.55 climax 0.7>1.0 outro 0.8>0.4
+gain intro 0.3>0.5 build 0.45>0.8 drop 0.95 breakdown 0.55 climax 0.7>1.0 outro 0.8>0.0
 sub intro 0.2 build 0.3>0.55 drop 0.7 breakdown 0.4 climax 0.7 outro 0.5>0.2
 mids intro 0.2>0.4 build 0.4>0.7 drop 0.9 breakdown 0.55 climax 0.9 outro 0.7>0.3
