@@ -19,20 +19,22 @@ beat = 0.2
 flash = 0.5
 
 [scenes]
-scene austin   @@intro     backdrop:off
-  splat:austin_tight.ply    @9,3.5        ~swarm        # AUSTIN rises; camera circles
-scene newyork  @@drop       backdrop:off
-  splat:nyc_tight.ply       @11,2.5,1.4   ~morph        # AUSTIN ⇄ NEW YORK on the drop
-scene chicago  @@breakdown  backdrop:off
-  splat:chicago_tight.ply   @6,2,1.4      ~morph        # NEW YORK ⇄ CHICAGO
-scene seattle  @@climax     backdrop:off
-  splat:seattle_tight.ply   @11,2.5,1.4   ~morph        # CHICAGO ⇄ SEATTLE
+# Straight morph (bulge = 0, the 3rd @ number): each city flows DIRECTLY into the next, Morton-paired,
+# no disperse-to-ball. Starfield behind throughout.
+scene austin   @@intro     backdrop:stars
+  splat:austin_tight.ply    @9,3.5,0      ~morph        # AUSTIN assembles in (camera circles)
+scene newyork  @@drop       backdrop:stars
+  splat:nyc_tight.ply       @11,2.5,0     ~morph        # AUSTIN → NEW YORK, straight morph
+scene chicago  @@breakdown  backdrop:stars
+  splat:chicago_tight.ply   @6,2,0        ~morph        # NEW YORK → CHICAGO
+scene seattle  @@climax     backdrop:stars
+  splat:seattle_tight.ply   @11,2.5,0     ~morph        # CHICAGO → SEATTLE
 scene credits  @@outro      backdrop:stars
   text:deFEEST · CITIES     @5,3          ~pen-write ^wave
   text:Imagery ©Google      @4,2.5        ~fade ^wave  exit:evaporate
 
-# camera: fly AROUND each city (orbiting yaw sweeps + dist pulses), pulling back a touch on each morph
-# cut so the dispersing cloud reads, then diving back in on the next skyline.
+# camera: fly AROUND each city (orbiting yaw sweeps + dist pulses); the straight morph flows the
+# skyline directly into the next, so the camera just keeps moving through the cut.
 [camera]
 t=@@intro      pos=0,0.1,0      dist=1.2   yaw=1.30  pitch=0.40   # AUSTIN: high, start the orbit
 t=12.0         pos=0,0.1,0      dist=0.8   yaw=1.75  pitch=0.26   # …swing around + descend
