@@ -2,7 +2,7 @@
 name = "martin"
 version = "0.3.1"
 edition = "2024"
-description = "Gaussian Splatting rust demo engine"
+description = "Martin — a deFEEST demoscene engine (music-synced Gaussian-splat shows)"
 
 [dependencies]
 # `wav` enables rodio's WAV decoder — the live synth playback feeds bevy_audio a hand-rolled WAV,

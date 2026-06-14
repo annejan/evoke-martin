@@ -200,7 +200,10 @@ they're built).
 
 Demoscene tradition: short, evocative, one word, slightly mythic.
 
-### (a) The engine (codename "martin")
+### (a) The engine — **DECIDED: Martin**
+The name stays **Martin**; the category is *"a deFEEST demoscene engine"* (music-synced Gaussian-splat
+shows). The shortlist below is kept for the record.
+
 | Candidate | Why |
 |---|---|
 | **Murmur** | *murmuration* — a flock of starlings forming shapes; literally the morph/swarm metaphor |

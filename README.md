@@ -1,9 +1,10 @@
-# martin — deFEEST 3D splatting engine
+# Martin — a deFEEST demoscene engine
 
 [![build](https://github.com/annejan/evoke-martin/actions/workflows/build.yml/badge.svg)](https://github.com/annejan/evoke-martin/actions/workflows/build.yml)
 
-A standalone **Bevy + Vulkan** demo that flies a camera around 3D Gaussian splats while they
-**morph into one another** — a title, two faces, a dog — entirely **without CUDA or ROCm**.
+A music-synced **Gaussian-splat demoscene engine** (**Bevy + Vulkan**) that flies a camera around 3D
+splats while they **morph into one another** — a title, two faces, a dog, a whole city — entirely
+**without CUDA or ROCm**. The domain model + vocabulary live in [`DOMAIN.md`](DOMAIN.md).
 Developed and previewed on a modest **AMD Ryzen AI 7 PRO 350 / Radeon 860M iGPU** (CPU + Vulkan /
 Mesa RADV, openSUSE Tumbleweed); the released demo targets bigger metal at showtime, so it can afford
 heavier clouds and the `sh3` view-dependent profile (see [build profiles](#build-profiles)). Demoscene
