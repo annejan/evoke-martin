@@ -27,6 +27,8 @@ pub(crate) struct Shot {
     pub cluster: Option<usize>, // `cluster:N` → N scattered, randomly-rotated copies (a "serving")
     pub bg: Option<u32>,        // `bg:<name>` → background mode from this shot on (BG_OFF hides)
     pub raster: Option<RasterizeMode>, // `raster:<mode>` → debug shading for this shot (None = MARTIN_RASTER)
+    pub flash: Option<f32>, // `flash:<strength>` → cut-bloom on THIS shot's entry (None = MARTIN_FLASH)
+    pub deform_amp: Option<f32>, // `^name:<amp>` → this shot's deform strength scale (None = 1.0)
 }
 
 /// The whole show: a list of shots + the gaussian budget every shot is resampled to.
@@ -48,6 +50,8 @@ pub(crate) struct BuiltShot {
     pub out_cloud: Option<Handle<PlanarGaussian3d>>, // `out:` departure cloud (None = none)
     pub transition: Transition,
     pub deform: Option<Deform>,
+    pub deform_amp: Option<f32>, // per-shot deform strength scale (`^name:amp`); None = 1.0
+    pub flash: Option<f32>, // per-shot cut-bloom strength (`flash:N`); None = global MARTIN_FLASH
     pub raster: RasterizeMode,
     pub start: f32, // absolute start time (s) of this shot
     // copied from the source Shot so the director needs only BuiltShot. (`hold` lives only on the

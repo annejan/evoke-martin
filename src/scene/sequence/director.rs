@@ -131,29 +131,31 @@ pub(crate) fn shot_director(
     });
     let (dmode, damp, dfreq) = s.deform.map(|d| d.uniforms()).unwrap_or((0, 0.0, 0.0));
     cs.deform_mode = dmode;
-    cs.deform_amp = damp * amp_scale;
+    // per-shot `^name:amp` scales this shot's wobble on top of the global MARTIN_DEFORM_AMP.
+    cs.deform_amp = damp * amp_scale * s.deform_amp.unwrap_or(1.0);
     cs.deform_freq = dfreq;
     cs.deform_time = t * speed;
-    // Flash on each cut (term-demo's Director trick): a brief over-bright pulse at every part
-    // start → the HDR bloom flares. MARTIN_FLASH=<strength> (0 = off, default); reuses
-    // global_opacity, so off keeps every frame byte-identical.
-    // MARTIN_FLASH defaults to 0 — skip the per-frame max-over-starts loop entirely in that case.
-    let flash = if flash.0 <= 0.0 {
+    // Flash on each cut (term-demo's Director trick): a brief over-bright pulse at a shot's start →
+    // the HDR bloom flares. Strength is the shot's own `flash:N` if set, else the global MARTIN_FLASH;
+    // reuses global_opacity. When nothing flashes anywhere, skip the loop so every frame stays
+    // byte-identical (the determinism guarantee).
+    let any_flash = flash.0 > 0.0 || shots.iter().any(|sh| sh.flash.is_some_and(|f| f > 0.0));
+    let flash = if !any_flash {
         0.0
     } else {
-        flash.0
-            * starts
-                .iter()
-                .map(|&start| {
-                    let d = t - start;
-                    if (0.0..FLASH_LEN).contains(&d) {
-                        let a = 1.0 - d / FLASH_LEN;
-                        a * a
-                    } else {
-                        0.0
-                    }
-                })
-                .fold(0.0_f32, f32::max)
+        shots
+            .iter()
+            .map(|sh| {
+                let strength = sh.flash.unwrap_or(flash.0);
+                let d = t - sh.start;
+                if strength > 0.0 && (0.0..FLASH_LEN).contains(&d) {
+                    let a = 1.0 - d / FLASH_LEN;
+                    strength * a * a
+                } else {
+                    0.0
+                }
+            })
+            .fold(0.0_f32, f32::max)
     };
     cs.global_opacity = 1.0 + flash;
 

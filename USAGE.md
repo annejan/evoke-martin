@@ -271,8 +271,13 @@ shader:warp                      # a fullscreen WGSL effect as an INTERLUDE: the
                                  #   in/out across the part — a demoscene effect between scenes
 splat:name.ply                   # a splat (filename in the asset folder)
 splat:a.ply+b.ply                # several splats, auto-arranged side by side
-…any of the above… @hold,morph,bulge   ~entrance   ^deform   exit:departure   rot:rx,ry,rz   flock:N   @@anchor   backdrop:name   raster:mode
+…any of the above… @hold,morph,bulge   ~entrance   ^deform[:amp]   exit:departure   rot:rx,ry,rz   flock:N   @@anchor   backdrop:name   raster:mode   flash:strength
 ```
+
+> **Per-Shot look overrides (scene-scoped looks):** `flash:<strength>` flares the cut-bloom on *this*
+> Shot's entry (overrides the global `MARTIN_FLASH` — punch one drop, not every cut); `^deform:<amp>`
+> scales this Shot's wobble (e.g. `^wave:0.4` gentle, `^twist:2` violent) on top of `MARTIN_DEFORM_AMP`.
+> Together with the existing per-Shot `backdrop:` / `raster:`, a Shot fully controls its own look.
 
 > **Domain vocabulary** (see [`DOMAIN.md`](DOMAIN.md)): the section is `[reel]` and a line is a **Shot**;
 > the modifiers above are the canonical spellings. Older spellings still parse as aliases:

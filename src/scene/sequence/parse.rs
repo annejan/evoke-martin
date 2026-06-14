@@ -94,6 +94,8 @@ pub(crate) fn parse_seq(spec: &str, score: &score::Score) -> Vec<Shot> {
         let mut cluster = None;
         let mut bg = None;
         let mut raster = None;
+        let mut flash = None;
+        let mut deform_amp = None;
         // Pull each modifier token out of the line by its sigil/prefix. A token carrying a known
         // prefix is ALWAYS consumed (never leaks into the head/text) — if it fails to parse we warn,
         // so a typo (`~explod`, `^wave2`) is a visible error, not a silently-dropped effect.
@@ -130,9 +132,24 @@ pub(crate) fn parse_seq(spec: &str, score: &score::Score) -> Vec<Shot> {
                         Some(m) => raster = Some(m),
                         None => eprintln!("seq: unknown raster mode 'raster:{r}' — ignored"),
                     }
+                } else if let Some(f) = tok.strip_prefix("flash:") {
+                    match f.parse() {
+                        Ok(v) => flash = Some(v),
+                        Err(_) => eprintln!("seq: bad 'flash:{f}' (need a number) — ignored"),
+                    }
                 } else if let Some(d) = tok.strip_prefix('^') {
-                    match Deform::parse(d) {
-                        Some(de) => deform = Some(de),
+                    // `^name` or `^name:amp` — the optional amp scales this shot's deform strength.
+                    let (name, amp) = d.split_once(':').map_or((d, None), |(n, a)| (n, Some(a)));
+                    match Deform::parse(name) {
+                        Some(de) => {
+                            deform = Some(de);
+                            if let Some(a) = amp {
+                                match a.parse() {
+                                    Ok(v) => deform_amp = Some(v),
+                                    Err(_) => eprintln!("seq: bad deform amp '^{d}' — using 1.0"),
+                                }
+                            }
+                        }
                         None => eprintln!("seq: unknown deform '^{d}' — ignored"),
                     }
                 } else if let Some(t) = tok.strip_prefix('~') {
@@ -184,6 +201,8 @@ pub(crate) fn parse_seq(spec: &str, score: &score::Score) -> Vec<Shot> {
             cluster,
             bg,
             raster,
+            flash,
+            deform_amp,
         });
     }
     parts
@@ -240,6 +259,8 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             cluster: None,
             bg: None,
             raster: None,
+            flash: None,
+            deform_amp: None,
         };
         return (
             Sequence {
@@ -275,6 +296,8 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
         cluster: None,
         bg: None,
         raster: None,
+        flash: None,
+        deform_amp: None,
     }];
     if let Ok(reform) = std::env::var("MARTIN_REFORM") {
         parts.push(Shot {
@@ -290,6 +313,8 @@ pub(crate) fn sequence_from_env(score: &score::Score) -> (Sequence, Option<Strin
             cluster: None,
             bg: None,
             raster: None,
+            flash: None,
+            deform_amp: None,
         });
     }
     (Sequence { parts, budget }, root)

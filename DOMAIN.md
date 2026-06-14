@@ -279,9 +279,13 @@ Aliasing is idiomatic in martin's parsers, so every DSL rename is additive and b
   seconds (§6). `CameraMove` (`Hold|Orbit|PushIn|PullBack|Sink|Arc|Flythrough`) — inferred per camera
   segment from the pose deltas and surfaced in the `MARTIN_VALIDATE` dump (§5); an explicit `move=`
   token / per-move easing is the deferred next step (Stage 4), so the enum isn't a parked label.
-- **Stage 4 — new concepts, on demand (highest blast-radius, last).** Per-Shot `density`;
-  scene-scoped looks (per-Shot `backdrop`/`flash`/`deform`); the **SyncTrack / Automation**
-  generalisation (the Rocket step). Sequenced by which Showbook engine-vraag first needs them.
+- **Stage 4 — new concepts, on demand (highest blast-radius, last).**
+  - **Scene-scoped looks ✅ LANDED.** A Shot owns its whole look: `backdrop:`/`raster:` (already there) +
+    now per-Shot `flash:<strength>` (cut-bloom override of `MARTIN_FLASH`) and `^name:<amp>` (deform
+    strength scale over `MARTIN_DEFORM_AMP`).
+  - **Still deferred:** per-Shot `density` (hard — the morph needs a shared splat count, so it means
+    render-time opacity/subsampling, not budget); the **SyncTrack / Automation** generalisation (the
+    Rocket step — keyframe any knob over time). Sequenced by which Showbook engine-vraag first needs them.
 
 ## 10. Validation — the acceptance test
 

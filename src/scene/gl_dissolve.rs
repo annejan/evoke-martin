@@ -276,6 +276,8 @@ mod tests {
             cluster: None,
             bg: None,
             raster: None,
+            flash: None,
+            deform_amp: None,
         }
     }
 

@@ -366,6 +366,8 @@ pub(crate) fn build_sequence(
             out_cloud: out_clouds.next().expect("one out-cloud per shot"),
             transition,
             deform,
+            deform_amp: shot.deform_amp,
+            flash: shot.flash,
             raster,
             start,
             morph: shot.morph,
