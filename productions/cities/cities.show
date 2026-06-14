@@ -1,8 +1,9 @@
-# martin — CITIES: a smooth morph tour across four aerial city splats. The deFEEST signature
-# (ball-pulse ~morph) carries you from skyline to skyline — each city disperses to a fuzzy sphere and
-# REASSEMBLES as the next — while the camera flies around each one. Google Aerial View → COLMAP →
-# Brush, floaters trimmed with crop-splat.py. kind=demo, LOCAL captures only (Google Maps Content,
-# not shippable — see pipeline/AERIAL-CITIES.md; ©Google credit in the outro).
+# martin — CITIES: a smooth morph tour across four aerial city splats. A straight, ghostly,
+# colour-matched morph (pair=match) carries you from skyline to skyline — each city flows DIRECTLY into
+# the next (grass→grass, tower→tower; no disperse-to-ball) — while the camera flies around each one.
+# Google Aerial View → COLMAP → Brush, floaters trimmed with crop-splat.py. kind=demo, LOCAL captures
+# only (Google Maps Content, not shippable — see pipeline/AERIAL-CITIES.md; ©Google credit in the outro).
+# Design: productions/cities/SHOWBOOK.md. Render full at 1.2M/60fps with TMPDIR on disk (see SHOWBOOK).
 #
 #   MARTIN_SHOW=productions/cities/cities.show ./record.sh cities.mp4
 #

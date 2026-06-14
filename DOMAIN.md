@@ -139,9 +139,32 @@ full lifecycle:
 - **modifiers** — `rot:x,y,z`, `flock:N` (was `cluster:`), `backdrop:NAME` (was `bg:`), `raster:MODE`,
   `@@anchor`.
 
-The **morph** itself (the per-Gaussian GPU blend from one Shot's shape to the next, Morton-paired) is a
-*distinct concept* from the `~morph` entrance: every Shot cross-morphs into the next regardless of its
-entrance. This doc reserves "morph" for the blend and "entrance" for the `~` slot.
+The **morph** itself (the per-Gaussian GPU blend from one Shot's shape to the next) is a *distinct
+concept* from the `~morph` entrance: every Shot cross-morphs into the next regardless of its entrance.
+This doc reserves "morph" for the blend and "entrance" for the `~` slot.
+
+#### Pairing — why a morph either *flows* or *balls* (`src/morph.rs`)
+
+A cross-morph is a straight per-particle lerp: splat *k* of shape A → splat *k* of shape B. So the
+**pairing** (which B-splat each A-splat is assigned) decides everything. Two strategies:
+
+- **Rank (default)** — `resample_morton`: both shapes are Morton (Z-order) sorted and paired by rank.
+  Cheap, and *gorgeous between similar shapes* — a truck and a train occupy the same rough volume, so
+  rank ≈ nearest and the lerp slides locally. But between **dissimilar** shapes (city → city) rank
+  pairs spatially-distant splats; their lerp **midpoints pile up at the centroid** → the whole cloud
+  contracts to a **ball** and re-expands. Geometric, not a bug.
+- **Nearest-match** (`MARTIN_PAIR=match`, `match_reorder`) — reorder B so each A-splat pairs with a
+  *nearby, similar-colour* B-splat: a greedy bijective match over a voxel grid, cost = `pos² + w·colour²`
+  (`MARTIN_PAIR_COLOR`). Every move is short and colour-coherent (grass→grass, tower→tower) → a straight
+  ghostly morph, no centre-collapse. The ring search is **radius-capped with a fallback pool** so it
+  stays O(n) even as the grid depletes (otherwise the bijection tail is O(n·res³) — minutes at 1M+).
+
+**The other ball source — the beat pulse.** `director.rs` adds `cs.bulge += beat.kick·0.3` *during any
+morph* (a deliberate punch on the drop). With `s.bulge = 0` in the show this is the *only* bulge, and
+it's strongest at the `@@climax` cut — a real ball even under good pairing. `MARTIN_PAIR=match`
+suppresses it, because the whole point of `match` is a straight slide. So "no ball" = good pairing **and**
+no beat-pulse; `bulge` (the 3rd timing number) is the explicit, intentional version for when you *want*
+the disperse-to-ball.
 
 ### Stage (`[stage]`, was `[compose]`) — many at once
 A **Stage** holds **Props** — objects placed and animated *simultaneously* (vs the Reel's one-at-a-time
