@@ -4,10 +4,16 @@
 //! plasma, a raymarched tunnel, a starfield — runs behind the morphing splats, beat-reactive. The
 //! WGSL lives in `assets/bg.wgsl` (a `mode` uniform switches effects; edit it / add your own).
 
+use bevy::asset::{load_internal_asset, uuid_handle};
 use bevy::pbr::{Material, MaterialPlugin};
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
-use bevy::shader::ShaderRef;
+use bevy::shader::{Shader, ShaderRef};
+
+/// `bg.wgsl` is **embedded** (a fixed handle), not loaded from the asset root — because that root is
+/// the show's `.ply` folder (which is `assets/` only by default; an `austin_run/exports/` capture
+/// breaks a relative load). Same reason the fonts are `include_bytes`'d (see `text.rs`).
+const BG_SHADER: Handle<Shader> = uuid_handle!("b9d1c0a2-7e54-4f3a-9c21-0a1b2c3d4e5f");
 
 use crate::scene::SeqClock;
 use crate::scene::beat::Beat;
@@ -45,7 +51,7 @@ struct BgMaterial {
 
 impl Material for BgMaterial {
     fn fragment_shader() -> ShaderRef {
-        "bg.wgsl".into() // loaded from the asset root; edit it / add modes
+        BG_SHADER.into() // embedded (root-independent); see BG_SHADER above
     }
 }
 
@@ -191,6 +197,7 @@ pub(crate) struct BackgroundPlugin;
 
 impl Plugin for BackgroundPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(app, BG_SHADER, "../assets/bg.wgsl", Shader::from_wgsl);
         app.add_plugins(MaterialPlugin::<BgMaterial>::default())
             .add_systems(Update, (spawn_bg, update_bg));
     }

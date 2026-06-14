@@ -3,10 +3,14 @@
 //! the morph chain stays valid), and this module shows a quad — parented to the camera, in front of
 //! the splats — running `assets/shader_part.wgsl`, faded in/out across the part's time window.
 
+use bevy::asset::{load_internal_asset, uuid_handle};
 use bevy::pbr::{Material, MaterialPlugin};
 use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
-use bevy::shader::ShaderRef;
+use bevy::shader::{Shader, ShaderRef};
+
+/// Embedded (root-independent) — the asset root is the show's `.ply` folder; see `background.rs`.
+const SHADER_PART: Handle<Shader> = uuid_handle!("c0e2d1b3-8f65-4a2b-8d12-1b2c3d4e5f60");
 
 use crate::background::{ASPECT, FxUniform, camera_fill_quad, mode_index};
 use crate::scene::SeqClock;
@@ -24,7 +28,7 @@ struct ShaderPartMaterial {
 
 impl Material for ShaderPartMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shader_part.wgsl".into()
+        SHADER_PART.into()
     }
     // Opaque at the far plane, exactly like the background layer (a transparent/Blend custom material
     // crashes the splat render pipeline on RADV). The effect fades to BLACK via col*alpha; the splats
@@ -136,6 +140,7 @@ pub(crate) struct ShaderPartPlugin;
 
 impl Plugin for ShaderPartPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(app, SHADER_PART, "../../assets/shader_part.wgsl", Shader::from_wgsl);
         app.add_plugins(MaterialPlugin::<ShaderPartMaterial>::default())
             .add_systems(Update, (spawn_shader_parts, update_shader_parts));
     }
