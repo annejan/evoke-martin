@@ -1192,6 +1192,38 @@ Steps 0–4 are app-only and shippable now (and 2–4 are *small* given §0.1); 
 music seam; 7 is the one deliberate fork edit; 8–10 are the structural growth that
 earns RON's deps and (in 9) explicitly relaxes constraints #2/#3.
 
+## 8. Refactor debt (thermo-nuclear review)
+
+Two modules cross the 1000-line smell. The review's plans, kept here so the work is deliberate:
+
+**`scene/sequence.rs` (1005 lines) — *behaviour-preserving, test-guarded; do anytime.***
+The module fuses parse-time, build-time and per-frame-time logic. Plan:
+1. **Keystone — `BuiltShot`.** `SeqState` holds **seven index-parallel `Vec`s** (`transitions`,
+   `deforms`, `rasters`, `starts`, `sources`, `out_clouds`, `shapes`) all derived 1:1 from a `Part` +
+   a global default. Collapse to one `Vec<BuiltShot>` (the resolved form — this is where `Part→Shot`
+   actually clarifies structure: `Part` = raw/parse-time, `BuiltShot` = resolved/run-time). Kills the
+   index-parallelism risk + the splat-into-seven-vectors code; `part_director` reads one `&shots[idx]`.
+2. **De-god `build_sequence`** (~325 lines, iterates the parts 6×): extract pure stages
+   `resolve_modes` / `build_raw_parts` / `frame_of` / `build_clouds` (the framing + cloud math become
+   unit-testable for the first time). Move the 80-line camera-seeding block to `camera.rs`.
+3. **Split** into `sequence/{model,parse,build,director}.rs`, `mod.rs` re-exporting the surface.
+4. *(Done)* `Departure::out_cloud` moved to `effects.rs` beside `source_cloud`; `MARTIN_ROT` reuses
+   `parse_euler_deg`. *(Todo)* route the remaining hand-rolled `env::var().parse()` reads through
+   `envvar::or` (they silently swallow typos); drop the redundant `MARTIN_MORPH_COUNT` re-read
+   (`seq.count` already owns it).
+
+**`audio/render.rs` (1166 lines) — *determinism-risky; needs a WAV A/B gate; do deliberately, not in a
+sweep.*** The file is large because the **arrangement is transcribed twice**: the batch passes
+(`render_voices`/`render_harmony`/`render_fx`) and `collect_events` (the stream source) are the same
+notes/amps/seeds written verbatim, and the `master` finisher duplicates `stream.rs`'s `MasterChain`.
+A designer must edit both or the engines silently diverge (only `stream_matches_batch`'s tolerance
+hides it). Plan: make `collect_events` the single arrangement source + the stream's resumable
+`MasterChain`/`Reverb`/`SubAtmo` the single finisher, and have batch consume both (`produce` over the
+full range, or lane-parallel). Turn the 3 stab layers + casio into a `[StabLayer]` table and the ~15
+FX accents into an `[FxAccent]` table. **Gate:** batch output must stay bit-stable for recordings/the
+bundle — validate against a known WAV (the A/B the memory describes) before committing. Net: render.rs
+drops from 1166 → ~0 unique lines; `stream_matches_batch` becomes an identity, not a drift detector.
+
 ---
 
 *Co-written by annejan & Kloot, deFEEST. Made on AMD · Vulkan · Bevy.*

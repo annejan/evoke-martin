@@ -12,9 +12,7 @@ use bevy_gaussian_splatting::{
 };
 
 use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
-use crate::morph::{
-    ball_of, disperse_of, evaporate_of, explode_of, resample_morton, sink_of, wash_of,
-};
+use crate::morph::{ball_of, resample_morton};
 use crate::scene::content::{PartContent, parse_source, part_gaussians, side_by_side};
 use crate::scene::effects::{BALL_SHELL, Deform, Departure, Transition, source_cloud};
 use crate::scene::gl_dissolve::{gl_mesh_alpha, spawn_gl_dissolve};
@@ -559,13 +557,7 @@ pub(crate) fn build_sequence(
             other => source_cloud(other, &shaped, r),
         };
         // `out:` departure target cloud (faded + displaced) — the part morphs to this as it leaves.
-        let out = seq.parts[idx].out.map(|d| match d {
-            Departure::Wash => wash_of(&shaped, r * 2.5),
-            Departure::Disperse => disperse_of(&shaped, r * 1.8),
-            Departure::Evaporate => evaporate_of(&shaped, r * 3.0),
-            Departure::Sink => sink_of(&shaped, r * 3.0),
-            Departure::Explode => explode_of(&shaped, r * 2.0),
-        });
+        let out = seq.parts[idx].out.map(|d| d.out_cloud(&shaped, r));
         sources.push(src.map(|s| assets.add(PlanarGaussian3d::from(s))));
         out_clouds.push(out.map(|o| assets.add(PlanarGaussian3d::from(o))));
         shapes.push(assets.add(PlanarGaussian3d::from(shaped)));
@@ -579,17 +571,7 @@ pub(crate) fn build_sequence(
     // splats; gives scenes their abstract sideways look).
     let entity_rot = std::env::var("MARTIN_ROT")
         .ok()
-        .and_then(|s| {
-            let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-            (n.len() == 3).then(|| {
-                Quat::from_euler(
-                    EulerRot::XYZ,
-                    n[0].to_radians(),
-                    n[1].to_radians(),
-                    n[2].to_radians(),
-                )
-            })
-        })
+        .and_then(|s| parse_euler_deg(&s))
         .unwrap_or_else(cloud_base_rotation);
 
     let entity = commands

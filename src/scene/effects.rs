@@ -5,8 +5,9 @@
 use bevy_gaussian_splatting::Gaussian3d;
 
 use crate::morph::{
-    ball_of, condense_of, drop_of, explode_of, fade_of, flatten_of, fold_of, funnel_of, helix_of,
-    implode_of, rain_of, shatter_of, swirl_of, zoom_of,
+    ball_of, condense_of, disperse_of, drop_of, evaporate_of, explode_of, fade_of, flatten_of,
+    fold_of, funnel_of, helix_of, implode_of, rain_of, shatter_of, sink_of, swirl_of, wash_of,
+    zoom_of,
 };
 
 pub(crate) const BALL_SHELL: f32 = 0.9; // intro ball-shell radius, in units of the framed radius
@@ -191,6 +192,18 @@ impl Departure {
             "explode" | "burst" => Departure::Explode,
             _ => return None,
         })
+    }
+
+    /// The faded, displaced cloud a part morphs *to* as it leaves — the exit's sibling of
+    /// `source_cloud` (the arrival). `r` is the part's framed radius.
+    pub(crate) fn out_cloud(self, shaped: &[Gaussian3d], r: f32) -> Vec<Gaussian3d> {
+        match self {
+            Departure::Wash => wash_of(shaped, r * 2.5),
+            Departure::Disperse => disperse_of(shaped, r * 1.8),
+            Departure::Evaporate => evaporate_of(shaped, r * 3.0),
+            Departure::Sink => sink_of(shaped, r * 3.0),
+            Departure::Explode => explode_of(shaped, r * 2.0),
+        }
     }
 }
 
