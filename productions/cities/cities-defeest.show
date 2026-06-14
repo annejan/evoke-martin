@@ -1,0 +1,42 @@
+# martin — CITIES · deFEEST: the shareable loop. The deFEEST logo arrives as a 3D mesh, dissolves to
+# splats, then a SLOW pair=match morph tour flows skyline→skyline (Austin→NYC→Chicago→Seattle) before
+# the city writes itself into the deFEEST wordmark + the ©Google credit — then it all loops. Built to
+# run live forever (a kiosk / send-to-friends loop):
+#
+#   live loop:  MARTIN_LOOP=1 MARTIN_SHOW=productions/cities/cities-defeest.show cargo +nightly run --release
+#   record:     MARTIN_SHOW=productions/cities/cities-defeest.show ./record.sh cities-defeest.mp4
+#
+# LOCAL captures only (Google Maps Content — see pipeline/AERIAL-CITIES.md; ©Google credit on screen).
+# Slow transitions by design: morph = the 2nd @ number, set to ~7-8s. pair=match → no ball; the beat
+# pulse is auto-suppressed under it. defeest.glb + the four *_tight.ply symlink into austin_run/exports/.
+
+[settings]
+kind = demo
+pair = match                  # nearest same-colour pairing → straight, no-ball skyline morphs
+budget = 1200000              # crisp (drop to 250000 for fast preview renders)
+ply = austin_run/exports/austin_tight.ply
+score = productions/intro/score.txt
+flash = 0.4                   # gentle global cut-bloom (per-shot flash: overrides it)
+
+# one continuous reel laid end-to-end (evenly slow morphs — no anchors so cuts stay in order):
+# timing = @hold,morph,bulge. morph 7s = slow, dreamy skyline-to-skyline. Shot starts (cumulative):
+#   logo 0 · austin 11 · nyc 24 · chicago 37 · seattle 50 · deFEEST 63 · credit 74 · loop ≈ 83s.
+[reel]
+glb:defeest.glb           @6,5         backdrop:stars                          # 0  deFEEST mesh ⇄ splats
+splat:austin_tight.ply     @6,7,0  ~morph  backdrop:stars                       # 11 logo → AUSTIN (slow)
+splat:nyc_tight.ply        @6,7,0  ~morph  backdrop:stars                       # 24 AUSTIN → NEW YORK
+splat:chicago_tight.ply    @6,7,0  ~morph  backdrop:stars                       # 37 NEW YORK → CHICAGO
+splat:seattle_tight.ply    @6,7,0  ~morph  backdrop:stars                       # 50 CHICAGO → SEATTLE
+text:deFEEST               @6,5    ~pen-write ^wave  backdrop:stars             # 63 SEATTLE writes into deFEEST
+text:Imagery ©Google       @5,4    ~fade ^wave       backdrop:stars            # 74 the credit, then loop
+
+# camera: slow close-ish flight over each skyline, eased through every cut (times match the shot starts).
+[camera]
+t=0.0    pos=0,0.1,0    dist=1.6   yaw=1.40  pitch=0.30   # logo, high + frontal
+t=11.0   pos=0,0.1,0    dist=1.1   yaw=1.70  pitch=0.22   # AUSTIN, descend into the orbit
+t=24.0   pos=0,0.1,0    dist=0.85  yaw=1.20  pitch=0.18   # NYC, bank across
+t=37.0   pos=0,0.1,0    dist=1.0   yaw=1.65  pitch=0.26   # CHICAGO, slow orbit
+t=50.0   pos=0,0.12,0   dist=0.9   yaw=1.30  pitch=0.20   # SEATTLE
+t=63.0   pos=0,0.1,0    dist=1.5   yaw=1.45  pitch=0.30   # → into the deFEEST wordmark, level
+t=74.0   pos=0,0.1,0    dist=1.7   yaw=1.45  pitch=0.28   # the credit
+t=83.0   pos=0,0.1,0    dist=1.9   yaw=1.45  pitch=0.24   # ease toward the loop seam
