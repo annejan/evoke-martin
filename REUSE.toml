@@ -72,8 +72,21 @@ SPDX-License-Identifier = "OFL-1.1"
 # deFEEST logo — official vector defeest.svg (via Iconape); .dae/.glb are extruded from it
 # (pipeline/svg_extrude_logo.py). defeest-logo.png from defeest.nl. deFEEST = Anne Jan.
 [[annotations]]
-path = ["assets/defeest.svg", "assets/defeest.dae", "assets/defeest.glb", "assets/defeest-logo.png"]
+path = ["assets/defeest.svg", "assets/defeest.dae", "assets/defeest.glb", "assets/defeest-logo.png", "assets/defeest-white.svg"]
 SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
+SPDX-License-Identifier = "MIT"
+
+# Credit-roll logos. Ferris the Rust crab — public domain (CC0) by Karen Rustad Tölva (rustacean.net).
+[[annotations]]
+path = "assets/ferris.svg"
+SPDX-FileCopyrightText = "Karen Rustad Tölva <https://rustacean.net>"
+SPDX-License-Identifier = "CC0-1.0"
+
+# The Bevy logo (recoloured light-grey for the credit scroll) — from the bevyengine/bevy repo
+# (MIT OR Apache-2.0), used to attribute the engine. Bevy = the Bevy Foundation + contributors.
+[[annotations]]
+path = "assets/bevy.svg"
+SPDX-FileCopyrightText = "Bevy Foundation <https://bevyengine.org>"
 SPDX-License-Identifier = "MIT"
 
 # Bornhack 2026 Ægg / badge board — from codeberg.org/Ranzbak/bornhack2026-hardware.

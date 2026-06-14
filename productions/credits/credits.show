@@ -1,0 +1,39 @@
+# martin — CREDITS: a classic movie-style scroll. A [compose] stage where every line + logo drifts
+# UP at one speed (stacked in y so they enter in reading order and exit the top), with a static,
+# front-facing camera. Greyscale/white deFEEST logo, the Bevy logo, and Ferris the Rust crab.
+#
+#   MARTIN_SHOW=productions/credits/credits.show ./record.sh credits.mp4
+#
+# Logos are svg: (rasterized → gaussians at runtime). deFEEST recoloured white+grey; Bevy light-grey
+# so it reads on black; Ferris keeps its CC0 orange (the one splash). Tune scroll speed via the drift
+# Y (units/s) and the stack spacing; the camera is pinned front (MARTIN_YAW) so it never orbits.
+
+[settings]
+kind = demo
+morph_count = 90000
+score = productions/intro/score.txt   # ~89s; the scroll is paced to clear in that window
+bg_dim = 0.0
+yaw = 1.45                            # pin the camera front (no compose auto-orbit)
+pitch = 0.0
+
+[compose]
+# <source>  @x,y,z  *scale  drift dx,dy,dz   — all drift up 0.17/s; higher y = appears sooner.
+svg:defeest-white.svg                          @0,-0.4,0     *0.55  drift 0,0.17,0
+text:a deFEEST production                       @0,-1.5,0     *0.42  drift 0,0.17,0
+text:CODE                                       @0,-2.7,0     *0.30  drift 0,0.17,0
+wall:annejan|Kloot                              @0,-3.5,0     *0.40  drift 0,0.17,0
+text:MUSIC                                      @0,-4.7,0     *0.30  drift 0,0.17,0
+text:Cinder                                     @0,-5.5,0     *0.42  drift 0,0.17,0
+text:BUILT WITH                                 @0,-6.7,0     *0.30  drift 0,0.17,0
+svg:bevy.svg                                    @-0.65,-7.7,0 *0.42  drift 0,0.17,0
+svg:ferris.svg                                  @0.7,-7.7,0   *0.30  drift 0,0.17,0
+text:Bevy · Rust                                @0,-8.7,0     *0.30  drift 0,0.17,0
+text:SPLATS                                     @0,-9.9,0     *0.30  drift 0,0.17,0
+wall:bevy_gaussian_splatting|Mitchell Mosure    @0,-10.7,0    *0.32  drift 0,0.17,0
+text:CAPTURES                                   @0,-12.0,0    *0.30  drift 0,0.17,0
+text:Imagery ©Google                            @0,-12.8,0    *0.34  drift 0,0.17,0
+text:deFEEST                                    @0,-14.3,0    *0.60  drift 0,0.17,0
+
+[camera]
+t=0.0    pos=0,0,0   dist=2.7   yaw=1.45   pitch=0.0
+t=89.0   pos=0,0,0   dist=2.7   yaw=1.45   pitch=0.0
