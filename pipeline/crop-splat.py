@@ -71,6 +71,16 @@ def main():
     if "opacity" in props:
         mask &= data[:, props.index("opacity")] >= op_min
 
+    # Drop the biggest splats: oversized elongated gaussians are the spike/streak floaters that hang
+    # in the air (median splat ~0.02 units, spikes 0.3-3+). Percentile-based → scene-independent.
+    scale_pct = float(os.environ.get("SCALE_PCT", 1.0))  # drop top this-% by largest-axis size
+    si = [props.index(f"scale_{k}") for k in range(3) if f"scale_{k}" in props]
+    if scale_pct > 0 and len(si) == 3:
+        smax = np.exp(data[:, si]).max(axis=1)
+        scut = np.percentile(smax[mask], 100 - scale_pct)
+        mask &= smax <= scut
+        print(f"  scale cut: drop top {scale_pct}% (size>{scut:.3f})")
+
     kept = data[mask]
     # report
     ext_before = (xyz.max(0) - xyz.min(0))

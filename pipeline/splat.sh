@@ -79,9 +79,14 @@ echo "==> [Brush] training on Vulkan (Radeon 860M / RADV)"
 echo "    (.ply checkpoints every ${EXPORT_EVERY} steps -> $EXPORT_DIR/)"
 VIEWER_ARGS=()
 if [ "${VIEWER:-0}" = "1" ]; then VIEWER_ARGS+=(--with-viewer); echo "    VIEWER=1 -> opening live training window"; fi
+# TRAIN_ITERS caps training length (default 30000). Captures plateau visually ~16k, so a batch run
+# can pass e.g. TRAIN_ITERS=12000 to fit more cities in a night.
+ITER_ARGS=()
+[ -n "${TRAIN_ITERS:-}" ] && ITER_ARGS+=(--total-train-iters "$TRAIN_ITERS")
 brush "$WORK/undistorted" \
   --export-path "$EXPORT_DIR/" \
   --export-every "$EXPORT_EVERY" \
+  "${ITER_ARGS[@]}" \
   "${VIEWER_ARGS[@]}"
 # Length: --total-train-iters N (default 30000).  Cap splats: --max-splats N (default 10M).
 
