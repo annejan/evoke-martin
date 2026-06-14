@@ -4,6 +4,9 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${1:-$HERE/martin.mp4}"
+# Frame scratch dir. mktemp honours $TMPDIR — and a full 60fps render dumps ~5300 PNGs (~10 GB),
+# which OVERFLOWS a RAM-backed /tmp tmpfs ("Disk quota exceeded (os error 122)"). For full renders
+# point it at a real disk: TMPDIR=/home/<you>/.cache/martin-render ./record.sh out.mp4
 FR="$(mktemp -d)"
 export DISPLAY="${DISPLAY:-:0}"
 

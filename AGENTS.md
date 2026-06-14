@@ -15,6 +15,12 @@ Transform the "Op de Camping" (Ome Henk, 1995) demoscene track from a basic plac
 - `MARTIN_SYNTH_WAV=<path.wav> cargo run --release` renders WAV only (headless, no visuals).
 - `ffmpeg -i <input.wav> -b:a 320k <output.mp3>` converts to MP3.
 - Typically ~228s at 44.1 kHz, ~3.5 min track.
+- `./record.sh out.mp4` captures the timeline to mp4 (headless PNG dump → ffmpeg).
+  - **Full 60fps dumps ~5300 PNGs (~10 GB) → overflows the RAM-backed `/tmp` tmpfs** (14 GB here),
+    failing mid-render with `Disk quota exceeded (os error 122)`. Point the scratch dir at a real
+    disk: `TMPDIR=/home/<you>/.cache/martin-render ./record.sh out.mp4`.
+  - `MARTIN_PREVIEW_FPS=8` (low-fps preview) + a small `MARTIN_MORPH_COUNT` keeps test renders fast
+    and small enough for `/tmp`.
 
 ## Score DSL (score.txt)
 - `bpm <bpm>` 
