@@ -179,7 +179,7 @@ pub(crate) enum Departure {
     Disperse,  // scatters outward in all directions and fades — blown to dust
     Evaporate, // drifts upward and fades — rises away
     Sink,      // falls straight down and fades — drops out the bottom
-    Explode,   // flung ballistically outward from the centre and fades — a burst (vs Disperse's softer wash)
+    Explode, // flung ballistically outward from the centre and fades — a burst (vs Disperse's softer wash)
 }
 
 impl Departure {

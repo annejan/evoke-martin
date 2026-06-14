@@ -6,11 +6,10 @@ use bevy::prelude::*;
 use bevy_gaussian_splatting::morph::interpolate::GaussianInterpolate;
 use bevy_gaussian_splatting::{CloudSettings, Gaussian3d, PlanarGaussian3dHandle};
 
+use super::model::{FlashStrength, SeqState, Sequence, active_part};
 use crate::scene::content::PartContent;
 use crate::scene::effects::Transition;
 use crate::scene::gl_dissolve::gl_mesh_alpha;
-
-use super::model::{FlashStrength, Sequence, SeqState, active_part};
 
 const FLASH_LEN: f32 = 0.18; // cut-flash decay time (s), MARTIN_FLASH strength
 const DEFORM_SPEED: f32 = 2.0; // deform animation rate: deform_time = clock.t * this

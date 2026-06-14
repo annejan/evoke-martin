@@ -140,7 +140,12 @@ pub(crate) struct ShaderPartPlugin;
 
 impl Plugin for ShaderPartPlugin {
     fn build(&self, app: &mut App) {
-        load_internal_asset!(app, SHADER_PART, "../../assets/shader_part.wgsl", Shader::from_wgsl);
+        load_internal_asset!(
+            app,
+            SHADER_PART,
+            "../../assets/shader_part.wgsl",
+            Shader::from_wgsl
+        );
         app.add_plugins(MaterialPlugin::<ShaderPartMaterial>::default())
             .add_systems(Update, (spawn_shader_parts, update_shader_parts));
     }

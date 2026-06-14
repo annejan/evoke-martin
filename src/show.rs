@@ -225,7 +225,11 @@ scene party @@drop backdrop:plasma ^wave
         assert_eq!(reel.len(), 4);
         // scene anchor stamped on the FIRST shot of each scene only.
         assert!(reel[0].contains("@@intro") && reel[0].contains("backdrop:off"));
-        assert!(reel[1].contains("@@drop") && reel[1].contains("backdrop:plasma") && reel[1].contains("^wave"));
+        assert!(
+            reel[1].contains("@@drop")
+                && reel[1].contains("backdrop:plasma")
+                && reel[1].contains("^wave")
+        );
         assert!(!reel[2].contains("@@")); // second shot of the scene flows sequentially
         // per-shot overrides beat the scene defaults (no double backdrop / deform).
         assert!(reel[2].contains("backdrop:bolt") && !reel[2].contains("backdrop:plasma"));

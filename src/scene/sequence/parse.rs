@@ -4,12 +4,11 @@
 use bevy::prelude::*;
 use bevy_gaussian_splatting::RasterizeMode;
 
+use super::model::{Part, Sequence};
 use crate::scene::content::{PartContent, parse_source, side_by_side};
 use crate::scene::effects::{Deform, Departure, Transition};
 use crate::scene::{file_name_of, parent_dir};
 use crate::score;
-
-use super::model::{Part, Sequence};
 
 /// `raster:<mode>` / `MARTIN_RASTER=<mode>` → the fork's RasterizeMode (the debug-shading views from
 /// the upstream viewer: colour is the normal render, the rest visualise a channel). None on a bad name.
@@ -118,7 +117,8 @@ pub(crate) fn parse_seq(spec: &str, score: &score::Score) -> Vec<Part> {
                         Some(q) => rot = Some(q),
                         None => eprintln!("seq: bad 'rot:{r}' (need rx,ry,rz degrees) — ignored"),
                     }
-                } else if let Some(c) = tok.strip_prefix("flock:").or(tok.strip_prefix("cluster:")) {
+                } else if let Some(c) = tok.strip_prefix("flock:").or(tok.strip_prefix("cluster:"))
+                {
                     match c.parse() {
                         Ok(n) => cluster = Some(n),
                         Err(_) => eprintln!("seq: bad 'flock:{c}' (need an integer) — ignored"),

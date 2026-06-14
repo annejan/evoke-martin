@@ -49,7 +49,10 @@ fn bridge(cmd: &Value) -> Result<Value, String> {
 }
 
 fn run() {
-    eprintln!("mcp: martin MCP server on stdio → bridge 127.0.0.1:{}", bridge_port());
+    eprintln!(
+        "mcp: martin MCP server on stdio → bridge 127.0.0.1:{}",
+        bridge_port()
+    );
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     for line in stdin.lock().lines().map_while(Result::ok) {

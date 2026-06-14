@@ -17,7 +17,11 @@ pub enum Kind {
 }
 
 pub fn production_kind() -> Option<Kind> {
-    match std::env::var("MARTIN_KIND").ok()?.to_ascii_lowercase().as_str() {
+    match std::env::var("MARTIN_KIND")
+        .ok()?
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "intro" => Some(Kind::Intro),
         "demo" => Some(Kind::Demo),
         other => {

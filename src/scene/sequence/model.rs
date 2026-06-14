@@ -51,8 +51,8 @@ pub(crate) struct SeqState {
     pub out_clouds: Vec<Option<Handle<PlanarGaussian3d>>>, // per-part `out:` departure cloud (None = none)
     pub transitions: Vec<Transition>,                      // resolved transition per part
     pub deforms: Vec<Option<Deform>>,                      // resolved persistent deform per part
-    pub rasters: Vec<RasterizeMode>,                       // resolved raster mode per part (raster:/MARTIN_RASTER)
-    pub starts: Vec<f32>,                                  // absolute start time (s) of each part
+    pub rasters: Vec<RasterizeMode>, // resolved raster mode per part (raster:/MARTIN_RASTER)
+    pub starts: Vec<f32>,            // absolute start time (s) of each part
     pub built: bool,
     pub entity: Option<Entity>,
 }

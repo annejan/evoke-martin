@@ -8,9 +8,11 @@ use bevy::prelude::*;
 use bevy_gaussian_splatting::morph::interpolate::GaussianInterpolate;
 use bevy_gaussian_splatting::sort::SortMode;
 use bevy_gaussian_splatting::{
-    CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle,
+    CloudSettings, Gaussian3d, PlanarGaussian3d, PlanarGaussian3dHandle, RasterizeMode,
 };
 
+use super::model::{SeqState, Sequence, part_starts};
+use super::parse::{global_raster, parse_euler_deg};
 use crate::camera::{DEFAULT_PITCH, FRONT_YAW, OrbitCam};
 use crate::morph::{ball_of, resample_morton};
 use crate::scene::content::{PartContent, part_gaussians};
@@ -18,11 +20,6 @@ use crate::scene::effects::{BALL_SHELL, Deform, Transition, source_cloud};
 use crate::scene::gl_dissolve::spawn_gl_dissolve;
 use crate::scene::{AssetRoot, NORMALIZE_EXTENT, cloud_base_rotation};
 use crate::text::{TEXT_RGB, build_text_outline_gaussians, build_text_penwrite_gaussians};
-
-use super::model::{Sequence, SeqState, part_starts};
-use super::parse::{global_raster, parse_euler_deg};
-
-use bevy_gaussian_splatting::RasterizeMode;
 
 /// Once every referenced splat has loaded, build each part's shape (resampled to the fixed
 /// count) + the intro ball, spawn the single interpolate entity, and frame the union once.

@@ -162,10 +162,12 @@ fn attach_and_blit(
     let Some(img) = img else { return };
     let mut attached = false;
     for e in &cams {
-        commands.entity(e).insert(RenderTarget::Image(ImageRenderTarget {
-            handle: img.0.clone(),
-            scale_factor: 1.0,
-        }));
+        commands
+            .entity(e)
+            .insert(RenderTarget::Image(ImageRenderTarget {
+                handle: img.0.clone(),
+                scale_factor: 1.0,
+            }));
         attached = true;
     }
     if attached {
