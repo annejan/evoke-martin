@@ -1,0 +1,14 @@
+LicenseRef-BornHack
+
+BornHack event branding (the 2026 logo: square + wide, colored) from the BornHack
+community assets repository — https://github.com/bornhack/assets .
+
+© BornHack. The assets repository declares no formal open-source licence. These
+logos are used here only to credit/honour BornHack as the host camp of the
+"Op de Camping" (camping) production — a non-commercial community demo shown at
+BornHack. The "*-dark" variants are recoloured (black → white) for legibility on
+the demo's dark backdrops; all other colours and the artwork are unchanged.
+
+This is attribution / nominative use of BornHack's mark, not a grant of rights.
+For any other use, contact BornHack. If BornHack requests removal, drop these files
+(the camping production is a local, non-shipped demo).

@@ -109,6 +109,14 @@ path = ["assets/bitterbal.obj", "assets/bitterbal.mtl", "assets/bitterbal.glb"]
 SPDX-FileCopyrightText = "Maali <https://maali.nl>"
 SPDX-License-Identifier = "LicenseRef-Maali"
 
+# BornHack 2026 event logo (square + wide, colored + dark-recoloured variants) — community branding
+# from github.com/bornhack/assets (no formal licence there); used to credit the host camp. See
+# LICENSES/LicenseRef-BornHack.txt.
+[[annotations]]
+path = ["assets/bornhack-2026-square.svg", "assets/bornhack-2026-wide.svg", "assets/bornhack-2026-square-dark.svg", "assets/bornhack-2026-wide-dark.svg"]
+SPDX-FileCopyrightText = "BornHack <https://bornhack.dk>"
+SPDX-License-Identifier = "LicenseRef-BornHack"
+
 # BornHack logo — the host camp. Wordmark from the bornhack-website repo (BSD-3-Clause);
 # .glb/.dae are extruded from bornhack.svg (pipeline/svg_import.py) so they carry the same licence.
 [[annotations]]
