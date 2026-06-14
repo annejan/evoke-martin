@@ -124,6 +124,7 @@ MARTIN_REFORM=doggo.ply             # → /other/dir/doggo.ply
 | `MARTIN_MESH_THIN` | `0.2` | Mesh disk thickness as a fraction of `MARTIN_MESH_SPLAT` (how flat the surface splats are). |
 | `MARTIN_MESH_RGB` | texture / vertex / `0.8,0.85,0.95` | Flat `r,g,b` fallback for a `mesh:` part. Colour priority: the material's **diffuse texture** (sampled at the UV; PNG/JPEG) > vertex colours > material diffuse > this. |
 | `MARTIN_ROT` | — | `rx,ry,rz` euler **degrees** applied to the cloud — e.g. stand a COLMAP scene upright for a "normal" POV. Default = the portrait flip (gives scenes their abstract sideways look). Also orients a `glb:` dissolve (mesh + its splats together). |
+| `MARTIN_REEL_POS` | `0,0,0` | `x,y,z` translation of the whole **reel** (the morph timeline) off the world origin. The reel normally sits at the origin; this places the morphing subject **relative to `[stage]` props** (which carry their own `@x,y,z`) — e.g. `0,0.6,0` floats a knot⇄galaxy morph above a placed cityscape. Settings key: `reel_pos = x,y,z`. |
 
 ---
 

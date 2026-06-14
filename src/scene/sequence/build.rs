@@ -252,6 +252,16 @@ pub(crate) fn build_sequence(
         .ok()
         .and_then(|s| parse_euler_deg(&s))
         .unwrap_or_else(cloud_base_rotation);
+    // MARTIN_REEL_POS="x,y,z" translates the whole morph timeline off the world origin (default 0,0,0).
+    // The reel normally sits at the origin; this lets you place the morphing subject relative to
+    // `[stage]` props (which carry their own `@x,y,z`) — e.g. float the morph above a placed cityscape.
+    let reel_pos = std::env::var("MARTIN_REEL_POS")
+        .ok()
+        .and_then(|s| {
+            let mut it = s.split(',').map(|c| c.trim().parse::<f32>().ok());
+            Some(Vec3::new(it.next()??, it.next()??, it.next()??))
+        })
+        .unwrap_or(Vec3::ZERO);
 
     let entity = commands
         .spawn((
@@ -267,7 +277,7 @@ pub(crate) fn build_sequence(
                 bulge: 0.0,
                 ..default()
             },
-            Transform::from_rotation(entity_rot),
+            Transform::from_rotation(entity_rot).with_translation(reel_pos),
         ))
         .id();
 

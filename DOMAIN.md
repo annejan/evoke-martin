@@ -171,6 +171,12 @@ A **Stage** holds **Props** — objects placed and animated *simultaneously* (vs
 morph). Each Prop: `@x,y,z *scale rot/spin/sway/bob/drift in/out <anchor>` plus an optional `~entrance`
 and `^deform`. Lineage: a film *multi-element shot* / a theatre stage.
 
+**Reel + Stage compose in one world.** A Show may carry both: the Reel's morph entity and every Stage
+Prop share the same coordinate space, camera, and bloom. The Reel sits at the origin by default; `reel_pos
+= x,y,z` (`MARTIN_REEL_POS`) translates it, so the morphing subject is placed **relative to** the Props
+— e.g. float a knot⇄galaxy morph above a Stage cityscape. The Props move with `@`, the Reel with
+`reel_pos`; the camera aims at whatever world point you give it.
+
 ### Camera (`[camera]`) — the keyframed track
 A **Camera** track is a list of **Keys** (was Waypoints): `t= pos= dist= yaw= pitch=`, interpolated,
 with `t` either seconds or an `@@anchor`. Today the *kind* of move (orbit, push-in, sink, flythrough)
