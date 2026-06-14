@@ -25,9 +25,10 @@ wall:annejan|Kloot                              @0,-3.5,0     *0.40  drift 0,0.1
 text:MUSIC                                      @0,-4.7,0     *0.30  drift 0,0.17,0
 text:Cinder                                     @0,-5.5,0     *0.42  drift 0,0.17,0
 text:BUILT WITH                                 @0,-6.7,0     *0.30  drift 0,0.17,0
-svg:bevy.svg                                    @-0.65,-7.7,0 *0.42  drift 0,0.17,0
-svg:ferris.svg                                  @0.7,-7.7,0   *0.30  drift 0,0.17,0
-text:Bevy · Rust                                @0,-8.7,0     *0.30  drift 0,0.17,0
+svg:bevy.svg                                    @-0.85,-7.7,0 *0.40  drift 0,0.17,0
+svg:ferris.svg                                  @0,-7.7,0     *0.28  drift 0,0.17,0
+svg:claude.svg                                  @0.85,-7.7,0  *0.30  drift 0,0.17,0
+text:Bevy · Rust · Claude                       @0,-8.7,0     *0.30  drift 0,0.17,0
 text:SPLATS                                     @0,-9.9,0     *0.30  drift 0,0.17,0
 wall:bevy_gaussian_splatting|Mitchell Mosure    @0,-10.7,0    *0.32  drift 0,0.17,0
 text:CAPTURES                                   @0,-12.0,0    *0.30  drift 0,0.17,0

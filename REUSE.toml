@@ -76,6 +76,13 @@ path = ["assets/defeest.svg", "assets/defeest.dae", "assets/defeest.glb", "asset
 SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
 SPDX-License-Identifier = "MIT"
 
+# Claude "spark" — an ORIGINAL orange starburst (pipeline-generated), evoking the Claude motif to
+# credit the AI pair (Kloot); not Anthropic's trademarked logo file.
+[[annotations]]
+path = "assets/claude.svg"
+SPDX-FileCopyrightText = "2026 Anne Jan Brouwer <brouwer@annejan.com>"
+SPDX-License-Identifier = "MIT"
+
 # Credit-roll logos. Ferris the Rust crab — public domain (CC0) by Karen Rustad Tölva (rustacean.net).
 [[annotations]]
 path = "assets/ferris.svg"

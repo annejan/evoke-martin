@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+<circle cx="50" cy="50" r="8.5" fill="#e8743b"/>
+<polygon points="50.00,6.00 55.20,43.00 44.80,43.00" fill="#e8743b"/>
+<polygon points="65.00,24.02 58.00,46.54 49.00,41.34" fill="#e8743b"/>
+<polygon points="88.11,28.00 58.66,51.00 53.46,42.00" fill="#e8743b"/>
+<polygon points="80.00,50.00 57.00,55.20 57.00,44.80" fill="#e8743b"/>
+<polygon points="88.11,72.00 53.46,58.00 58.66,49.00" fill="#e8743b"/>
+<polygon points="65.00,75.98 49.00,58.66 58.00,53.46" fill="#e8743b"/>
+<polygon points="50.00,94.00 44.80,57.00 55.20,57.00" fill="#e8743b"/>
+<polygon points="35.00,75.98 42.00,53.46 51.00,58.66" fill="#e8743b"/>
+<polygon points="11.89,72.00 41.34,49.00 46.54,58.00" fill="#e8743b"/>
+<polygon points="20.00,50.00 43.00,44.80 43.00,55.20" fill="#e8743b"/>
+<polygon points="11.89,28.00 46.54,42.00 41.34,51.00" fill="#e8743b"/>
+<polygon points="35.00,24.02 51.00,41.34 42.00,46.54" fill="#e8743b"/>
+</svg>
